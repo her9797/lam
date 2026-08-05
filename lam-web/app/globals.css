@@ -488,6 +488,11 @@ a {
   width: 100%;
   min-width: 100%;
   align-self: flex-start;
+  margin-top: 0;
+}
+
+.admin-slide + .admin-slide {
+  margin-top: 0;
 }
 
 .admin-form {
