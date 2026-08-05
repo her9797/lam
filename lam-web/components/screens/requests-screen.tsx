@@ -1,9 +1,14 @@
 import { FloatingHomeBadge } from "@/components/navigation/floating-home-badge";
 import { PrimaryNav } from "@/components/navigation/primary-nav";
 import { ScrollTopButton } from "@/components/navigation/scroll-top-button";
-import { requestGuides, store } from "@/data/menu-data";
+import type { NoticeItem, StoreInfo } from "@/data/menu-data";
 
-export function RequestsScreen() {
+type RequestsScreenProps = {
+  store: StoreInfo;
+  requestGuides: NoticeItem[];
+};
+
+export function RequestsScreen({ store, requestGuides }: RequestsScreenProps) {
   return (
     <main className="page-shell">
       <FloatingHomeBadge />

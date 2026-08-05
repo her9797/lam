@@ -1,20 +1,17 @@
-import Link from "next/link";
-
 import { MenuItemCard } from "@/components/menu/menu-item-card";
 import { FloatingCategoryNav } from "@/components/navigation/floating-category-nav";
 import { FloatingHomeBadge } from "@/components/navigation/floating-home-badge";
 import { ScrollTopButton } from "@/components/navigation/scroll-top-button";
-import type { MenuCategory } from "@/data/menu-data";
-import { categories, store } from "@/data/menu-data";
-import { getMenuItemsByCategory } from "@/services/menu-service";
+import type { MenuCategory, MenuItem, StoreInfo } from "@/data/menu-data";
 
 type CategoryScreenProps = {
+  store: StoreInfo;
+  categories: MenuCategory[];
   category: MenuCategory;
+  items: MenuItem[];
 };
 
-export function CategoryScreen({ category }: CategoryScreenProps) {
-  const items = getMenuItemsByCategory(category.id);
-
+export function CategoryScreen({ store, categories, category, items }: CategoryScreenProps) {
   return (
     <main className="page-shell">
       <FloatingHomeBadge />

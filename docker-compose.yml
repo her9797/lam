@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:18.4
+    container_name: lam-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: lam
+      POSTGRES_USER: lam
+      POSTGRES_PASSWORD: lam
+    ports:
+      - "5432:5432"
+    volumes:
+      - lam-postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lam -d lam"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  lam-postgres-data:
