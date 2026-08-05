@@ -1,15 +1,15 @@
 # lam-api
 
-`lam-api` is the backend scaffold for the `lam` QR menu project.
+`lam-api`는 `lam` QR 메뉴 프로젝트의 백엔드 API 스캐폴드입니다.
 
-The current version is intentionally minimal and focuses on a clean starting structure for menu, store, and operational APIs that will be expanded later.
+현재 버전은 최소 구조만 먼저 잡아둔 상태이며, 이후 메뉴 관리, 매장 운영 정보, 관리자 기능 등으로 확장하기 위한 출발점입니다.
 
-## Tech Stack
+## 기술 스택
 
 - Go `1.26`
-- Standard library `net/http`
+- 표준 라이브러리 `net/http`
 
-## Current Structure
+## 현재 구조
 
 ```text
 lam-api
@@ -22,33 +22,33 @@ lam-api
 └─ README.md
 ```
 
-## Current Endpoints
+## 현재 엔드포인트
 
 - `GET /health`
 - `GET /api/v1/menu`
 
-## Run
+## 실행 방법
 
 ```bash
 go run ./cmd/server
 ```
 
-Default local address:
+기본 주소:
 
 ```text
 http://localhost:8080
 ```
 
-## Implementation Notes
+## 구현 메모
 
-- `cmd/server/main.go` boots the HTTP server
-- `internal/config` handles basic runtime configuration
-- `internal/httpapi/router.go` wires the routes
-- `internal/httpapi/menu.go` returns mocked menu data
-- The module path is still a temporary placeholder and should be updated when the final repository path is confirmed
+- `cmd/server/main.go`에서 HTTP 서버를 기동합니다.
+- `internal/config`에서 기본 실행 설정을 불러옵니다.
+- `internal/httpapi/router.go`에서 라우트를 연결합니다.
+- `internal/httpapi/menu.go`에서 목 메뉴 응답을 반환합니다.
+- Go 모듈 경로는 아직 임시 placeholder 상태이므로 최종 저장소 경로가 확정되면 정리할 수 있습니다.
 
-## Verification
+## 검증 내역
 
-Verified with:
+아래 항목을 확인했습니다.
 
 - `go build ./...`
