@@ -426,44 +426,75 @@ a {
   width: min(100%, 960px);
 }
 
-.admin-hero {
-  padding-bottom: 20px;
-}
-
-.admin-hero-stats {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-  margin-top: 18px;
-}
-
-.admin-stat-chip {
-  padding: 14px 12px;
-  border: 1px solid var(--border);
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.04);
-}
-
-.admin-stat-chip span {
-  display: block;
-  color: var(--muted);
-  font-size: 0.75rem;
-  margin-bottom: 8px;
-}
-
-.admin-stat-chip strong {
-  font-size: 1.35rem;
-}
-
 .admin-card {
-  padding-bottom: 20px;
+  padding: 24px 20px 24px;
+  margin: 0;
+}
+
+.admin-tabs {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  margin: 0 0 16px;
+  padding: 4px 0;
+  scrollbar-width: none;
+}
+
+.admin-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.admin-tab {
+  flex: 0 0 auto;
+  min-width: 84px;
+  padding: 11px 16px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--muted-strong);
+  font: inherit;
+  cursor: pointer;
+}
+
+.admin-tab.active {
+  background: #fafafa;
+  color: #050505;
+  border-color: #fafafa;
+}
+
+.admin-slider {
+  display: flex;
+  align-items: flex-start;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overflow-anchor: none;
+  padding: 0 0 6px;
+  scroll-padding-inline: 0;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x;
+  transition: height 220ms ease;
+}
+
+.admin-slider::-webkit-scrollbar {
+  display: none;
+}
+
+.admin-slide {
+  scroll-snap-align: start;
+  flex: 0 0 100%;
+  width: 100%;
+  min-width: 100%;
+  align-self: flex-start;
 }
 
 .admin-form {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  margin-top: 16px;
+  gap: 16px;
+  margin-top: 20px;
 }
 
 .admin-form.single-column {
@@ -524,8 +555,8 @@ a {
 .admin-chip-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 18px;
+  gap: 12px;
+  margin-top: 22px;
 }
 
 .admin-chip {
@@ -539,12 +570,12 @@ a {
 
 .admin-preview-list,
 .admin-text-list {
-  margin-top: 18px;
+  margin-top: 24px;
 }
 
 .admin-preview-row,
 .admin-text-item {
-  padding: 14px 0;
+  padding: 18px 0;
 }
 
 .admin-preview-row + .admin-preview-row,
@@ -571,10 +602,31 @@ a {
   line-height: 1.6;
 }
 
+.admin-status {
+  margin: 0 0 16px;
+  color: var(--muted-strong);
+  line-height: 1.6;
+}
+
+.admin-status-floating {
+  padding: 0 2px;
+}
+
 @media (max-width: 767px) {
-  .admin-hero-stats,
+  .admin-shell {
+    padding-top: 22px;
+  }
+
   .admin-form {
     grid-template-columns: 1fr;
+  }
+
+  .admin-card {
+    padding: 22px 18px 22px;
+  }
+
+  .admin-tabs {
+    margin-bottom: 18px;
   }
 
   .admin-button,
