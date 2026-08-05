@@ -1,0 +1,9 @@
+.DS_Store
+
+# Web
+lam-web/node_modules
+lam-web/.next
+lam-web/out
+
+# API
+lam-api/bin
