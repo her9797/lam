@@ -1,25 +1,79 @@
 # lam-web
 
-`lam-web` is a mobile-first QR menu web project for `lam`.
+`lam-web` is the customer-facing mobile web for the `lam` QR menu project.
 
-## Stack
+It is built as a mobile-first Next.js application so guests can scan a QR code and immediately browse the bar menu, requests, and event information in a fast browser flow.
 
-- Next.js 16
-- React 19.2
-- TypeScript 5.9
+## Tech Stack
 
-## Start
+- Next.js `16.3.0`
+- React `19.2.0`
+- React DOM `19.2.0`
+- TypeScript `5.9.2`
+- ESLint `9.34.0`
+- `eslint-config-next` `16.3.0`
+- `@types/node` `24.3.0`
+- `@types/react` `19.2.2`
+- `@types/react-dom` `19.2.2`
+
+## Scripts
+
+```bash
+npm install
+npm run dev
+npm run build
+npm run start
+npm run lint
+```
+
+## Routes
+
+- `/`: home screen
+- `/menu`: menu landing screen
+- `/menu/[category]`: menu category detail screen
+- `/requests`: guest request guide screen
+- `/events`: notice and event screen
+
+## Project Structure
+
+```text
+lam-web
+├─ app
+├─ components
+│  ├─ menu
+│  ├─ navigation
+│  └─ screens
+├─ data
+├─ services
+├─ public
+└─ README.md
+```
+
+## Implementation Notes
+
+- Uses the App Router in Next.js
+- Shared UI is split by role for easier maintenance
+- Mock menu content is stored in `data/menu-data.ts`
+- Menu lookup and selection logic lives in `services/menu-service.ts`
+- Global visual tokens and layout styles are centralized in `app/globals.css`
+- The UI is tuned for QR-entry mobile browsing rather than desktop-first layout
+
+## Local Development
 
 ```bash
 npm install
 npm run dev
 ```
 
-Open `http://localhost:3000`.
+Open:
 
-## Notes
+```text
+http://localhost:3000
+```
 
-- The first version is intentionally web-only.
-- The UI is optimized for QR entry on mobile browsers.
-- Black and white design tokens are centralized in [`app/globals.css`](./app/globals.css).
-- Source files are organized by role: `components/navigation`, `components/menu`, `components/screens`, `data`, and `services`.
+## Verification
+
+Verified with:
+
+- `npm run build`
+- `npm run lint`
