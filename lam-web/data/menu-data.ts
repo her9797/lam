@@ -17,7 +17,13 @@ export type NoticeItem = {
   text: string;
 };
 
-export const store = {
+export type StoreInfo = {
+  name: string;
+  subtitle: string;
+  address: string;
+};
+
+export const store: StoreInfo = {
   name: "lam",
   subtitle: "혼술 바를 위한 QR 메뉴 초안",
   address: "서울 강남구",
@@ -304,14 +310,14 @@ export const menuItems: MenuItem[] = [
     price: "37,000원~",
   },
   {
-    id: "white-bottle",
+    id: "white-bottle-2",
     categoryId: "wine",
     name: "화이트 와인 보틀",
     description: "산뜻한 타입부터 묵직한 타입까지 준비",
     price: "37,000원~",
   },
   {
-    id: "white-bottle",
+    id: "white-bottle-3",
     categoryId: "wine",
     name: "화이트 와인 보틀",
     description: "산뜻한 타입부터 묵직한 타입까지 준비",

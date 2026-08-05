@@ -1,9 +1,14 @@
 import { FloatingHomeBadge } from "@/components/navigation/floating-home-badge";
 import { PrimaryNav } from "@/components/navigation/primary-nav";
 import { ScrollTopButton } from "@/components/navigation/scroll-top-button";
-import { notices, store } from "@/data/menu-data";
+import type { NoticeItem, StoreInfo } from "@/data/menu-data";
 
-export function EventsScreen() {
+type EventsScreenProps = {
+  store: StoreInfo;
+  notices: NoticeItem[];
+};
+
+export function EventsScreen({ store, notices }: EventsScreenProps) {
   return (
     <main className="page-shell">
       <FloatingHomeBadge />

@@ -3,13 +3,15 @@ import Link from "next/link";
 import { MenuItemCard } from "@/components/menu/menu-item-card";
 import { FloatingHomeBadge } from "@/components/navigation/floating-home-badge";
 import { PrimaryNav } from "@/components/navigation/primary-nav";
-import { store } from "@/data/menu-data";
-import { getFeaturedCategory, getFeaturedItems } from "@/services/menu-service";
+import type { MenuCategory, MenuItem, StoreInfo } from "@/data/menu-data";
 
-export function HomeScreen() {
-  const featuredCategory = getFeaturedCategory();
-  const featuredItems = getFeaturedItems();
+type HomeScreenProps = {
+  store: StoreInfo;
+  featuredCategory?: MenuCategory;
+  featuredItems: MenuItem[];
+};
 
+export function HomeScreen({ store, featuredCategory, featuredItems }: HomeScreenProps) {
   return (
     <main className="page-shell">
       <FloatingHomeBadge active />
