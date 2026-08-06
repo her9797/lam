@@ -25,6 +25,24 @@ type CreateMenuItemInput struct {
 	Name        string
 	Description string
 	Price       string
+	IsVisible   bool
+}
+
+type CreateMenuImageInput struct {
+	MenuItemID  string
+	Filename    string
+	MimeType    string
+	Content     []byte
+	IsPrimary   bool
+	DisplayArea string
+	FocusX      int
+	FocusY      int
+}
+
+type MenuImageContent struct {
+	Filename string
+	MimeType string
+	Content  []byte
 }
 
 type Repository struct {
@@ -47,6 +65,7 @@ CREATE TABLE IF NOT EXISTS store_profile (
 CREATE TABLE IF NOT EXISTS menu_categories (
   id TEXT PRIMARY KEY,
   label TEXT NOT NULL,
+  is_visible BOOLEAN NOT NULL DEFAULT TRUE,
   sort_order INTEGER NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -58,6 +77,22 @@ CREATE TABLE IF NOT EXISTS menu_items (
   name TEXT NOT NULL,
   description TEXT NOT NULL,
   price TEXT NOT NULL,
+  is_visible BOOLEAN NOT NULL DEFAULT TRUE,
+  sort_order INTEGER NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS menu_item_images (
+  id TEXT PRIMARY KEY,
+  menu_item_id TEXT NOT NULL REFERENCES menu_items(id) ON DELETE CASCADE,
+  filename TEXT NOT NULL,
+  mime_type TEXT NOT NULL,
+  content BYTEA NOT NULL,
+  size_bytes BIGINT NOT NULL,
+  is_primary BOOLEAN NOT NULL DEFAULT FALSE,
+  display_area TEXT NOT NULL DEFAULT 'menu',
+  focus_x INTEGER NOT NULL DEFAULT 50,
+  focus_y INTEGER NOT NULL DEFAULT 50,
   sort_order INTEGER NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -65,6 +100,7 @@ CREATE TABLE IF NOT EXISTS menu_items (
 CREATE TABLE IF NOT EXISTS request_guides (
   id TEXT PRIMARY KEY,
   text TEXT NOT NULL,
+  is_visible BOOLEAN NOT NULL DEFAULT TRUE,
   sort_order INTEGER NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -72,9 +108,18 @@ CREATE TABLE IF NOT EXISTS request_guides (
 CREATE TABLE IF NOT EXISTS notices (
   id TEXT PRIMARY KEY,
   text TEXT NOT NULL,
+  is_visible BOOLEAN NOT NULL DEFAULT TRUE,
   sort_order INTEGER NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE menu_categories ADD COLUMN IF NOT EXISTS is_visible BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS is_visible BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE request_guides ADD COLUMN IF NOT EXISTS is_visible BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE notices ADD COLUMN IF NOT EXISTS is_visible BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE menu_item_images ADD COLUMN IF NOT EXISTS display_area TEXT NOT NULL DEFAULT 'menu';
+ALTER TABLE menu_item_images ADD COLUMN IF NOT EXISTS focus_x INTEGER NOT NULL DEFAULT 50;
+ALTER TABLE menu_item_images ADD COLUMN IF NOT EXISTS focus_y INTEGER NOT NULL DEFAULT 50;
 `)
 	return err
 }
@@ -100,20 +145,20 @@ func (r *Repository) SeedDefaults(ctx context.Context) error {
 	}
 
 	categories := []lamdata.MenuCategory{
-		{ID: "signature", Label: "대표"},
-		{ID: "food", Label: "안주"},
-		{ID: "highball", Label: "하이볼"},
-		{ID: "whisky", Label: "위스키"},
-		{ID: "wine", Label: "와인"},
+		{ID: "signature", Label: "대표", IsVisible: true},
+		{ID: "food", Label: "안주", IsVisible: true},
+		{ID: "highball", Label: "하이볼", IsVisible: true},
+		{ID: "whisky", Label: "위스키", IsVisible: true},
+		{ID: "wine", Label: "와인", IsVisible: true},
 	}
 	for index, category := range categories {
-		if _, err := tx.Exec(ctx, `INSERT INTO menu_categories (id, label, sort_order) VALUES ($1, $2, $3)`, category.ID, category.Label, index+1); err != nil {
+		if _, err := tx.Exec(ctx, `INSERT INTO menu_categories (id, label, is_visible, sort_order) VALUES ($1, $2, $3, $4)`, category.ID, category.Label, category.IsVisible, index+1); err != nil {
 			return err
 		}
 	}
 
 	items := []lamdata.MenuItem{
-		{ID: "steak", CategoryID: "signature", Badge: "signature", Name: "lam 시그니처 스테이크", Description: "짙은 풍미의 스테이크와 구운 채소", Price: "29,000원"},
+		{ID: "steak", CategoryID: "signature", Badge: "signature", Name: "lam 시그니처 스테이크", Description: "짙은 풍미의 스테이크와 구운 채소", Price: "29,000원", IsVisible: true},
 		{ID: "truffle-fries", CategoryID: "signature", Badge: "best", Name: "트러플 프라이", Description: "가볍게 시작하기 좋은 인기 메뉴", Price: "11,000원"},
 		{ID: "beef-tartare", CategoryID: "signature", Badge: "chef", Name: "비프 타르타르", Description: "고소한 노른자와 허브 오일을 곁들인 시그니처 플레이트", Price: "19,000원"},
 		{ID: "octopus-carpaccio", CategoryID: "signature", Name: "문어 카르파초", Description: "산뜻한 시트러스 드레싱과 후추의 밸런스", Price: "21,000원"},
@@ -150,35 +195,35 @@ func (r *Repository) SeedDefaults(ctx context.Context) error {
 		{ID: "red-bottle", CategoryID: "wine", Name: "레드 와인 보틀", Description: "직원 추천 리스트 중 선택 가능", Price: "39,000원~"},
 		{ID: "white-bottle", CategoryID: "wine", Name: "화이트 와인 보틀", Description: "산뜻한 타입부터 묵직한 타입까지 준비", Price: "37,000원~"},
 		{ID: "white-bottle-2", CategoryID: "wine", Name: "화이트 와인 보틀", Description: "산뜻한 타입부터 묵직한 타입까지 준비", Price: "37,000원~"},
-		{ID: "white-bottle-3", CategoryID: "wine", Name: "화이트 와인 보틀", Description: "산뜻한 타입부터 묵직한 타입까지 준비", Price: "37,000원~"},
+		{ID: "white-bottle-3", CategoryID: "wine", Name: "화이트 와인 보틀", Description: "산뜻한 타입부터 묵직한 타입까지 준비", Price: "37,000원~", IsVisible: true},
 	}
 	for index, item := range items {
-		if _, err := tx.Exec(ctx, `INSERT INTO menu_items (id, category_id, badge, name, description, price, sort_order) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-			item.ID, item.CategoryID, nullable(item.Badge), item.Name, item.Description, item.Price, index+1); err != nil {
+		if _, err := tx.Exec(ctx, `INSERT INTO menu_items (id, category_id, badge, name, description, price, is_visible, sort_order) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+			item.ID, item.CategoryID, nullable(item.Badge), item.Name, item.Description, item.Price, item.IsVisible, index+1); err != nil {
 			return err
 		}
 	}
 
 	requestGuides := []lamdata.NoticeItem{
-		{ID: "allergy", Text: "알레르기 유발 재료가 있으면 주문 전 꼭 말씀해주세요."},
-		{ID: "soldout", Text: "일부 주류와 안주는 당일 재고에 따라 조기 품절될 수 있습니다."},
-		{ID: "seat-time", Text: "혼술 손님 위주 운영 특성상 좌석 이동이 필요할 수 있습니다."},
-		{ID: "pairing", Text: "주류 추천이 필요하면 취향에 맞춰 페어링을 도와드립니다."},
+		{ID: "allergy", Text: "알레르기 유발 재료가 있으면 주문 전 꼭 말씀해주세요.", IsVisible: true},
+		{ID: "soldout", Text: "일부 주류와 안주는 당일 재고에 따라 조기 품절될 수 있습니다.", IsVisible: true},
+		{ID: "seat-time", Text: "혼술 손님 위주 운영 특성상 좌석 이동이 필요할 수 있습니다.", IsVisible: true},
+		{ID: "pairing", Text: "주류 추천이 필요하면 취향에 맞춰 페어링을 도와드립니다.", IsVisible: true},
 	}
 	for index, item := range requestGuides {
-		if _, err := tx.Exec(ctx, `INSERT INTO request_guides (id, text, sort_order) VALUES ($1, $2, $3)`, item.ID, item.Text, index+1); err != nil {
+		if _, err := tx.Exec(ctx, `INSERT INTO request_guides (id, text, is_visible, sort_order) VALUES ($1, $2, $3, $4)`, item.ID, item.Text, item.IsVisible, index+1); err != nil {
 			return err
 		}
 	}
 
 	notices := []lamdata.NoticeItem{
-		{ID: "hours", Text: "평일 18:00 - 02:00 / 금토 18:00 - 03:00"},
-		{ID: "seat", Text: "혼술 손님이 편하게 머물 수 있도록 좌석 간격을 넉넉히 운영합니다."},
-		{ID: "event-1", Text: "매주 화요일 하이볼 추천 메뉴 1,000원 할인"},
-		{ID: "event-2", Text: "비 오는 날에는 스모키 하이볼 한정 레시피가 추가됩니다."},
+		{ID: "hours", Text: "평일 18:00 - 02:00 / 금토 18:00 - 03:00", IsVisible: true},
+		{ID: "seat", Text: "혼술 손님이 편하게 머물 수 있도록 좌석 간격을 넉넉히 운영합니다.", IsVisible: true},
+		{ID: "event-1", Text: "매주 화요일 하이볼 추천 메뉴 1,000원 할인", IsVisible: true},
+		{ID: "event-2", Text: "비 오는 날에는 스모키 하이볼 한정 레시피가 추가됩니다.", IsVisible: true},
 	}
 	for index, item := range notices {
-		if _, err := tx.Exec(ctx, `INSERT INTO notices (id, text, sort_order) VALUES ($1, $2, $3)`, item.ID, item.Text, index+1); err != nil {
+		if _, err := tx.Exec(ctx, `INSERT INTO notices (id, text, is_visible, sort_order) VALUES ($1, $2, $3, $4)`, item.ID, item.Text, item.IsVisible, index+1); err != nil {
 			return err
 		}
 	}
@@ -207,7 +252,7 @@ func (r *Repository) GetBootstrapData(ctx context.Context) (lamdata.BootstrapDat
 		return lamdata.BootstrapData{}, err
 	}
 
-	categoriesRows, err := r.pool.Query(ctx, `SELECT id, label FROM menu_categories ORDER BY sort_order, id`)
+	categoriesRows, err := r.pool.Query(ctx, `SELECT id, label, is_visible FROM menu_categories ORDER BY sort_order, id`)
 	if err != nil {
 		return lamdata.BootstrapData{}, err
 	}
@@ -216,13 +261,13 @@ func (r *Repository) GetBootstrapData(ctx context.Context) (lamdata.BootstrapDat
 	var categories []lamdata.MenuCategory
 	for categoriesRows.Next() {
 		var item lamdata.MenuCategory
-		if err := categoriesRows.Scan(&item.ID, &item.Label); err != nil {
+		if err := categoriesRows.Scan(&item.ID, &item.Label, &item.IsVisible); err != nil {
 			return lamdata.BootstrapData{}, err
 		}
 		categories = append(categories, item)
 	}
 
-	menuRows, err := r.pool.Query(ctx, `SELECT id, category_id, COALESCE(badge, ''), name, description, price FROM menu_items ORDER BY sort_order, id`)
+	menuRows, err := r.pool.Query(ctx, `SELECT id, category_id, COALESCE(badge, ''), name, description, price, is_visible FROM menu_items ORDER BY sort_order, id`)
 	if err != nil {
 		return lamdata.BootstrapData{}, err
 	}
@@ -231,13 +276,34 @@ func (r *Repository) GetBootstrapData(ctx context.Context) (lamdata.BootstrapDat
 	var items []lamdata.MenuItem
 	for menuRows.Next() {
 		var item lamdata.MenuItem
-		if err := menuRows.Scan(&item.ID, &item.CategoryID, &item.Badge, &item.Name, &item.Description, &item.Price); err != nil {
+		if err := menuRows.Scan(&item.ID, &item.CategoryID, &item.Badge, &item.Name, &item.Description, &item.Price, &item.IsVisible); err != nil {
 			return lamdata.BootstrapData{}, err
 		}
 		items = append(items, item)
 	}
 
-	requestRows, err := r.pool.Query(ctx, `SELECT id, text FROM request_guides ORDER BY sort_order, id`)
+	imageRows, err := r.pool.Query(ctx, `SELECT id, menu_item_id, filename, mime_type, size_bytes, is_primary, display_area, focus_x, focus_y, sort_order FROM menu_item_images ORDER BY menu_item_id, is_primary DESC, sort_order, id`)
+	if err != nil {
+		return lamdata.BootstrapData{}, err
+	}
+	defer imageRows.Close()
+
+	imagesByMenuItem := make(map[string][]lamdata.MenuImage)
+	for imageRows.Next() {
+		var image lamdata.MenuImage
+		var menuItemID string
+		if err := imageRows.Scan(&image.ID, &menuItemID, &image.Filename, &image.MimeType, &image.SizeBytes, &image.IsPrimary, &image.DisplayArea, &image.FocusX, &image.FocusY, &image.SortOrder); err != nil {
+			return lamdata.BootstrapData{}, err
+		}
+		image.ContentURL = fmt.Sprintf("/api/v1/menu-images/%s/content", image.ID)
+		imagesByMenuItem[menuItemID] = append(imagesByMenuItem[menuItemID], image)
+	}
+
+	for index := range items {
+		items[index].Images = imagesByMenuItem[items[index].ID]
+	}
+
+	requestRows, err := r.pool.Query(ctx, `SELECT id, text, is_visible FROM request_guides ORDER BY sort_order, id`)
 	if err != nil {
 		return lamdata.BootstrapData{}, err
 	}
@@ -246,13 +312,13 @@ func (r *Repository) GetBootstrapData(ctx context.Context) (lamdata.BootstrapDat
 	var requestGuides []lamdata.NoticeItem
 	for requestRows.Next() {
 		var item lamdata.NoticeItem
-		if err := requestRows.Scan(&item.ID, &item.Text); err != nil {
+		if err := requestRows.Scan(&item.ID, &item.Text, &item.IsVisible); err != nil {
 			return lamdata.BootstrapData{}, err
 		}
 		requestGuides = append(requestGuides, item)
 	}
 
-	noticeRows, err := r.pool.Query(ctx, `SELECT id, text FROM notices ORDER BY sort_order, id`)
+	noticeRows, err := r.pool.Query(ctx, `SELECT id, text, is_visible FROM notices ORDER BY sort_order, id`)
 	if err != nil {
 		return lamdata.BootstrapData{}, err
 	}
@@ -261,7 +327,7 @@ func (r *Repository) GetBootstrapData(ctx context.Context) (lamdata.BootstrapDat
 	var notices []lamdata.NoticeItem
 	for noticeRows.Next() {
 		var item lamdata.NoticeItem
-		if err := noticeRows.Scan(&item.ID, &item.Text); err != nil {
+		if err := noticeRows.Scan(&item.ID, &item.Text, &item.IsVisible); err != nil {
 			return lamdata.BootstrapData{}, err
 		}
 		notices = append(notices, item)
@@ -276,7 +342,7 @@ func (r *Repository) GetBootstrapData(ctx context.Context) (lamdata.BootstrapDat
 	}, nil
 }
 
-func (r *Repository) CreateCategory(ctx context.Context, id string, label string) error {
+func (r *Repository) CreateCategory(ctx context.Context, id string, label string, isVisible bool) error {
 	if id == "" || label == "" {
 		return ErrInvalidInput
 	}
@@ -286,7 +352,7 @@ func (r *Repository) CreateCategory(ctx context.Context, id string, label string
 		return err
 	}
 
-	_, err = r.pool.Exec(ctx, `INSERT INTO menu_categories (id, label, sort_order) VALUES ($1, $2, $3)`, id, label, sortOrder)
+	_, err = r.pool.Exec(ctx, `INSERT INTO menu_categories (id, label, is_visible, sort_order) VALUES ($1, $2, $3, $4)`, id, label, isVisible, sortOrder)
 	return classifyError(err)
 }
 
@@ -309,12 +375,12 @@ func (r *Repository) CreateMenuItem(ctx context.Context, input CreateMenuItemInp
 	}
 
 	id := fmt.Sprintf("menu-%d", time.Now().UnixMilli())
-	_, err = r.pool.Exec(ctx, `INSERT INTO menu_items (id, category_id, badge, name, description, price, sort_order) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-		id, input.CategoryID, nullable(input.Badge), input.Name, input.Description, input.Price, sortOrder)
+	_, err = r.pool.Exec(ctx, `INSERT INTO menu_items (id, category_id, badge, name, description, price, is_visible, sort_order) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+		id, input.CategoryID, nullable(input.Badge), input.Name, input.Description, input.Price, input.IsVisible, sortOrder)
 	return classifyError(err)
 }
 
-func (r *Repository) CreateRequestGuide(ctx context.Context, text string) error {
+func (r *Repository) CreateRequestGuide(ctx context.Context, text string, isVisible bool) error {
 	if text == "" {
 		return ErrInvalidInput
 	}
@@ -325,11 +391,11 @@ func (r *Repository) CreateRequestGuide(ctx context.Context, text string) error 
 	}
 
 	id := fmt.Sprintf("request-%d", time.Now().UnixMilli())
-	_, err = r.pool.Exec(ctx, `INSERT INTO request_guides (id, text, sort_order) VALUES ($1, $2, $3)`, id, text, sortOrder)
+	_, err = r.pool.Exec(ctx, `INSERT INTO request_guides (id, text, is_visible, sort_order) VALUES ($1, $2, $3, $4)`, id, text, isVisible, sortOrder)
 	return classifyError(err)
 }
 
-func (r *Repository) CreateNotice(ctx context.Context, text string) error {
+func (r *Repository) CreateNotice(ctx context.Context, text string, isVisible bool) error {
 	if text == "" {
 		return ErrInvalidInput
 	}
@@ -340,8 +406,116 @@ func (r *Repository) CreateNotice(ctx context.Context, text string) error {
 	}
 
 	id := fmt.Sprintf("notice-%d", time.Now().UnixMilli())
-	_, err = r.pool.Exec(ctx, `INSERT INTO notices (id, text, sort_order) VALUES ($1, $2, $3)`, id, text, sortOrder)
+	_, err = r.pool.Exec(ctx, `INSERT INTO notices (id, text, is_visible, sort_order) VALUES ($1, $2, $3, $4)`, id, text, isVisible, sortOrder)
 	return classifyError(err)
+}
+
+func (r *Repository) UpdateCategoryVisibility(ctx context.Context, id string, isVisible bool) error {
+	tag, err := r.pool.Exec(ctx, `UPDATE menu_categories SET is_visible = $2 WHERE id = $1`, id, isVisible)
+	if err != nil {
+		return classifyError(err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (r *Repository) UpdateMenuItemVisibility(ctx context.Context, id string, isVisible bool) error {
+	tag, err := r.pool.Exec(ctx, `UPDATE menu_items SET is_visible = $2 WHERE id = $1`, id, isVisible)
+	if err != nil {
+		return classifyError(err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (r *Repository) UpdateRequestGuideVisibility(ctx context.Context, id string, isVisible bool) error {
+	tag, err := r.pool.Exec(ctx, `UPDATE request_guides SET is_visible = $2 WHERE id = $1`, id, isVisible)
+	if err != nil {
+		return classifyError(err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (r *Repository) UpdateNoticeVisibility(ctx context.Context, id string, isVisible bool) error {
+	tag, err := r.pool.Exec(ctx, `UPDATE notices SET is_visible = $2 WHERE id = $1`, id, isVisible)
+	if err != nil {
+		return classifyError(err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (r *Repository) CreateMenuImage(ctx context.Context, input CreateMenuImageInput) error {
+	if input.MenuItemID == "" || input.Filename == "" || input.MimeType == "" || len(input.Content) == 0 {
+		return ErrInvalidInput
+	}
+	if input.DisplayArea != "home" && input.DisplayArea != "menu" && input.DisplayArea != "both" {
+		input.DisplayArea = "menu"
+	}
+	input.FocusX = clampImageFocus(input.FocusX)
+	input.FocusY = clampImageFocus(input.FocusY)
+
+	var exists bool
+	if err := r.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM menu_items WHERE id = $1)`, input.MenuItemID).Scan(&exists); err != nil {
+		return err
+	}
+	if !exists {
+		return ErrNotFound
+	}
+
+	sortOrder, err := r.nextMenuImageSortOrder(ctx, input.MenuItemID)
+	if err != nil {
+		return err
+	}
+
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	if input.IsPrimary {
+		if _, err := tx.Exec(ctx, `UPDATE menu_item_images SET is_primary = FALSE WHERE menu_item_id = $1`, input.MenuItemID); err != nil {
+			return err
+		}
+	}
+
+	id := fmt.Sprintf("image-%d", time.Now().UnixMilli())
+	_, err = tx.Exec(ctx, `
+		INSERT INTO menu_item_images (id, menu_item_id, filename, mime_type, content, size_bytes, is_primary, display_area, focus_x, focus_y, sort_order)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+	`, id, input.MenuItemID, input.Filename, input.MimeType, input.Content, len(input.Content), input.IsPrimary, input.DisplayArea, input.FocusX, input.FocusY, sortOrder)
+	if err != nil {
+		return classifyError(err)
+	}
+
+	return tx.Commit(ctx)
+}
+
+func (r *Repository) GetMenuImageContent(ctx context.Context, imageID string) (MenuImageContent, error) {
+	if strings.TrimSpace(imageID) == "" {
+		return MenuImageContent{}, ErrInvalidInput
+	}
+
+	var content MenuImageContent
+	if err := r.pool.QueryRow(ctx, `SELECT filename, mime_type, content FROM menu_item_images WHERE id = $1`, imageID).Scan(
+		&content.Filename,
+		&content.MimeType,
+		&content.Content,
+	); err != nil {
+		return MenuImageContent{}, classifyError(err)
+	}
+
+	return content, nil
 }
 
 func (r *Repository) nextSortOrder(ctx context.Context, table string) (int, error) {
@@ -367,9 +541,28 @@ func (r *Repository) nextSortOrder(ctx context.Context, table string) (int, erro
 	return sortOrder, nil
 }
 
+func (r *Repository) nextMenuImageSortOrder(ctx context.Context, menuItemID string) (int, error) {
+	var sortOrder int
+	if err := r.pool.QueryRow(ctx, `SELECT COALESCE(MAX(sort_order), 0) + 1 FROM menu_item_images WHERE menu_item_id = $1`, menuItemID).Scan(&sortOrder); err != nil {
+		return 0, err
+	}
+
+	return sortOrder, nil
+}
+
 func nullable(value string) any {
 	if strings.TrimSpace(value) == "" {
 		return nil
+	}
+	return value
+}
+
+func clampImageFocus(value int) int {
+	if value < 0 {
+		return 0
+	}
+	if value > 100 {
+		return 100
 	}
 	return value
 }

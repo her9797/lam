@@ -1,7 +1,12 @@
 import { notFound } from "next/navigation";
 
 import { CategoryScreen } from "@/components/screens/category-screen";
-import { getAppData, getCategoryByIdFromData, getMenuItemsByCategoryFromData } from "@/services/app-service";
+import {
+  getAppData,
+  getCategoryByIdFromData,
+  getMenuItemsByCategoryFromData,
+  getVisibleCategoriesFromData,
+} from "@/services/app-service";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +28,7 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
   return (
     <CategoryScreen
       store={appData.store}
-      categories={appData.categories}
+      categories={getVisibleCategoriesFromData(appData)}
       category={selectedCategory}
       items={getMenuItemsByCategoryFromData(appData, selectedCategory.id)}
     />
