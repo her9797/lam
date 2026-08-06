@@ -1,6 +1,6 @@
 import { normalizeAppDataImages, type AppData } from "@/services/app-service";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:9090";
+const API_BASE_URL = "";
 
 type CategoryInput = {
   id: string;
@@ -49,23 +49,23 @@ async function postJSON(path: string, payload: unknown): Promise<AppData> {
 }
 
 export function createCategory(payload: CategoryInput) {
-  return postJSON("/api/v1/admin/categories", payload);
+  return postJSON("/api/admin/categories", payload);
 }
 
 export function createMenuItem(payload: MenuItemInput) {
-  return postJSON("/api/v1/admin/menu-items", payload);
+  return postJSON("/api/admin/menu-items", payload);
 }
 
 export function createRequestGuide(payload: NoticeInput) {
-  return postJSON("/api/v1/admin/request-guides", payload);
+  return postJSON("/api/admin/request-guides", payload);
 }
 
 export function createNotice(payload: NoticeInput) {
-  return postJSON("/api/v1/admin/notices", payload);
+  return postJSON("/api/admin/notices", payload);
 }
 
 export function updateCategoryVisibility(categoryId: string, isVisible: boolean) {
-  return fetch(`${API_BASE_URL}/api/v1/admin/categories/${categoryId}/visibility`, {
+  return fetch(`${API_BASE_URL}/api/admin/categories/${categoryId}/visibility`, {
     method: "PATCH",
     headers: {
       "Content-Type": "application/json",
@@ -82,7 +82,7 @@ export function updateCategoryVisibility(categoryId: string, isVisible: boolean)
 }
 
 export function updateMenuItemVisibility(menuItemId: string, isVisible: boolean) {
-  return fetch(`${API_BASE_URL}/api/v1/admin/menu-items/${menuItemId}/visibility`, {
+  return fetch(`${API_BASE_URL}/api/admin/menu-items/${menuItemId}/visibility`, {
     method: "PATCH",
     headers: {
       "Content-Type": "application/json",
@@ -99,7 +99,7 @@ export function updateMenuItemVisibility(menuItemId: string, isVisible: boolean)
 }
 
 export function updateRequestGuideVisibility(requestGuideId: string, isVisible: boolean) {
-  return fetch(`${API_BASE_URL}/api/v1/admin/request-guides/${requestGuideId}/visibility`, {
+  return fetch(`${API_BASE_URL}/api/admin/request-guides/${requestGuideId}/visibility`, {
     method: "PATCH",
     headers: {
       "Content-Type": "application/json",
@@ -116,7 +116,7 @@ export function updateRequestGuideVisibility(requestGuideId: string, isVisible: 
 }
 
 export function updateNoticeVisibility(noticeId: string, isVisible: boolean) {
-  return fetch(`${API_BASE_URL}/api/v1/admin/notices/${noticeId}/visibility`, {
+  return fetch(`${API_BASE_URL}/api/admin/notices/${noticeId}/visibility`, {
     method: "PATCH",
     headers: {
       "Content-Type": "application/json",
@@ -142,7 +142,7 @@ export async function uploadMenuImage(payload: MenuImageInput): Promise<AppData>
   formData.append("focusX", String(payload.focusX ?? 50));
   formData.append("focusY", String(payload.focusY ?? 50));
 
-  const response = await fetch(`${API_BASE_URL}/api/v1/admin/menu-items/${payload.menuItemId}/images`, {
+  const response = await fetch(`${API_BASE_URL}/api/admin/menu-items/${payload.menuItemId}/images`, {
     method: "POST",
     body: formData,
   });

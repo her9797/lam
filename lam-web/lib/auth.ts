@@ -1,0 +1,97 @@
+import { createHmac, timingSafeEqual } from "node:crypto";
+
+type SessionKind = "admin" | "qr";
+
+const SESSION_VERSION = "v1";
+const ADMIN_COOKIE = "lam_admin_session";
+const QR_COOKIE = "lam_qr_session";
+const ADMIN_MAX_AGE_SECONDS = 60 * 60 * 12;
+const QR_MAX_AGE_SECONDS = 60 * 60 * 8;
+
+function getSessionSecret() {
+  return process.env.SESSION_SECRET ?? "lam-dev-session-secret";
+}
+
+function sign(value: string) {
+  return createHmac("sha256", getSessionSecret()).update(value).digest("hex");
+}
+
+function createSessionValue(kind: SessionKind, maxAgeSeconds: number) {
+  const expiresAt = Math.floor(Date.now() / 1000) + maxAgeSeconds;
+  const payload = `${SESSION_VERSION}.${kind}.${expiresAt}`;
+  return `${payload}.${sign(payload)}`;
+}
+
+function verifySessionValue(value: string | undefined, expectedKind: SessionKind) {
+  if (!value) {
+    return false;
+  }
+
+  const parts = value.split(".");
+  if (parts.length !== 4) {
+    return false;
+  }
+
+  const [version, kind, expiresAtRaw, signature] = parts;
+  if (version !== SESSION_VERSION || kind !== expectedKind) {
+    return false;
+  }
+
+  const expiresAt = Number(expiresAtRaw);
+  if (!Number.isFinite(expiresAt) || expiresAt < Math.floor(Date.now() / 1000)) {
+    return false;
+  }
+
+  const payload = `${version}.${kind}.${expiresAtRaw}`;
+  const expectedSignature = sign(payload);
+
+  try {
+    return timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSignature));
+  } catch {
+    return false;
+  }
+}
+
+export function createAdminSessionValue() {
+  return createSessionValue("admin", ADMIN_MAX_AGE_SECONDS);
+}
+
+export function createQrSessionValue() {
+  return createSessionValue("qr", QR_MAX_AGE_SECONDS);
+}
+
+export function isAdminSessionValid(value: string | undefined) {
+  return verifySessionValue(value, "admin");
+}
+
+export function isQrSessionValid(value: string | undefined) {
+  return verifySessionValue(value, "qr");
+}
+
+export function getAdminCookieName() {
+  return ADMIN_COOKIE;
+}
+
+export function getQrCookieName() {
+  return QR_COOKIE;
+}
+
+export function getAdminPassword() {
+  return process.env.ADMIN_PASSWORD ?? "lam-admin";
+}
+
+export function getAdminApiToken() {
+  return process.env.ADMIN_API_TOKEN ?? "lam-admin-api-token";
+}
+
+export function getQrAccessToken() {
+  return process.env.QR_ACCESS_TOKEN ?? "lam-qr-entry";
+}
+
+export function getAdminCookieMaxAge() {
+  return ADMIN_MAX_AGE_SECONDS;
+}
+
+export function getQrCookieMaxAge() {
+  return QR_MAX_AGE_SECONDS;
+}
