@@ -1,10 +1,11 @@
-import type { AppData } from "@/services/app-service";
+import { normalizeAppDataImages, type AppData } from "@/services/app-service";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:9090";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:9090";
 
 type CategoryInput = {
   id: string;
   label: string;
+  isVisible: boolean;
 };
 
 type MenuItemInput = {
@@ -13,10 +14,21 @@ type MenuItemInput = {
   name: string;
   description: string;
   price: string;
+  isVisible: boolean;
 };
 
 type NoticeInput = {
   text: string;
+  isVisible: boolean;
+};
+
+type MenuImageInput = {
+  menuItemId: string;
+  image: File;
+  isPrimary?: boolean;
+  displayArea?: "home" | "menu" | "both";
+  focusX?: number;
+  focusY?: number;
 };
 
 async function postJSON(path: string, payload: unknown): Promise<AppData> {
@@ -33,7 +45,7 @@ async function postJSON(path: string, payload: unknown): Promise<AppData> {
     throw new Error(errorBody?.error ?? `request failed: ${response.status}`);
   }
 
-  return (await response.json()) as AppData;
+  return normalizeAppDataImages((await response.json()) as AppData);
 }
 
 export function createCategory(payload: CategoryInput) {
@@ -50,4 +62,95 @@ export function createRequestGuide(payload: NoticeInput) {
 
 export function createNotice(payload: NoticeInput) {
   return postJSON("/api/v1/admin/notices", payload);
+}
+
+export function updateCategoryVisibility(categoryId: string, isVisible: boolean) {
+  return fetch(`${API_BASE_URL}/api/v1/admin/categories/${categoryId}/visibility`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ isVisible }),
+  }).then(async (response) => {
+    if (!response.ok) {
+      const errorBody = (await response.json().catch(() => null)) as { error?: string } | null;
+      throw new Error(errorBody?.error ?? `request failed: ${response.status}`);
+    }
+
+    return normalizeAppDataImages((await response.json()) as AppData);
+  });
+}
+
+export function updateMenuItemVisibility(menuItemId: string, isVisible: boolean) {
+  return fetch(`${API_BASE_URL}/api/v1/admin/menu-items/${menuItemId}/visibility`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ isVisible }),
+  }).then(async (response) => {
+    if (!response.ok) {
+      const errorBody = (await response.json().catch(() => null)) as { error?: string } | null;
+      throw new Error(errorBody?.error ?? `request failed: ${response.status}`);
+    }
+
+    return normalizeAppDataImages((await response.json()) as AppData);
+  });
+}
+
+export function updateRequestGuideVisibility(requestGuideId: string, isVisible: boolean) {
+  return fetch(`${API_BASE_URL}/api/v1/admin/request-guides/${requestGuideId}/visibility`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ isVisible }),
+  }).then(async (response) => {
+    if (!response.ok) {
+      const errorBody = (await response.json().catch(() => null)) as { error?: string } | null;
+      throw new Error(errorBody?.error ?? `request failed: ${response.status}`);
+    }
+
+    return normalizeAppDataImages((await response.json()) as AppData);
+  });
+}
+
+export function updateNoticeVisibility(noticeId: string, isVisible: boolean) {
+  return fetch(`${API_BASE_URL}/api/v1/admin/notices/${noticeId}/visibility`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ isVisible }),
+  }).then(async (response) => {
+    if (!response.ok) {
+      const errorBody = (await response.json().catch(() => null)) as { error?: string } | null;
+      throw new Error(errorBody?.error ?? `request failed: ${response.status}`);
+    }
+
+    return normalizeAppDataImages((await response.json()) as AppData);
+  });
+}
+
+export async function uploadMenuImage(payload: MenuImageInput): Promise<AppData> {
+  const formData = new FormData();
+  formData.append("image", payload.image);
+  if (payload.isPrimary) {
+    formData.append("isPrimary", "true");
+  }
+  formData.append("displayArea", payload.displayArea ?? "menu");
+  formData.append("focusX", String(payload.focusX ?? 50));
+  formData.append("focusY", String(payload.focusY ?? 50));
+
+  const response = await fetch(`${API_BASE_URL}/api/v1/admin/menu-items/${payload.menuItemId}/images`, {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const errorBody = (await response.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(errorBody?.error ?? `request failed: ${response.status}`);
+  }
+
+  return normalizeAppDataImages((await response.json()) as AppData);
 }

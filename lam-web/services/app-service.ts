@@ -1,5 +1,6 @@
 import {
   categories as fallbackCategories,
+  type MenuImage,
   menuItems as fallbackMenuItems,
   notices as fallbackNotices,
   requestGuides as fallbackRequestGuides,
@@ -18,7 +19,26 @@ export type AppData = {
   notices: NoticeItem[];
 };
 
-const API_BASE_URL = process.env.API_BASE_URL ?? process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:9090";
+const API_BASE_URL = process.env.API_BASE_URL ?? process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:9090";
+
+function normalizeImageUrl(pathOrUrl: string) {
+  if (pathOrUrl.startsWith("http://") || pathOrUrl.startsWith("https://")) {
+    return pathOrUrl;
+  }
+
+  return `${API_BASE_URL}${pathOrUrl}`;
+}
+
+function normalizeMenuImages(images: MenuImage[] | undefined) {
+  if (!images?.length) {
+    return images;
+  }
+
+  return images.map((image) => ({
+    ...image,
+    contentUrl: normalizeImageUrl(image.contentUrl),
+  }));
+}
 
 function getFallbackAppData(): AppData {
   return {
@@ -63,26 +83,49 @@ export async function getAppData(): Promise<AppData> {
       throw new Error("bootstrap api returned an invalid payload");
     }
 
-    return payload;
+    return normalizeAppDataImages(payload);
   } catch (error) {
     console.warn("Falling back to local app data.", error);
     return getFallbackAppData();
   }
 }
 
+export function normalizeAppDataImages(appData: AppData): AppData {
+  return {
+    ...appData,
+    items: appData.items.map((item) => ({
+      ...item,
+      images: normalizeMenuImages(item.images),
+    })),
+  };
+}
+
 export function getFeaturedCategoryFromData(appData: AppData) {
-  return appData.categories.find((category) => category.id === "signature") ?? appData.categories[0];
+  const visibleCategories = appData.categories.filter((category) => category.isVisible !== false);
+  return visibleCategories.find((category) => category.id === "signature") ?? visibleCategories[0];
 }
 
 export function getCategoryByIdFromData(appData: AppData, categoryId: string) {
-  return appData.categories.find((category) => category.id === categoryId);
+  return appData.categories.find((category) => category.id === categoryId && category.isVisible !== false);
 }
 
 export function getMenuItemsByCategoryFromData(appData: AppData, categoryId: string) {
-  return appData.items.filter((item) => item.categoryId === categoryId);
+  return appData.items.filter((item) => item.categoryId === categoryId && item.isVisible !== false);
 }
 
 export function getFeaturedItemsFromData(appData: AppData) {
   const featuredCategory = getFeaturedCategoryFromData(appData);
   return featuredCategory ? getMenuItemsByCategoryFromData(appData, featuredCategory.id).slice(0, 3) : [];
+}
+
+export function getVisibleCategoriesFromData(appData: AppData) {
+  return appData.categories.filter((category) => category.isVisible !== false);
+}
+
+export function getVisibleRequestGuidesFromData(appData: AppData) {
+  return appData.requestGuides.filter((item) => item.isVisible !== false);
+}
+
+export function getVisibleNoticesFromData(appData: AppData) {
+  return appData.notices.filter((item) => item.isVisible !== false);
 }

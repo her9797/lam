@@ -1,6 +1,7 @@
 export type MenuCategory = {
   id: string;
   label: string;
+  isVisible?: boolean;
 };
 
 export type MenuItem = {
@@ -10,11 +11,27 @@ export type MenuItem = {
   name: string;
   description: string;
   price: string;
+  isVisible?: boolean;
+  images?: MenuImage[];
+};
+
+export type MenuImage = {
+  id: string;
+  filename: string;
+  mimeType: string;
+  sizeBytes: number;
+  isPrimary: boolean;
+  displayArea: "home" | "menu" | "both";
+  focusX: number;
+  focusY: number;
+  sortOrder: number;
+  contentUrl: string;
 };
 
 export type NoticeItem = {
   id: string;
   text: string;
+  isVisible?: boolean;
 };
 
 export type StoreInfo = {

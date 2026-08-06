@@ -1,8 +1,9 @@
 package httpapi
 
 type createCategoryRequest struct {
-	ID    string `json:"id"`
-	Label string `json:"label"`
+	ID        string `json:"id"`
+	Label     string `json:"label"`
+	IsVisible bool   `json:"isVisible"`
 }
 
 type createMenuItemRequest struct {
@@ -11,8 +12,14 @@ type createMenuItemRequest struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`
 	Price       string `json:"price"`
+	IsVisible   bool   `json:"isVisible"`
 }
 
 type createNoticeRequest struct {
-	Text string `json:"text"`
+	Text      string `json:"text"`
+	IsVisible bool   `json:"isVisible"`
+}
+
+type updateVisibilityRequest struct {
+	IsVisible bool `json:"isVisible"`
 }

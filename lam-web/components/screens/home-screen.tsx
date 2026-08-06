@@ -42,7 +42,7 @@ export function HomeScreen({ store, featuredCategory, featuredItems }: HomeScree
 
           <div className="menu-list">
             {featuredItems.map((item) => (
-              <MenuItemCard key={item.id} item={item} />
+              <MenuItemCard key={item.id} item={item} imageArea="home" />
             ))}
           </div>
         </section>
