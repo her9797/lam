@@ -1,6 +1,9 @@
+import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
+import { redirect } from "next/navigation";
 
 import { CategoryScreen } from "@/components/screens/category-screen";
+import { getQrCookieName, isQrSessionValid } from "@/lib/auth";
 import {
   getAppData,
   getCategoryByIdFromData,
@@ -17,6 +20,12 @@ type CategoryPageProps = {
 };
 
 export default async function CategoryPage({ params }: CategoryPageProps) {
+  const cookieStore = await cookies();
+  const qrSession = cookieStore.get(getQrCookieName())?.value;
+  if (!isQrSessionValid(qrSession)) {
+    redirect("/access-required");
+  }
+
   const { category } = await params;
   const appData = await getAppData();
   const selectedCategory = getCategoryByIdFromData(appData, category);
