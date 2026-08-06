@@ -80,6 +80,10 @@ func NewMux(repository *store.Repository, cfg config.Config) http.Handler {
 	}))
 
 	mux.HandleFunc("/api/v1/admin/categories", withCORS(cfg.AllowedOrigin, func(w http.ResponseWriter, r *http.Request) {
+		if !requireAdminAuth(w, r, cfg.AdminAPIToken) {
+			return
+		}
+
 		if r.Method != http.MethodPost {
 			writeMethodNotAllowed(w)
 			return
@@ -106,6 +110,10 @@ func NewMux(repository *store.Repository, cfg config.Config) http.Handler {
 	}))
 
 	mux.HandleFunc("/api/v1/admin/categories/", withCORS(cfg.AllowedOrigin, func(w http.ResponseWriter, r *http.Request) {
+		if !requireAdminAuth(w, r, cfg.AdminAPIToken) {
+			return
+		}
+
 		if r.Method != http.MethodPatch {
 			writeMethodNotAllowed(w)
 			return
@@ -138,6 +146,10 @@ func NewMux(repository *store.Repository, cfg config.Config) http.Handler {
 	}))
 
 	mux.HandleFunc("/api/v1/admin/menu-items", withCORS(cfg.AllowedOrigin, func(w http.ResponseWriter, r *http.Request) {
+		if !requireAdminAuth(w, r, cfg.AdminAPIToken) {
+			return
+		}
+
 		if r.Method != http.MethodPost {
 			writeMethodNotAllowed(w)
 			return
@@ -171,6 +183,10 @@ func NewMux(repository *store.Repository, cfg config.Config) http.Handler {
 	}))
 
 	mux.HandleFunc("/api/v1/admin/menu-items/", withCORS(cfg.AllowedOrigin, func(w http.ResponseWriter, r *http.Request) {
+		if !requireAdminAuth(w, r, cfg.AdminAPIToken) {
+			return
+		}
+
 		if r.Method != http.MethodPost && r.Method != http.MethodPatch {
 			writeMethodNotAllowed(w)
 			return
@@ -249,6 +265,10 @@ func NewMux(repository *store.Repository, cfg config.Config) http.Handler {
 	}))
 
 	mux.HandleFunc("/api/v1/admin/request-guides", withCORS(cfg.AllowedOrigin, func(w http.ResponseWriter, r *http.Request) {
+		if !requireAdminAuth(w, r, cfg.AdminAPIToken) {
+			return
+		}
+
 		if r.Method != http.MethodPost {
 			writeMethodNotAllowed(w)
 			return
@@ -275,6 +295,10 @@ func NewMux(repository *store.Repository, cfg config.Config) http.Handler {
 	}))
 
 	mux.HandleFunc("/api/v1/admin/request-guides/", withCORS(cfg.AllowedOrigin, func(w http.ResponseWriter, r *http.Request) {
+		if !requireAdminAuth(w, r, cfg.AdminAPIToken) {
+			return
+		}
+
 		if r.Method != http.MethodPatch {
 			writeMethodNotAllowed(w)
 			return
@@ -307,6 +331,10 @@ func NewMux(repository *store.Repository, cfg config.Config) http.Handler {
 	}))
 
 	mux.HandleFunc("/api/v1/admin/notices", withCORS(cfg.AllowedOrigin, func(w http.ResponseWriter, r *http.Request) {
+		if !requireAdminAuth(w, r, cfg.AdminAPIToken) {
+			return
+		}
+
 		if r.Method != http.MethodPost {
 			writeMethodNotAllowed(w)
 			return
@@ -333,6 +361,10 @@ func NewMux(repository *store.Repository, cfg config.Config) http.Handler {
 	}))
 
 	mux.HandleFunc("/api/v1/admin/notices/", withCORS(cfg.AllowedOrigin, func(w http.ResponseWriter, r *http.Request) {
+		if !requireAdminAuth(w, r, cfg.AdminAPIToken) {
+			return
+		}
+
 		if r.Method != http.MethodPatch {
 			writeMethodNotAllowed(w)
 			return
@@ -385,8 +417,8 @@ func parseVisibilityResourceID(path string, prefix string) (string, bool) {
 func withCORS(allowedOrigin string, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", allowedOrigin)
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PATCH, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
@@ -395,6 +427,17 @@ func withCORS(allowedOrigin string, next http.HandlerFunc) http.HandlerFunc {
 
 		next(w, r)
 	}
+}
+
+func requireAdminAuth(w http.ResponseWriter, r *http.Request, adminAPIToken string) bool {
+	authHeader := strings.TrimSpace(r.Header.Get("Authorization"))
+	expected := "Bearer " + adminAPIToken
+	if authHeader != expected {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "admin authorization required"})
+		return false
+	}
+
+	return true
 }
 
 func writeMethodNotAllowed(w http.ResponseWriter) {
