@@ -6,6 +6,7 @@ type Config struct {
 	Addr          string
 	DatabaseURL   string
 	AllowedOrigin string
+	AdminAPIToken string
 }
 
 func Load() Config {
@@ -24,9 +25,15 @@ func Load() Config {
 		allowedOrigin = "*"
 	}
 
+	adminAPIToken := os.Getenv("ADMIN_API_TOKEN")
+	if adminAPIToken == "" {
+		adminAPIToken = "lam-admin-api-token"
+	}
+
 	return Config{
 		Addr:          addr,
 		DatabaseURL:   databaseURL,
 		AllowedOrigin: allowedOrigin,
+		AdminAPIToken: adminAPIToken,
 	}
 }
