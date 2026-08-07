@@ -258,7 +258,7 @@ func (r *Repository) GetBootstrapData(ctx context.Context) (lamdata.BootstrapDat
 	}
 	defer categoriesRows.Close()
 
-	var categories []lamdata.MenuCategory
+	categories := make([]lamdata.MenuCategory, 0)
 	for categoriesRows.Next() {
 		var item lamdata.MenuCategory
 		if err := categoriesRows.Scan(&item.ID, &item.Label, &item.IsVisible); err != nil {
@@ -273,7 +273,7 @@ func (r *Repository) GetBootstrapData(ctx context.Context) (lamdata.BootstrapDat
 	}
 	defer menuRows.Close()
 
-	var items []lamdata.MenuItem
+	items := make([]lamdata.MenuItem, 0)
 	for menuRows.Next() {
 		var item lamdata.MenuItem
 		if err := menuRows.Scan(&item.ID, &item.CategoryID, &item.Badge, &item.Name, &item.Description, &item.Price, &item.IsVisible); err != nil {
@@ -309,7 +309,7 @@ func (r *Repository) GetBootstrapData(ctx context.Context) (lamdata.BootstrapDat
 	}
 	defer requestRows.Close()
 
-	var requestGuides []lamdata.NoticeItem
+	requestGuides := make([]lamdata.NoticeItem, 0)
 	for requestRows.Next() {
 		var item lamdata.NoticeItem
 		if err := requestRows.Scan(&item.ID, &item.Text, &item.IsVisible); err != nil {
@@ -324,7 +324,7 @@ func (r *Repository) GetBootstrapData(ctx context.Context) (lamdata.BootstrapDat
 	}
 	defer noticeRows.Close()
 
-	var notices []lamdata.NoticeItem
+	notices := make([]lamdata.NoticeItem, 0)
 	for noticeRows.Next() {
 		var item lamdata.NoticeItem
 		if err := noticeRows.Scan(&item.ID, &item.Text, &item.IsVisible); err != nil {
