@@ -454,6 +454,7 @@ func (r *Repository) UpdateNoticeVisibility(ctx context.Context, id string, isVi
 	return nil
 }
 
+// Image
 func (r *Repository) CreateMenuImage(ctx context.Context, input CreateMenuImageInput) error {
 	if input.MenuItemID == "" || input.Filename == "" || input.MimeType == "" || len(input.Content) == 0 {
 		return ErrInvalidInput
@@ -516,6 +517,75 @@ func (r *Repository) GetMenuImageContent(ctx context.Context, imageID string) (M
 	}
 
 	return content, nil
+}
+
+// DELETE
+func (r *Repository) DeleteCategory(ctx context.Context, id string) error {
+	if strings.TrimSpace(id) == "" {
+		return ErrInvalidInput
+	}
+
+	tag, err := r.pool.Exec(ctx, `DELETE FROM menu_categories WHERE id = $1`, id)
+	if err != nil {
+		return classifyError(err)
+	}
+
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+
+	return nil
+}
+
+func (r *Repository) DeleteMenuItem(ctx context.Context, id string) error {
+	if strings.TrimSpace(id) == "" {
+		return ErrInvalidInput
+	}
+
+	tag, err := r.pool.Exec(ctx, `DELETE FROM menu_items WHERE id = $1`, id)
+	if err != nil {
+		return classifyError(err)
+	}
+
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+
+	return nil
+}
+
+func (r *Repository) DeleteRequestGuide(ctx context.Context, id string) error {
+	if strings.TrimSpace(id) == "" {
+		return ErrInvalidInput
+	}
+
+	tag, err := r.pool.Exec(ctx, `DELETE FROM request_guides WHERE id = $1`, id)
+	if err != nil {
+		return classifyError(err)
+	}
+
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+
+	return nil
+}
+
+func (r *Repository) DeleteNotice(ctx context.Context, id string) error {
+	if strings.TrimSpace(id) == "" {
+		return ErrInvalidInput
+	}
+
+	tag, err := r.pool.Exec(ctx, `DELETE FROM notices WHERE id = $1`, id)
+	if err != nil {
+		return classifyError(err)
+	}
+
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+
+	return nil
 }
 
 func (r *Repository) nextSortOrder(ctx context.Context, table string) (int, error) {
