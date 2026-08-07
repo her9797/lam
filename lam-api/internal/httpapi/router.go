@@ -114,6 +114,28 @@ func NewMux(repository *store.Repository, cfg config.Config) http.Handler {
 			return
 		}
 
+		if r.Method == http.MethodDelete {
+			id, ok := parseResourceID(r.URL.Path, "/api/v1/admin/categories/")
+			if !ok {
+				http.NotFound(w, r)
+				return
+			}
+
+			if err := repository.DeleteCategory(r.Context(), id); err != nil {
+				writeStoreError(w, err)
+				return
+			}
+
+			bootstrap, err := repository.GetBootstrapData(r.Context())
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, err)
+				return
+			}
+
+			writeJSON(w, http.StatusOK, bootstrap)
+			return
+		}
+
 		if r.Method != http.MethodPatch {
 			writeMethodNotAllowed(w)
 			return
@@ -187,12 +209,37 @@ func NewMux(repository *store.Repository, cfg config.Config) http.Handler {
 			return
 		}
 
-		if r.Method != http.MethodPost && r.Method != http.MethodPatch {
+		if r.Method != http.MethodPost &&
+			r.Method != http.MethodPatch &&
+			r.Method != http.MethodDelete {
 			writeMethodNotAllowed(w)
 			return
 		}
 
 		path := strings.TrimPrefix(r.URL.Path, "/api/v1/admin/menu-items/")
+
+		if r.Method == http.MethodDelete {
+			id, ok := parseResourceID(r.URL.Path, "/api/v1/admin/menu-items/")
+			if !ok {
+				http.NotFound(w, r)
+				return
+			}
+
+			if err := repository.DeleteMenuItem(r.Context(), id); err != nil {
+				writeStoreError(w, err)
+				return
+			}
+
+			bootstrap, err := repository.GetBootstrapData(r.Context())
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, err)
+				return
+			}
+
+			writeJSON(w, http.StatusOK, bootstrap)
+			return
+		}
+
 		if strings.HasSuffix(path, "/images") {
 			menuItemID := strings.TrimSuffix(path, "/images")
 			menuItemID = strings.Trim(menuItemID, "/")
@@ -299,6 +346,28 @@ func NewMux(repository *store.Repository, cfg config.Config) http.Handler {
 			return
 		}
 
+		if r.Method == http.MethodDelete {
+			id, ok := parseResourceID(r.URL.Path, "/api/v1/admin/request-guides/")
+			if !ok {
+				http.NotFound(w, r)
+				return
+			}
+
+			if err := repository.DeleteRequestGuide(r.Context(), id); err != nil {
+				writeStoreError(w, err)
+				return
+			}
+
+			bootstrap, err := repository.GetBootstrapData(r.Context())
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, err)
+				return
+			}
+
+			writeJSON(w, http.StatusOK, bootstrap)
+			return
+		}
+
 		if r.Method != http.MethodPatch {
 			writeMethodNotAllowed(w)
 			return
@@ -365,6 +434,28 @@ func NewMux(repository *store.Repository, cfg config.Config) http.Handler {
 			return
 		}
 
+		if r.Method == http.MethodDelete {
+			id, ok := parseResourceID(r.URL.Path, "/api/v1/admin/notices/")
+			if !ok {
+				http.NotFound(w, r)
+				return
+			}
+
+			if err := repository.DeleteNotice(r.Context(), id); err != nil {
+				writeStoreError(w, err)
+				return
+			}
+
+			bootstrap, err := repository.GetBootstrapData(r.Context())
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, err)
+				return
+			}
+
+			writeJSON(w, http.StatusOK, bootstrap)
+			return
+		}
+
 		if r.Method != http.MethodPatch {
 			writeMethodNotAllowed(w)
 			return
@@ -414,10 +505,24 @@ func parseVisibilityResourceID(path string, prefix string) (string, bool) {
 	return resourceID, true
 }
 
+func parseResourceID(path string, prefix string) (string, bool) {
+	resourceID, ok := strings.CutPrefix(path, prefix)
+	if !ok {
+		return "", false
+	}
+
+	resourceID = strings.Trim(resourceID, "/")
+	if resourceID == "" || strings.Contains(resourceID, "/") {
+		return "", false
+	}
+
+	return resourceID, true
+}
+
 func withCORS(allowedOrigin string, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", allowedOrigin)
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PATCH, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PATCH, OPTIONS, DELETE")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 
 		if r.Method == http.MethodOptions {

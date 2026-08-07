@@ -10,6 +10,10 @@ import {
   createMenuItem,
   createNotice,
   createRequestGuide,
+  deleteCategory as deleteCategoryApi,
+  deleteMenuItem,
+  deleteNotice as deleteNoticeApi,
+  deleteRequestGuide,
   uploadMenuImage,
 } from "@/services/admin-service";
 import type { AppData } from "@/services/app-service";
@@ -392,14 +396,25 @@ export function AdminScreen({ initialData }: AdminScreenProps) {
   }
 
   function deleteCategory(categoryId: string) {
-    setAppData((current) => ({
-      ...current,
-      categories: current.categories.filter((category) => category.id !== categoryId),
-      items: current.items.filter((item) => item.categoryId !== categoryId),
-    }));
-    setMenuManageCategoryId((current) => (current === categoryId ? "all" : current));
-    setEditingCategoryId((current) => (current === categoryId ? null : current));
-    setStatusMessage("카테고리 삭제 UI를 반영했습니다.");
+    startTransition(async () => {
+      try {
+        const nextData = await deleteCategoryApi(categoryId);
+
+        applyNextData(nextData);
+
+        setEditingCategoryId((current) =>
+          current === categoryId ? null : current,
+        );
+
+        setStatusMessage("카테고리를 삭제했습니다.");
+      } catch (error) {
+        setStatusMessage(
+          error instanceof Error
+            ? error.message
+            : "카테고리 삭제에 실패했습니다.",
+        );
+      }
+    });
   }
 
   function beginMenuEdit(item: MenuItem) {
@@ -497,13 +512,20 @@ export function AdminScreen({ initialData }: AdminScreenProps) {
   }
 
   function deleteMenu(menuId: string) {
-    setAppData((current) => ({
-      ...current,
-      items: current.items.filter((item) => item.id !== menuId),
-    }));
-    setEditingMenuId((current) => (current === menuId ? null : current));
-    setStatusMessage("메뉴 삭제 UI를 반영했습니다.");
-  }
+  startTransition(async () => {
+    try {
+      const nextData = await deleteMenuItem(menuId);
+
+      applyNextData(nextData);
+      setEditingMenuId((current) => (current === menuId ? null : current));
+      setStatusMessage("메뉴를 삭제했습니다.");
+    } catch (error) {
+      setStatusMessage(
+        error instanceof Error ? error.message : "메뉴 삭제에 실패했습니다.",
+      );
+    }
+  });
+}
 
   function handleExistingMenuImageChange(_menuId: string, event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0] ?? null;

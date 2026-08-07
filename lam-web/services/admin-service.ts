@@ -41,7 +41,9 @@ async function postJSON(path: string, payload: unknown): Promise<AppData> {
   });
 
   if (!response.ok) {
-    const errorBody = (await response.json().catch(() => null)) as { error?: string } | null;
+    const errorBody = (await response.json().catch(() => null)) as {
+      error?: string;
+    } | null;
     throw new Error(errorBody?.error ?? `request failed: ${response.status}`);
   }
 
@@ -64,16 +66,24 @@ export function createNotice(payload: NoticeInput) {
   return postJSON("/api/admin/notices", payload);
 }
 
-export function updateCategoryVisibility(categoryId: string, isVisible: boolean) {
-  return fetch(`${API_BASE_URL}/api/admin/categories/${categoryId}/visibility`, {
-    method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
+export function updateCategoryVisibility(
+  categoryId: string,
+  isVisible: boolean,
+) {
+  return fetch(
+    `${API_BASE_URL}/api/admin/categories/${categoryId}/visibility`,
+    {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ isVisible }),
     },
-    body: JSON.stringify({ isVisible }),
-  }).then(async (response) => {
+  ).then(async (response) => {
     if (!response.ok) {
-      const errorBody = (await response.json().catch(() => null)) as { error?: string } | null;
+      const errorBody = (await response.json().catch(() => null)) as {
+        error?: string;
+      } | null;
       throw new Error(errorBody?.error ?? `request failed: ${response.status}`);
     }
 
@@ -81,16 +91,24 @@ export function updateCategoryVisibility(categoryId: string, isVisible: boolean)
   });
 }
 
-export function updateMenuItemVisibility(menuItemId: string, isVisible: boolean) {
-  return fetch(`${API_BASE_URL}/api/admin/menu-items/${menuItemId}/visibility`, {
-    method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
+export function updateMenuItemVisibility(
+  menuItemId: string,
+  isVisible: boolean,
+) {
+  return fetch(
+    `${API_BASE_URL}/api/admin/menu-items/${menuItemId}/visibility`,
+    {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ isVisible }),
     },
-    body: JSON.stringify({ isVisible }),
-  }).then(async (response) => {
+  ).then(async (response) => {
     if (!response.ok) {
-      const errorBody = (await response.json().catch(() => null)) as { error?: string } | null;
+      const errorBody = (await response.json().catch(() => null)) as {
+        error?: string;
+      } | null;
       throw new Error(errorBody?.error ?? `request failed: ${response.status}`);
     }
 
@@ -98,16 +116,24 @@ export function updateMenuItemVisibility(menuItemId: string, isVisible: boolean)
   });
 }
 
-export function updateRequestGuideVisibility(requestGuideId: string, isVisible: boolean) {
-  return fetch(`${API_BASE_URL}/api/admin/request-guides/${requestGuideId}/visibility`, {
-    method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
+export function updateRequestGuideVisibility(
+  requestGuideId: string,
+  isVisible: boolean,
+) {
+  return fetch(
+    `${API_BASE_URL}/api/admin/request-guides/${requestGuideId}/visibility`,
+    {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ isVisible }),
     },
-    body: JSON.stringify({ isVisible }),
-  }).then(async (response) => {
+  ).then(async (response) => {
     if (!response.ok) {
-      const errorBody = (await response.json().catch(() => null)) as { error?: string } | null;
+      const errorBody = (await response.json().catch(() => null)) as {
+        error?: string;
+      } | null;
       throw new Error(errorBody?.error ?? `request failed: ${response.status}`);
     }
 
@@ -124,7 +150,9 @@ export function updateNoticeVisibility(noticeId: string, isVisible: boolean) {
     body: JSON.stringify({ isVisible }),
   }).then(async (response) => {
     if (!response.ok) {
-      const errorBody = (await response.json().catch(() => null)) as { error?: string } | null;
+      const errorBody = (await response.json().catch(() => null)) as {
+        error?: string;
+      } | null;
       throw new Error(errorBody?.error ?? `request failed: ${response.status}`);
     }
 
@@ -132,7 +160,9 @@ export function updateNoticeVisibility(noticeId: string, isVisible: boolean) {
   });
 }
 
-export async function uploadMenuImage(payload: MenuImageInput): Promise<AppData> {
+export async function uploadMenuImage(
+  payload: MenuImageInput,
+): Promise<AppData> {
   const formData = new FormData();
   formData.append("image", payload.image);
   if (payload.isPrimary) {
@@ -142,15 +172,52 @@ export async function uploadMenuImage(payload: MenuImageInput): Promise<AppData>
   formData.append("focusX", String(payload.focusX ?? 50));
   formData.append("focusY", String(payload.focusY ?? 50));
 
-  const response = await fetch(`${API_BASE_URL}/api/admin/menu-items/${payload.menuItemId}/images`, {
-    method: "POST",
-    body: formData,
-  });
+  const response = await fetch(
+    `${API_BASE_URL}/api/admin/menu-items/${payload.menuItemId}/images`,
+    {
+      method: "POST",
+      body: formData,
+    },
+  );
 
   if (!response.ok) {
-    const errorBody = (await response.json().catch(() => null)) as { error?: string } | null;
+    const errorBody = (await response.json().catch(() => null)) as {
+      error?: string;
+    } | null;
     throw new Error(errorBody?.error ?? `request failed: ${response.status}`);
   }
 
   return normalizeAppDataImages((await response.json()) as AppData);
+}
+
+async function deleteJSON(path: string): Promise<AppData> {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: "DELETE",
+  });
+
+  if (!response.ok) {
+    const errorBody = (await response.json().catch(() => null)) as {
+      error?: string;
+    } | null;
+
+    throw new Error(errorBody?.error ?? `request failed: ${response.status}`);
+  }
+
+  return normalizeAppDataImages((await response.json()) as AppData);
+}
+
+export function deleteCategory(categoryId: string) {
+  return deleteJSON(`/api/admin/categories/${categoryId}`);
+}
+
+export function deleteMenuItem(menuItemId: string) {
+  return deleteJSON(`/api/admin/menu-items/${menuItemId}`);
+}
+
+export function deleteRequestGuide(requestGuideId: string) {
+  return deleteJSON(`/api/admin/request-guides/${requestGuideId}`);
+}
+
+export function deleteNotice(noticeId: string) {
+  return deleteJSON(`/api/admin/notices/${noticeId}`);
 }
