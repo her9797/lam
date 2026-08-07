@@ -232,6 +232,17 @@ export function AdminScreen({ initialData }: AdminScreenProps) {
   const [requestForm, setRequestForm] = useState<NoticeFormState>(defaultNoticeForm);
   const [noticeForm, setNoticeForm] = useState<NoticeFormState>(defaultNoticeForm);
   const [statusMessage, setStatusMessage] = useState<string>("");
+  useEffect(() => {
+  if (!statusMessage) {
+    return;
+  }
+
+  const timer = window.setTimeout(() => {
+    setStatusMessage("");
+  }, 2000);
+
+  return () => window.clearTimeout(timer);
+}, [statusMessage]);
   const [activeSection, setActiveSection] = useState<(typeof adminSections)[number]["id"]>("category");
   const [sliderHeight, setSliderHeight] = useState<number>(0);
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
@@ -594,13 +605,31 @@ export function AdminScreen({ initialData }: AdminScreenProps) {
   }
 
   function deleteNotice(itemId: string, type: "request" | "notice") {
-    setAppData((current) => ({
-      ...current,
-      requestGuides: type === "request" ? current.requestGuides.filter((item) => item.id !== itemId) : current.requestGuides,
-      notices: type === "notice" ? current.notices.filter((item) => item.id !== itemId) : current.notices,
-    }));
-    cancelNoticeEdit(type);
-    setStatusMessage(type === "request" ? "요청사항 삭제 UI를 반영했습니다." : "이벤트 삭제 UI를 반영했습니다.");
+    startTransition(async () => {
+      try {
+        const nextData =
+          type === "request"
+            ? await deleteRequestGuide(itemId)
+            : await deleteNoticeApi(itemId);
+
+        applyNextData(nextData);
+        cancelNoticeEdit(type);
+
+        setStatusMessage(
+          type === "request"
+            ? "요청사항을 삭제했습니다."
+            : "이벤트/공지를 삭제했습니다.",
+        );
+      } catch (error) {
+        setStatusMessage(
+          error instanceof Error
+            ? error.message
+            : type === "request"
+              ? "요청사항 삭제에 실패했습니다."
+              : "이벤트/공지 삭제에 실패했습니다.",
+        );
+      }
+    });
   }
 
   function handleCategorySubmit(event: FormEvent<HTMLFormElement>) {
@@ -719,7 +748,6 @@ export function AdminScreen({ initialData }: AdminScreenProps) {
       <FloatingHomeBadge />
       <ScrollTopButton />
       <div className="phone-frame admin-frame">
-        {statusMessage ? <p className="admin-status admin-status-floating">{statusMessage}</p> : null}
 
         <div className="admin-tabs" role="tablist" aria-label="운영 관리 섹션">
           {adminSections.map((section) => (
@@ -1170,6 +1198,11 @@ export function AdminScreen({ initialData }: AdminScreenProps) {
           </section>
         </div>
       </div>
+            {statusMessage ? (
+        <div className="admin-toast" role="status" aria-live="polite">
+          {statusMessage}
+        </div>
+      ) : null}
     </main>
   );
 }
