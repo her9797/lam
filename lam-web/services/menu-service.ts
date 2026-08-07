@@ -13,7 +13,7 @@ export type MenuData = {
   items: MenuItem[];
 };
 
-const API_BASE_URL = process.env.API_BASE_URL ?? "http://127.0.0.1:8081";
+const API_BASE_URL = process.env.API_BASE_URL ?? "http://127.0.0.1:9090";
 const MENU_ENDPOINT = "/api/v1/menu";
 
 function getFallbackMenuData(): MenuData {
