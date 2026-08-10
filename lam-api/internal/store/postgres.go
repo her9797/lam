@@ -113,6 +113,22 @@ CREATE TABLE IF NOT EXISTS notices (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS customer_requests (
+  id TEXT PRIMARY KEY,
+  category TEXT NOT NULL DEFAULT 'direct',
+  text TEXT NOT NULL,
+  gender TEXT,
+  name TEXT,
+  age TEXT,
+  residence TEXT,
+  instagram TEXT,
+  ideal_type TEXT,
+  status TEXT NOT NULL DEFAULT 'pending',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  handled_at TIMESTAMPTZ
+);
+
 ALTER TABLE menu_categories ADD COLUMN IF NOT EXISTS is_visible BOOLEAN NOT NULL DEFAULT TRUE;
 ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS is_visible BOOLEAN NOT NULL DEFAULT TRUE;
 ALTER TABLE request_guides ADD COLUMN IF NOT EXISTS is_visible BOOLEAN NOT NULL DEFAULT TRUE;
@@ -120,6 +136,13 @@ ALTER TABLE notices ADD COLUMN IF NOT EXISTS is_visible BOOLEAN NOT NULL DEFAULT
 ALTER TABLE menu_item_images ADD COLUMN IF NOT EXISTS display_area TEXT NOT NULL DEFAULT 'menu';
 ALTER TABLE menu_item_images ADD COLUMN IF NOT EXISTS focus_x INTEGER NOT NULL DEFAULT 50;
 ALTER TABLE menu_item_images ADD COLUMN IF NOT EXISTS focus_y INTEGER NOT NULL DEFAULT 50;
+ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS category TEXT NOT NULL DEFAULT 'direct';
+ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS gender TEXT;
+ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS name TEXT;
+ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS age TEXT;
+ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS residence TEXT;
+ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS instagram TEXT;
+ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS ideal_type TEXT;
 `)
 	return err
 }
@@ -395,6 +418,145 @@ func (r *Repository) CreateRequestGuide(ctx context.Context, text string, isVisi
 	return classifyError(err)
 }
 
+func (r *Repository) ListCustomerRequests(ctx context.Context) ([]lamdata.CustomerRequest, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT
+			id,
+			category,
+			COALESCE(text, ''),
+			COALESCE(gender, ''),
+			COALESCE(name, ''),
+			COALESCE(age, ''),
+			COALESCE(residence, ''),
+			COALESCE(instagram, ''),
+			COALESCE(ideal_type, ''),
+			status,
+			created_at,
+			handled_at
+		FROM customer_requests
+		ORDER BY
+			CASE category
+				WHEN 'direct' THEN 0
+				ELSE 1
+			END,
+			CASE status
+				WHEN 'pending' THEN 0
+				WHEN 'checked' THEN 1
+				ELSE 2
+			END,
+			created_at DESC,
+			id DESC
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	requests := make([]lamdata.CustomerRequest, 0)
+	for rows.Next() {
+		var item lamdata.CustomerRequest
+		var createdAt time.Time
+		var handledAt *time.Time
+		if err := rows.Scan(
+			&item.ID,
+			&item.Category,
+			&item.Text,
+			&item.Gender,
+			&item.Name,
+			&item.Age,
+			&item.Residence,
+			&item.Instagram,
+			&item.IdealType,
+			&item.Status,
+			&createdAt,
+			&handledAt,
+		); err != nil {
+			return nil, err
+		}
+		item.CreatedAt = formatTimestamp(createdAt)
+		if handledAt != nil {
+			item.HandledAt = formatTimestamp(*handledAt)
+		}
+		requests = append(requests, item)
+	}
+
+	return requests, rows.Err()
+}
+
+func (r *Repository) CreateCustomerRequest(ctx context.Context, input lamdata.CustomerRequest) error {
+	if !isValidCustomerRequestCategory(input.Category) {
+		return ErrInvalidInput
+	}
+	if input.Category == "direct" && strings.TrimSpace(input.Text) == "" {
+		return ErrInvalidInput
+	}
+	if input.Category == "special" &&
+		(!isValidCustomerRequestGender(input.Gender) ||
+			strings.TrimSpace(input.Name) == "" ||
+			strings.TrimSpace(input.Age) == "" ||
+			strings.TrimSpace(input.Residence) == "" ||
+			strings.TrimSpace(input.Instagram) == "" ||
+			strings.TrimSpace(input.IdealType) == "" ||
+			strings.TrimSpace(input.Text) == "") {
+		return ErrInvalidInput
+	}
+
+	id := fmt.Sprintf("customer-request-%d", time.Now().UnixMilli())
+	_, err := r.pool.Exec(ctx, `
+		INSERT INTO customer_requests (id, category, text, gender, name, age, residence, instagram, ideal_type, status)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending')
+	`,
+		id,
+		input.Category,
+		input.Text,
+		nullable(input.Gender),
+		nullable(input.Name),
+		nullable(input.Age),
+		nullable(input.Residence),
+		nullable(input.Instagram),
+		nullable(input.IdealType),
+	)
+	return classifyError(err)
+}
+
+func (r *Repository) UpdateCustomerRequestStatus(ctx context.Context, id string, status string) error {
+	if strings.TrimSpace(id) == "" || !isValidCustomerRequestStatus(status) {
+		return ErrInvalidInput
+	}
+
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE customer_requests
+		SET status = $2,
+			updated_at = NOW(),
+			handled_at = CASE WHEN $2 = 'completed' THEN NOW() ELSE NULL END
+		WHERE id = $1
+	`, id, status)
+	if err != nil {
+		return classifyError(err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (r *Repository) DeleteCustomerRequest(ctx context.Context, id string) error {
+	if strings.TrimSpace(id) == "" {
+		return ErrInvalidInput
+	}
+
+	tag, err := r.pool.Exec(ctx, `DELETE FROM customer_requests WHERE id = $1`, id)
+	if err != nil {
+		return classifyError(err)
+	}
+
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+
+	return nil
+}
+
 func (r *Repository) CreateNotice(ctx context.Context, text string, isVisible bool) error {
 	if text == "" {
 		return ErrInvalidInput
@@ -635,6 +797,37 @@ func clampImageFocus(value int) int {
 		return 100
 	}
 	return value
+}
+
+func isValidCustomerRequestStatus(status string) bool {
+	switch status {
+	case "pending", "checked", "completed":
+		return true
+	default:
+		return false
+	}
+}
+
+func isValidCustomerRequestCategory(category string) bool {
+	switch category {
+	case "direct", "special":
+		return true
+	default:
+		return false
+	}
+}
+
+func isValidCustomerRequestGender(gender string) bool {
+	switch gender {
+	case "male", "female":
+		return true
+	default:
+		return false
+	}
+}
+
+func formatTimestamp(value time.Time) string {
+	return value.UTC().Format(time.RFC3339)
 }
 
 func classifyError(err error) error {

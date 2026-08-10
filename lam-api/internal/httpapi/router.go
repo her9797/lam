@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/her9797/lam/lam-api/internal/config"
+	"github.com/her9797/lam/lam-api/internal/lamdata"
 	"github.com/her9797/lam/lam-api/internal/store"
 )
 
@@ -47,6 +48,26 @@ func NewMux(repository *store.Repository, cfg config.Config) http.Handler {
 		}
 
 		writeJSON(w, http.StatusOK, data)
+	}))
+
+	mux.HandleFunc("/api/v1/customer-requests", withCORS(cfg.AllowedOrigin, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			writeMethodNotAllowed(w)
+			return
+		}
+
+		var payload createCustomerRequestRequest
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+
+		if err := repository.CreateCustomerRequest(r.Context(), storeInputCustomerRequest(payload)); err != nil {
+			writeStoreError(w, err)
+			return
+		}
+
+		writeJSON(w, http.StatusCreated, map[string]string{"status": "ok"})
 	}))
 
 	mux.HandleFunc("/api/v1/menu-images/", withCORS(cfg.AllowedOrigin, func(w http.ResponseWriter, r *http.Request) {
@@ -311,6 +332,83 @@ func NewMux(repository *store.Repository, cfg config.Config) http.Handler {
 		writeJSON(w, http.StatusCreated, bootstrap)
 	}))
 
+	mux.HandleFunc("/api/v1/admin/customer-requests", withCORS(cfg.AllowedOrigin, func(w http.ResponseWriter, r *http.Request) {
+		if !requireAdminAuth(w, r, cfg.AdminAPIToken) {
+			return
+		}
+
+		if r.Method != http.MethodGet {
+			writeMethodNotAllowed(w)
+			return
+		}
+
+		requests, err := repository.ListCustomerRequests(r.Context())
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+
+		writeJSON(w, http.StatusOK, requests)
+	}))
+
+	mux.HandleFunc("/api/v1/admin/customer-requests/", withCORS(cfg.AllowedOrigin, func(w http.ResponseWriter, r *http.Request) {
+		if !requireAdminAuth(w, r, cfg.AdminAPIToken) {
+			return
+		}
+
+		if r.Method == http.MethodDelete {
+			id, ok := parseResourceID(r.URL.Path, "/api/v1/admin/customer-requests/")
+			if !ok {
+				http.NotFound(w, r)
+				return
+			}
+
+			if err := repository.DeleteCustomerRequest(r.Context(), id); err != nil {
+				writeStoreError(w, err)
+				return
+			}
+
+			requests, err := repository.ListCustomerRequests(r.Context())
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, err)
+				return
+			}
+
+			writeJSON(w, http.StatusOK, requests)
+			return
+		}
+
+		if r.Method != http.MethodPatch {
+			writeMethodNotAllowed(w)
+			return
+		}
+
+		id, ok := parseStatusResourceID(r.URL.Path, "/api/v1/admin/customer-requests/")
+		if !ok {
+			http.NotFound(w, r)
+			return
+		}
+
+		var payload updateCustomerRequestStatusRequest
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+
+		if err := repository.UpdateCustomerRequestStatus(r.Context(), id, strings.TrimSpace(payload.Status)); err != nil {
+			writeStoreError(w, err)
+			return
+		}
+
+		requests, err := repository.ListCustomerRequests(r.Context())
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+
+		writeJSON(w, http.StatusOK, requests)
+	}))
+
 	mux.HandleFunc("/api/v1/admin/request-guides", withCORS(cfg.AllowedOrigin, func(w http.ResponseWriter, r *http.Request) {
 		if !requireAdminAuth(w, r, cfg.AdminAPIToken) {
 			return
@@ -503,6 +601,34 @@ func parseVisibilityResourceID(path string, prefix string) (string, bool) {
 	}
 
 	return resourceID, true
+}
+
+func parseStatusResourceID(path string, prefix string) (string, bool) {
+	resourceID, ok := strings.CutPrefix(path, prefix)
+	if !ok || !strings.HasSuffix(resourceID, "/status") {
+		return "", false
+	}
+
+	resourceID = strings.TrimSuffix(resourceID, "/status")
+	resourceID = strings.Trim(resourceID, "/")
+	if resourceID == "" {
+		return "", false
+	}
+
+	return resourceID, true
+}
+
+func storeInputCustomerRequest(payload createCustomerRequestRequest) lamdata.CustomerRequest {
+	return lamdata.CustomerRequest{
+		Category:  strings.TrimSpace(payload.Category),
+		Text:      strings.TrimSpace(payload.Text),
+		Gender:    strings.TrimSpace(payload.Gender),
+		Name:      strings.TrimSpace(payload.Name),
+		Age:       strings.TrimSpace(payload.Age),
+		Residence: strings.TrimSpace(payload.Residence),
+		Instagram: strings.TrimSpace(payload.Instagram),
+		IdealType: strings.TrimSpace(payload.IdealType),
+	}
 }
 
 func parseResourceID(path string, prefix string) (string, bool) {

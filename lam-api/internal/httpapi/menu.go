@@ -20,6 +20,21 @@ type createNoticeRequest struct {
 	IsVisible bool   `json:"isVisible"`
 }
 
+type createCustomerRequestRequest struct {
+	Category  string `json:"category"`
+	Text      string `json:"text"`
+	Gender    string `json:"gender"`
+	Name      string `json:"name"`
+	Age       string `json:"age"`
+	Residence string `json:"residence"`
+	Instagram string `json:"instagram"`
+	IdealType string `json:"idealType"`
+}
+
 type updateVisibilityRequest struct {
 	IsVisible bool `json:"isVisible"`
+}
+
+type updateCustomerRequestStatusRequest struct {
+	Status string `json:"status"`
 }
