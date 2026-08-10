@@ -1,14 +1,127 @@
+"use client";
+
+import { FormEvent, useEffect, useState, useTransition } from "react";
+
 import { FloatingHomeBadge } from "@/components/navigation/floating-home-badge";
 import { PrimaryNav } from "@/components/navigation/primary-nav";
 import { ScrollTopButton } from "@/components/navigation/scroll-top-button";
-import type { NoticeItem, StoreInfo } from "@/data/menu-data";
+import {
+  createCustomerRequest,
+  type CustomerRequestCategory,
+  type CustomerRequestGender,
+} from "@/services/customer-request-service";
+import type { StoreInfo } from "@/data/menu-data";
 
 type RequestsScreenProps = {
   store: StoreInfo;
-  requestGuides: NoticeItem[];
 };
 
-export function RequestsScreen({ store, requestGuides }: RequestsScreenProps) {
+type SpecialFormState = {
+  gender: CustomerRequestGender;
+  name: string;
+  age: string;
+  residence: string;
+  instagram: string;
+  idealType: string;
+  text: string;
+};
+
+const defaultSpecialForm: SpecialFormState = {
+  gender: "male",
+  name: "",
+  age: "",
+  residence: "",
+  instagram: "",
+  idealType: "",
+  text: "",
+};
+
+export function RequestsScreen({ store }: RequestsScreenProps) {
+  const [activeCategory, setActiveCategory] =
+    useState<CustomerRequestCategory>("direct");
+  const [message, setMessage] = useState("");
+  const [specialForm, setSpecialForm] =
+    useState<SpecialFormState>(defaultSpecialForm);
+  const [feedback, setFeedback] = useState("");
+  const [isPending, startTransition] = useTransition();
+
+  useEffect(() => {
+    if (!feedback) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setFeedback("");
+    }, 2000);
+
+    return () => window.clearTimeout(timer);
+  }, [feedback]);
+
+  function handleDirectSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const nextMessage = message.trim();
+    if (!nextMessage) {
+      setFeedback("남기실 내용을 입력해주세요.");
+      return;
+    }
+
+    startTransition(async () => {
+      try {
+        await createCustomerRequest({
+          category: "direct",
+          text: nextMessage,
+        });
+        setMessage("");
+        setFeedback("사장님께 전달할 내용을 남겼어요.");
+      } catch (error) {
+        setFeedback(
+          error instanceof Error
+            ? error.message
+            : "전달 중 문제가 발생했습니다.",
+        );
+      }
+    });
+  }
+
+  function handleSpecialSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (
+      !specialForm.name.trim() ||
+      !specialForm.age.trim() ||
+      !specialForm.residence.trim() ||
+      !specialForm.instagram.trim() ||
+      !specialForm.idealType.trim() ||
+      !specialForm.text.trim()
+    ) {
+      setFeedback("특별한 폼의 모든 항목을 입력해주세요.");
+      return;
+    }
+
+    startTransition(async () => {
+      try {
+        await createCustomerRequest({
+          category: "special",
+          gender: specialForm.gender,
+          name: specialForm.name.trim(),
+          age: specialForm.age.trim(),
+          residence: specialForm.residence.trim(),
+          instagram: specialForm.instagram.trim(),
+          idealType: specialForm.idealType.trim(),
+          text: specialForm.text.trim(),
+        });
+        setSpecialForm(defaultSpecialForm);
+        setFeedback("특별한 요청을 전달했어요.");
+      } catch (error) {
+        setFeedback(
+          error instanceof Error
+            ? error.message
+            : "전달 중 문제가 발생했습니다.",
+        );
+      }
+    });
+  }
+
   return (
     <main className="page-shell">
       <FloatingHomeBadge />
@@ -16,28 +129,188 @@ export function RequestsScreen({ store, requestGuides }: RequestsScreenProps) {
       <div className="phone-frame">
         <header className="hero-card compact">
           <p className="eyebrow">BAR LAM</p>
-          <h1>요청사항</h1>
-          <p className="hero-copy">{store.name} 이용 전 확인해두면 좋은 안내입니다.</p>
+          <h1>사장님께 한마디</h1>
+          <p className="hero-copy">
+            {store.name}에 전하고 싶은 요청이나 하고 싶은 말을
+            카테고리별로 남겨주세요.
+          </p>
         </header>
 
         <PrimaryNav active="requests" />
 
-        <section className="content-card">
-          <div className="section-header">
-            <div>
-              <p className="section-kicker">guide</p>
-              <h2>주문 전 확인</h2>
+        <div className="request-category-strip" role="tablist" aria-label="한마디 카테고리">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeCategory === "direct"}
+            className={
+              activeCategory === "direct"
+                ? "request-category-pill active"
+                : "request-category-pill"
+            }
+            onClick={() => setActiveCategory("direct")}
+          >
+            바로 전달하기
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeCategory === "special"}
+            className={
+              activeCategory === "special"
+                ? "request-category-pill request-category-pill-special active"
+                : "request-category-pill request-category-pill-special"
+            }
+            onClick={() => setActiveCategory("special")}
+          >
+            특별한
+          </button>
+        </div>
+
+        {activeCategory === "direct" ? (
+          <section className="content-card request-compose-card">
+            <div className="section-header">
+              <div>
+                <p className="section-kicker">direct</p>
+                <h2>바로 전달하기</h2>
+              </div>
             </div>
-          </div>
-          <div className="notice-list">
-            {requestGuides.map((guide) => (
-              <p key={guide.id} className="notice-item">
-                {guide.text}
-              </p>
-            ))}
-          </div>
-        </section>
+            <form className="request-compose-form" onSubmit={handleDirectSubmit}>
+              <label className="request-compose-field">
+                <span>남기실 내용</span>
+                <textarea
+                  value={message}
+                  onChange={(event) => setMessage(event.target.value)}
+                  placeholder="예: 얼음 적게 부탁드려요. 조용한 자리 있으면 좋겠어요."
+                />
+              </label>
+              <button
+                className="request-compose-button"
+                type="submit"
+                disabled={isPending}
+              >
+                {isPending ? "전달 중..." : "사장님께 보내기"}
+              </button>
+            </form>
+          </section>
+        ) : (
+          <section className="content-card request-compose-card">
+            <div className="section-header">
+              <div>
+                <p className="section-kicker">special</p>
+                <h2>특별한</h2>
+              </div>
+            </div>
+            <form className="request-compose-form request-compose-form-grid" onSubmit={handleSpecialSubmit}>
+              <label className="request-compose-field">
+                <span>성별</span>
+                <select
+                  value={specialForm.gender}
+                  onChange={(event) =>
+                    setSpecialForm((current) => ({
+                      ...current,
+                      gender: event.target.value as CustomerRequestGender,
+                    }))
+                  }
+                >
+                  <option value="male">남자</option>
+                  <option value="female">여자</option>
+                </select>
+              </label>
+              <label className="request-compose-field">
+                <span>이름</span>
+                <input
+                  value={specialForm.name}
+                  onChange={(event) =>
+                    setSpecialForm((current) => ({
+                      ...current,
+                      name: event.target.value,
+                    }))
+                  }
+                  placeholder="이름을 입력해주세요"
+                />
+              </label>
+              <label className="request-compose-field">
+                <span>나이</span>
+                <input
+                  value={specialForm.age}
+                  onChange={(event) =>
+                    setSpecialForm((current) => ({
+                      ...current,
+                      age: event.target.value,
+                    }))
+                  }
+                  placeholder="나이를 입력해주세요"
+                />
+              </label>
+              <label className="request-compose-field">
+                <span>사는 곳</span>
+                <input
+                  value={specialForm.residence}
+                  onChange={(event) =>
+                    setSpecialForm((current) => ({
+                      ...current,
+                      residence: event.target.value,
+                    }))
+                  }
+                  placeholder="예: 성수, 잠실"
+                />
+              </label>
+              <label className="request-compose-field">
+                <span>연락처 (인스타그램)</span>
+                <input
+                  value={specialForm.instagram}
+                  onChange={(event) =>
+                    setSpecialForm((current) => ({
+                      ...current,
+                      instagram: event.target.value,
+                    }))
+                  }
+                  placeholder="예: @your_instagram"
+                />
+              </label>
+              <label className="request-compose-field request-compose-field-wide">
+                <span>이상형</span>
+                <input
+                  value={specialForm.idealType}
+                  onChange={(event) =>
+                    setSpecialForm((current) => ({
+                      ...current,
+                      idealType: event.target.value,
+                    }))
+                  }
+                  placeholder="어떤 사람이 이상형인지 적어주세요"
+                />
+              </label>
+              <label className="request-compose-field request-compose-field-wide">
+                <span>하고 싶은 말</span>
+                <textarea
+                  value={specialForm.text}
+                  onChange={(event) =>
+                    setSpecialForm((current) => ({
+                      ...current,
+                      text: event.target.value,
+                    }))
+                  }
+                  placeholder="자유롭게 남겨주세요"
+                />
+              </label>
+              <button
+                className="request-compose-button request-compose-button-wide"
+                type="submit"
+                disabled={isPending}
+              >
+                {isPending ? "전달 중..." : "특별한 요청 보내기"}
+              </button>
+            </form>
+          </section>
+        )}
       </div>
+      {feedback ? (
+        <div className="admin-toast" role="status" aria-live="polite">
+          {feedback}
+        </div>
+      ) : null}
     </main>
   );
 }

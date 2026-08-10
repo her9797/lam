@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 
 import { RequestsScreen } from "@/components/screens/requests-screen";
 import { getQrCookieName, isQrSessionValid } from "@/lib/auth";
-import { getAppData, getVisibleRequestGuidesFromData } from "@/services/app-service";
+import { getAppData } from "@/services/app-service";
 
 export const dynamic = "force-dynamic";
 
@@ -15,5 +15,5 @@ export default async function RequestsPage() {
   }
 
   const appData = await getAppData();
-  return <RequestsScreen store={appData.store} requestGuides={getVisibleRequestGuidesFromData(appData)} />;
+  return <RequestsScreen store={appData.store} />;
 }

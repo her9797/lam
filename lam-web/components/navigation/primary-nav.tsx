@@ -6,7 +6,7 @@ type PrimaryNavProps = {
 
 const items = [
   { href: "/menu", label: "메뉴", key: "menu" },
-  { href: "/requests", label: "요청사항", key: "requests" },
+  { href: "/requests", label: "한마디", key: "requests" },
   { href: "/events", label: "이벤트", key: "events" },
 ] as const;
 
