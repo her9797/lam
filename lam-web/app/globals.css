@@ -1181,6 +1181,8 @@ a {
 
 .request-compose-card {
   padding-bottom: 18px;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .request-category-strip {
@@ -1273,6 +1275,8 @@ a {
   padding: 0 16px;
   font: inherit;
   outline: none;
+  appearance: auto;
+  -webkit-appearance: menulist;
 }
 
 .request-compose-field-wide {
