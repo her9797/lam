@@ -62,7 +62,27 @@ func NewMux(repository *store.Repository, cfg config.Config) http.Handler {
 			return
 		}
 
-		if err := repository.CreateCustomerRequest(r.Context(), storeInputCustomerRequest(payload)); err != nil {
+		if err := repository.CreateCustomerRequest(r.Context(), strings.TrimSpace(payload.Text)); err != nil {
+			writeStoreError(w, err)
+			return
+		}
+
+		writeJSON(w, http.StatusCreated, map[string]string{"status": "ok"})
+	}))
+
+	mux.HandleFunc("/api/v1/special-requests", withCORS(cfg.AllowedOrigin, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			writeMethodNotAllowed(w)
+			return
+		}
+
+		var payload createSpecialRequestRequest
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+
+		if err := repository.CreateSpecialRequest(r.Context(), storeInputSpecialRequest(payload)); err != nil {
 			writeStoreError(w, err)
 			return
 		}
@@ -351,6 +371,25 @@ func NewMux(repository *store.Repository, cfg config.Config) http.Handler {
 		writeJSON(w, http.StatusOK, requests)
 	}))
 
+	mux.HandleFunc("/api/v1/admin/special-requests", withCORS(cfg.AllowedOrigin, func(w http.ResponseWriter, r *http.Request) {
+		if !requireAdminAuth(w, r, cfg.AdminAPIToken) {
+			return
+		}
+
+		if r.Method != http.MethodGet {
+			writeMethodNotAllowed(w)
+			return
+		}
+
+		requests, err := repository.ListSpecialRequests(r.Context())
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+
+		writeJSON(w, http.StatusOK, requests)
+	}))
+
 	mux.HandleFunc("/api/v1/admin/customer-requests/", withCORS(cfg.AllowedOrigin, func(w http.ResponseWriter, r *http.Request) {
 		if !requireAdminAuth(w, r, cfg.AdminAPIToken) {
 			return
@@ -401,6 +440,36 @@ func NewMux(repository *store.Repository, cfg config.Config) http.Handler {
 		}
 
 		requests, err := repository.ListCustomerRequests(r.Context())
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+
+		writeJSON(w, http.StatusOK, requests)
+	}))
+
+	mux.HandleFunc("/api/v1/admin/special-requests/", withCORS(cfg.AllowedOrigin, func(w http.ResponseWriter, r *http.Request) {
+		if !requireAdminAuth(w, r, cfg.AdminAPIToken) {
+			return
+		}
+
+		if r.Method != http.MethodDelete {
+			writeMethodNotAllowed(w)
+			return
+		}
+
+		id, ok := parseResourceID(r.URL.Path, "/api/v1/admin/special-requests/")
+		if !ok {
+			http.NotFound(w, r)
+			return
+		}
+
+		if err := repository.DeleteSpecialRequest(r.Context(), id); err != nil {
+			writeStoreError(w, err)
+			return
+		}
+
+		requests, err := repository.ListSpecialRequests(r.Context())
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err)
 			return
@@ -618,16 +687,15 @@ func parseStatusResourceID(path string, prefix string) (string, bool) {
 	return resourceID, true
 }
 
-func storeInputCustomerRequest(payload createCustomerRequestRequest) lamdata.CustomerRequest {
-	return lamdata.CustomerRequest{
-		Category:  strings.TrimSpace(payload.Category),
-		Text:      strings.TrimSpace(payload.Text),
+func storeInputSpecialRequest(payload createSpecialRequestRequest) lamdata.SpecialRequest {
+	return lamdata.SpecialRequest{
 		Gender:    strings.TrimSpace(payload.Gender),
 		Name:      strings.TrimSpace(payload.Name),
 		Age:       strings.TrimSpace(payload.Age),
 		Residence: strings.TrimSpace(payload.Residence),
 		Instagram: strings.TrimSpace(payload.Instagram),
 		IdealType: strings.TrimSpace(payload.IdealType),
+		Text:      strings.TrimSpace(payload.Text),
 	}
 }
 

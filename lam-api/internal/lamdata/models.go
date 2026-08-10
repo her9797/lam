@@ -44,17 +44,22 @@ type NoticeItem struct {
 
 type CustomerRequest struct {
 	ID         string `json:"id"`
-	Category   string `json:"category"`
 	Text       string `json:"text"`
-	Gender     string `json:"gender,omitempty"`
-	Name       string `json:"name,omitempty"`
-	Age        string `json:"age,omitempty"`
-	Residence  string `json:"residence,omitempty"`
-	Instagram  string `json:"instagram,omitempty"`
-	IdealType  string `json:"idealType,omitempty"`
 	Status     string `json:"status"`
 	CreatedAt  string `json:"createdAt"`
 	HandledAt  string `json:"handledAt,omitempty"`
+}
+
+type SpecialRequest struct {
+	ID        string `json:"id"`
+	Gender    string `json:"gender"`
+	Name      string `json:"name"`
+	Age       string `json:"age"`
+	Residence string `json:"residence"`
+	Instagram string `json:"instagram"`
+	IdealType string `json:"idealType"`
+	Text      string `json:"text"`
+	CreatedAt string `json:"createdAt"`
 }
 
 type BootstrapData struct {

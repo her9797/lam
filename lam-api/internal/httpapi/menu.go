@@ -21,14 +21,17 @@ type createNoticeRequest struct {
 }
 
 type createCustomerRequestRequest struct {
-	Category  string `json:"category"`
 	Text      string `json:"text"`
+}
+
+type createSpecialRequestRequest struct {
 	Gender    string `json:"gender"`
 	Name      string `json:"name"`
 	Age       string `json:"age"`
 	Residence string `json:"residence"`
 	Instagram string `json:"instagram"`
 	IdealType string `json:"idealType"`
+	Text      string `json:"text"`
 }
 
 type updateVisibilityRequest struct {

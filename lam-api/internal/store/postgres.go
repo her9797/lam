@@ -115,18 +115,23 @@ CREATE TABLE IF NOT EXISTS notices (
 
 CREATE TABLE IF NOT EXISTS customer_requests (
   id TEXT PRIMARY KEY,
-  category TEXT NOT NULL DEFAULT 'direct',
   text TEXT NOT NULL,
-  gender TEXT,
-  name TEXT,
-  age TEXT,
-  residence TEXT,
-  instagram TEXT,
-  ideal_type TEXT,
   status TEXT NOT NULL DEFAULT 'pending',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   handled_at TIMESTAMPTZ
+);
+
+CREATE TABLE IF NOT EXISTS special_requests (
+  id TEXT PRIMARY KEY,
+  gender TEXT NOT NULL,
+  name TEXT NOT NULL,
+  age TEXT NOT NULL,
+  residence TEXT NOT NULL,
+  instagram TEXT NOT NULL,
+  ideal_type TEXT NOT NULL,
+  text TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 ALTER TABLE menu_categories ADD COLUMN IF NOT EXISTS is_visible BOOLEAN NOT NULL DEFAULT TRUE;
@@ -136,13 +141,41 @@ ALTER TABLE notices ADD COLUMN IF NOT EXISTS is_visible BOOLEAN NOT NULL DEFAULT
 ALTER TABLE menu_item_images ADD COLUMN IF NOT EXISTS display_area TEXT NOT NULL DEFAULT 'menu';
 ALTER TABLE menu_item_images ADD COLUMN IF NOT EXISTS focus_x INTEGER NOT NULL DEFAULT 50;
 ALTER TABLE menu_item_images ADD COLUMN IF NOT EXISTS focus_y INTEGER NOT NULL DEFAULT 50;
-ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS category TEXT NOT NULL DEFAULT 'direct';
-ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS gender TEXT;
-ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS name TEXT;
-ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS age TEXT;
-ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS residence TEXT;
-ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS instagram TEXT;
-ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS ideal_type TEXT;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_name = 'customer_requests'
+      AND column_name = 'category'
+  ) THEN
+    INSERT INTO special_requests (id, gender, name, age, residence, instagram, ideal_type, text, created_at)
+    SELECT
+      id,
+      COALESCE(gender, ''),
+      COALESCE(name, ''),
+      COALESCE(age, ''),
+      COALESCE(residence, ''),
+      COALESCE(instagram, ''),
+      COALESCE(ideal_type, ''),
+      text,
+      created_at
+    FROM customer_requests
+    WHERE category = 'special'
+    ON CONFLICT (id) DO NOTHING;
+
+    DELETE FROM customer_requests
+    WHERE category = 'special';
+
+    ALTER TABLE customer_requests DROP COLUMN IF EXISTS category;
+    ALTER TABLE customer_requests DROP COLUMN IF EXISTS gender;
+    ALTER TABLE customer_requests DROP COLUMN IF EXISTS name;
+    ALTER TABLE customer_requests DROP COLUMN IF EXISTS age;
+    ALTER TABLE customer_requests DROP COLUMN IF EXISTS residence;
+    ALTER TABLE customer_requests DROP COLUMN IF EXISTS instagram;
+    ALTER TABLE customer_requests DROP COLUMN IF EXISTS ideal_type;
+  END IF;
+END $$;
 `)
 	return err
 }
@@ -422,23 +455,12 @@ func (r *Repository) ListCustomerRequests(ctx context.Context) ([]lamdata.Custom
 	rows, err := r.pool.Query(ctx, `
 		SELECT
 			id,
-			category,
 			COALESCE(text, ''),
-			COALESCE(gender, ''),
-			COALESCE(name, ''),
-			COALESCE(age, ''),
-			COALESCE(residence, ''),
-			COALESCE(instagram, ''),
-			COALESCE(ideal_type, ''),
 			status,
 			created_at,
 			handled_at
 		FROM customer_requests
 		ORDER BY
-			CASE category
-				WHEN 'direct' THEN 0
-				ELSE 1
-			END,
 			CASE status
 				WHEN 'pending' THEN 0
 				WHEN 'checked' THEN 1
@@ -459,14 +481,7 @@ func (r *Repository) ListCustomerRequests(ctx context.Context) ([]lamdata.Custom
 		var handledAt *time.Time
 		if err := rows.Scan(
 			&item.ID,
-			&item.Category,
 			&item.Text,
-			&item.Gender,
-			&item.Name,
-			&item.Age,
-			&item.Residence,
-			&item.Instagram,
-			&item.IdealType,
 			&item.Status,
 			&createdAt,
 			&handledAt,
@@ -483,38 +498,87 @@ func (r *Repository) ListCustomerRequests(ctx context.Context) ([]lamdata.Custom
 	return requests, rows.Err()
 }
 
-func (r *Repository) CreateCustomerRequest(ctx context.Context, input lamdata.CustomerRequest) error {
-	if !isValidCustomerRequestCategory(input.Category) {
-		return ErrInvalidInput
-	}
-	if input.Category == "direct" && strings.TrimSpace(input.Text) == "" {
-		return ErrInvalidInput
-	}
-	if input.Category == "special" &&
-		(!isValidCustomerRequestGender(input.Gender) ||
-			strings.TrimSpace(input.Name) == "" ||
-			strings.TrimSpace(input.Age) == "" ||
-			strings.TrimSpace(input.Residence) == "" ||
-			strings.TrimSpace(input.Instagram) == "" ||
-			strings.TrimSpace(input.IdealType) == "" ||
-			strings.TrimSpace(input.Text) == "") {
+func (r *Repository) CreateCustomerRequest(ctx context.Context, text string) error {
+	if strings.TrimSpace(text) == "" {
 		return ErrInvalidInput
 	}
 
 	id := fmt.Sprintf("customer-request-%d", time.Now().UnixMilli())
 	_, err := r.pool.Exec(ctx, `
-		INSERT INTO customer_requests (id, category, text, gender, name, age, residence, instagram, ideal_type, status)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending')
+		INSERT INTO customer_requests (id, text, status)
+		VALUES ($1, $2, 'pending')
+	`, id, text)
+	return classifyError(err)
+}
+
+func (r *Repository) ListSpecialRequests(ctx context.Context) ([]lamdata.SpecialRequest, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT
+			id,
+			gender,
+			name,
+			age,
+			residence,
+			instagram,
+			ideal_type,
+			text,
+			created_at
+		FROM special_requests
+		ORDER BY created_at DESC, id DESC
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	requests := make([]lamdata.SpecialRequest, 0)
+	for rows.Next() {
+		var item lamdata.SpecialRequest
+		var createdAt time.Time
+		if err := rows.Scan(
+			&item.ID,
+			&item.Gender,
+			&item.Name,
+			&item.Age,
+			&item.Residence,
+			&item.Instagram,
+			&item.IdealType,
+			&item.Text,
+			&createdAt,
+		); err != nil {
+			return nil, err
+		}
+		item.CreatedAt = formatTimestamp(createdAt)
+		requests = append(requests, item)
+	}
+
+	return requests, rows.Err()
+}
+
+func (r *Repository) CreateSpecialRequest(ctx context.Context, input lamdata.SpecialRequest) error {
+	if !isValidCustomerRequestGender(input.Gender) ||
+		strings.TrimSpace(input.Name) == "" ||
+		strings.TrimSpace(input.Age) == "" ||
+		strings.TrimSpace(input.Residence) == "" ||
+		strings.TrimSpace(input.Instagram) == "" ||
+		strings.TrimSpace(input.IdealType) == "" ||
+		strings.TrimSpace(input.Text) == "" {
+		return ErrInvalidInput
+	}
+
+	id := fmt.Sprintf("special-request-%d", time.Now().UnixMilli())
+	_, err := r.pool.Exec(ctx, `
+		INSERT INTO special_requests (id, gender, name, age, residence, instagram, ideal_type, text)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 	`,
 		id,
-		input.Category,
+		input.Gender,
+		input.Name,
+		input.Age,
+		input.Residence,
+		input.Instagram,
+		input.IdealType,
 		input.Text,
-		nullable(input.Gender),
-		nullable(input.Name),
-		nullable(input.Age),
-		nullable(input.Residence),
-		nullable(input.Instagram),
-		nullable(input.IdealType),
 	)
 	return classifyError(err)
 }
@@ -546,6 +610,23 @@ func (r *Repository) DeleteCustomerRequest(ctx context.Context, id string) error
 	}
 
 	tag, err := r.pool.Exec(ctx, `DELETE FROM customer_requests WHERE id = $1`, id)
+	if err != nil {
+		return classifyError(err)
+	}
+
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+
+	return nil
+}
+
+func (r *Repository) DeleteSpecialRequest(ctx context.Context, id string) error {
+	if strings.TrimSpace(id) == "" {
+		return ErrInvalidInput
+	}
+
+	tag, err := r.pool.Exec(ctx, `DELETE FROM special_requests WHERE id = $1`, id)
 	if err != nil {
 		return classifyError(err)
 	}
@@ -802,15 +883,6 @@ func clampImageFocus(value int) int {
 func isValidCustomerRequestStatus(status string) bool {
 	switch status {
 	case "pending", "checked", "completed":
-		return true
-	default:
-		return false
-	}
-}
-
-func isValidCustomerRequestCategory(category string) bool {
-	switch category {
-	case "direct", "special":
 		return true
 	default:
 		return false
