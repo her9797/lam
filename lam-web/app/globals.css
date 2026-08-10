@@ -616,7 +616,7 @@ a {
 }
 
 .admin-manage-list-scroll {
-  max-height: 880px;
+  max-height: 560px;
   overflow-y: auto;
   padding-right: 4px;
 }
@@ -647,6 +647,28 @@ a {
   background: rgba(255, 255, 255, 0.025);
   flex: 0 0 min(100%, 420px);
   align-self: flex-start;
+  scroll-snap-align: center;
+  scroll-snap-stop: always;
+}
+
+.admin-request-board-pagination {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.admin-request-board-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.22);
+  transition: background-color 160ms ease, transform 160ms ease;
+}
+
+.admin-request-board-dot.active {
+  background: rgba(255, 255, 255, 0.92);
+  transform: scale(1.1);
 }
 
 .admin-request-board-strip {
@@ -657,6 +679,8 @@ a {
   margin-top: 16px;
   padding: 2px 2px 8px;
   scrollbar-width: none;
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline: 2px;
 }
 
 .admin-request-board-strip::-webkit-scrollbar {

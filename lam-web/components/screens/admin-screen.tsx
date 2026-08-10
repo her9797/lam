@@ -295,22 +295,21 @@ export function AdminScreen({ initialData }: AdminScreenProps) {
   const [editingMenuId, setEditingMenuId] = useState<string | null>(null);
   const [editingMenu, setEditingMenu] = useState<EditableMenuState>(defaultMenuForm(initialData.categories[0]?.id ?? ""));
   const [editingMenuCropDraft, setEditingMenuCropDraft] = useState<CropDraftState | null>(null);
-  const [menuManageCategoryId, setMenuManageCategoryId] = useState<string>("all");
+  const [menuManageCategoryId, setMenuManageCategoryId] = useState<string>(initialData.categories[0]?.id ?? "");
   const [newMenuCropDraft, setNewMenuCropDraft] = useState<CropDraftState | null>(null);
   const [editingNoticeId, setEditingNoticeId] = useState<string | null>(null);
   const [editingNoticeText, setEditingNoticeText] = useState<string>("");
+  const [activeRequestBoardIndex, setActiveRequestBoardIndex] = useState<number>(0);
   const [isPending, startTransition] = useTransition();
 
   const sliderRef = useRef<HTMLDivElement | null>(null);
+  const requestBoardStripRef = useRef<HTMLDivElement | null>(null);
   const slideRefs = useRef<Record<string, HTMLElement | null>>({});
   const categoryOptions = useMemo(() => appData.categories, [appData.categories]);
-  const managedMenuItems = useMemo(() => {
-    if (menuManageCategoryId === "all") {
-      return appData.items;
-    }
-
-    return appData.items.filter((item) => item.categoryId === menuManageCategoryId);
-  }, [appData.items, menuManageCategoryId]);
+  const managedMenuItems = useMemo(
+    () => appData.items.filter((item) => item.categoryId === menuManageCategoryId),
+    [appData.items, menuManageCategoryId],
+  );
   const specialMaleCustomerRequests = useMemo(
     () => specialRequests.filter((item) => item.gender === "male"),
     [specialRequests],
@@ -338,11 +337,9 @@ export function AdminScreen({ initialData }: AdminScreenProps) {
       categoryId: current.categoryId || nextData.categories[0]?.id || "",
     }));
     setMenuManageCategoryId((current) => {
-      if (current === "all") {
-        return current;
-      }
-
-      return nextData.categories.some((category) => category.id === current) ? current : "all";
+      return nextData.categories.some((category) => category.id === current)
+        ? current
+        : nextData.categories[0]?.id ?? "";
     });
   }
 
@@ -386,6 +383,37 @@ export function AdminScreen({ initialData }: AdminScreenProps) {
       setActiveSection(nearestSectionId);
     }
   }
+
+  function handleRequestBoardScroll() {
+    const strip = requestBoardStripRef.current;
+    if (!strip) {
+      return;
+    }
+
+    const boards = Array.from(strip.children) as HTMLElement[];
+    if (boards.length === 0) {
+      return;
+    }
+
+    let nearestIndex = activeRequestBoardIndex;
+    let nearestDistance = Number.POSITIVE_INFINITY;
+
+    boards.forEach((board, index) => {
+      const distance = Math.abs(strip.scrollLeft - board.offsetLeft);
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearestIndex = index;
+      }
+    });
+
+    if (nearestIndex !== activeRequestBoardIndex) {
+      setActiveRequestBoardIndex(nearestIndex);
+    }
+  }
+
+  useEffect(() => {
+    handleRequestBoardScroll();
+  }, [customerRequests.length, specialMaleCustomerRequests.length, specialFemaleCustomerRequests.length]);
 
   useEffect(() => {
     const activeSlide = slideRefs.current[activeSection];
@@ -897,7 +925,7 @@ export function AdminScreen({ initialData }: AdminScreenProps) {
   }
 
   function getRequestListClassName(count: number) {
-    return count > 10
+    return count > 5
       ? "admin-manage-list admin-manage-list-scroll"
       : "admin-manage-list";
   }
@@ -1015,13 +1043,6 @@ export function AdminScreen({ initialData }: AdminScreenProps) {
                 <span>{managedMenuItems.length}개</span>
               </div>
               <div className="admin-filter-row">
-                <button
-                  type="button"
-                  className={menuManageCategoryId === "all" ? "admin-filter-chip active" : "admin-filter-chip"}
-                  onClick={() => setMenuManageCategoryId("all")}
-                >
-                  전체
-                </button>
                 {categoryOptions.map((category) => (
                   <button
                     key={category.id}
@@ -1254,7 +1275,23 @@ export function AdminScreen({ initialData }: AdminScreenProps) {
                 <h2>손님 요청 확인</h2>
               </div>
             </div>
-            <div className="admin-request-board-strip admin-manage-section-first">
+            <div className="admin-request-board-pagination" aria-hidden="true">
+              {[0, 1, 2].map((index) => (
+                <span
+                  key={index}
+                  className={
+                    activeRequestBoardIndex === index
+                      ? "admin-request-board-dot active"
+                      : "admin-request-board-dot"
+                  }
+                />
+              ))}
+            </div>
+            <div
+              ref={requestBoardStripRef}
+              className="admin-request-board-strip admin-manage-section-first"
+              onScroll={handleRequestBoardScroll}
+            >
               <div className="admin-request-board">
                 <div className="admin-manage-header">
                   <strong>바로 전달하기</strong>
