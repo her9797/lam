@@ -7,8 +7,8 @@ import { PrimaryNav } from "@/components/navigation/primary-nav";
 import { ScrollTopButton } from "@/components/navigation/scroll-top-button";
 import {
   createCustomerRequest,
-  type CustomerRequestCategory,
   type CustomerRequestGender,
+  createSpecialRequest,
 } from "@/services/customer-request-service";
 import type { StoreInfo } from "@/data/menu-data";
 
@@ -38,7 +38,7 @@ const defaultSpecialForm: SpecialFormState = {
 
 export function RequestsScreen({ store }: RequestsScreenProps) {
   const [activeCategory, setActiveCategory] =
-    useState<CustomerRequestCategory>("direct");
+    useState<"direct" | "special">("direct");
   const [message, setMessage] = useState("");
   const [specialForm, setSpecialForm] =
     useState<SpecialFormState>(defaultSpecialForm);
@@ -68,7 +68,6 @@ export function RequestsScreen({ store }: RequestsScreenProps) {
     startTransition(async () => {
       try {
         await createCustomerRequest({
-          category: "direct",
           text: nextMessage,
         });
         setMessage("");
@@ -100,8 +99,7 @@ export function RequestsScreen({ store }: RequestsScreenProps) {
 
     startTransition(async () => {
       try {
-        await createCustomerRequest({
-          category: "special",
+        await createSpecialRequest({
           gender: specialForm.gender,
           name: specialForm.name.trim(),
           age: specialForm.age.trim(),

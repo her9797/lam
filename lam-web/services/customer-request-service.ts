@@ -1,29 +1,20 @@
 export type CustomerRequestStatus = "pending" | "checked" | "completed";
-export type CustomerRequestCategory = "direct" | "special";
 export type CustomerRequestGender = "male" | "female";
 
 export type CustomerRequest = {
   id: string;
-  category: CustomerRequestCategory;
   text: string;
-  gender?: CustomerRequestGender;
-  name?: string;
-  age?: string;
-  residence?: string;
-  instagram?: string;
-  idealType?: string;
   status: CustomerRequestStatus;
   createdAt: string;
   handledAt?: string;
 };
 
-export type DirectCustomerRequestInput = {
-  category: "direct";
+export type CustomerRequestInput = {
   text: string;
 };
 
-export type SpecialCustomerRequestInput = {
-  category: "special";
+export type SpecialRequest = {
+  id: string;
   gender: CustomerRequestGender;
   name: string;
   age: string;
@@ -31,11 +22,10 @@ export type SpecialCustomerRequestInput = {
   instagram: string;
   idealType: string;
   text: string;
+  createdAt: string;
 };
 
-type CreateCustomerRequestInput =
-  | DirectCustomerRequestInput
-  | SpecialCustomerRequestInput;
+export type SpecialRequestInput = Omit<SpecialRequest, "id" | "createdAt">;
 
 async function readError(response: Response) {
   const errorBody = (await response.json().catch(() => null)) as {
@@ -45,8 +35,22 @@ async function readError(response: Response) {
   return errorBody?.error ?? `request failed: ${response.status}`;
 }
 
-export async function createCustomerRequest(payload: CreateCustomerRequestInput) {
+export async function createCustomerRequest(payload: CustomerRequestInput) {
   const response = await fetch("/api/customer-requests", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error(await readError(response));
+  }
+}
+
+export async function createSpecialRequest(payload: SpecialRequestInput) {
+  const response = await fetch("/api/special-requests", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -72,6 +76,19 @@ export async function listCustomerRequests(): Promise<CustomerRequest[]> {
   return (await response.json()) as CustomerRequest[];
 }
 
+export async function listSpecialRequests(): Promise<SpecialRequest[]> {
+  const response = await fetch("/api/admin/special-requests", {
+    method: "GET",
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error(await readError(response));
+  }
+
+  return (await response.json()) as SpecialRequest[];
+}
+
 export async function updateCustomerRequestStatus(
   customerRequestId: string,
   status: CustomerRequestStatus,
@@ -91,10 +108,10 @@ export async function updateCustomerRequestStatus(
   return (await response.json()) as CustomerRequest[];
 }
 
-export async function deleteCustomerRequest(
-  customerRequestId: string,
-): Promise<CustomerRequest[]> {
-  const response = await fetch(`/api/admin/customer-requests/${customerRequestId}`, {
+export async function deleteSpecialRequest(
+  specialRequestId: string,
+): Promise<SpecialRequest[]> {
+  const response = await fetch(`/api/admin/special-requests/${specialRequestId}`, {
     method: "DELETE",
   });
 
@@ -102,5 +119,5 @@ export async function deleteCustomerRequest(
     throw new Error(await readError(response));
   }
 
-  return (await response.json()) as CustomerRequest[];
+  return (await response.json()) as SpecialRequest[];
 }

@@ -15,12 +15,12 @@ import {
   uploadMenuImage,
 } from "@/services/admin-service";
 import {
-  deleteCustomerRequest,
+  deleteSpecialRequest,
   listCustomerRequests,
-  type CustomerRequestCategory,
-  type CustomerRequestGender,
   type CustomerRequest,
+  type SpecialRequest,
   type CustomerRequestStatus,
+  listSpecialRequests,
   updateCustomerRequestStatus,
 } from "@/services/customer-request-service";
 import type { AppData } from "@/services/app-service";
@@ -100,16 +100,6 @@ const customerRequestStatusLabel: Record<CustomerRequestStatus, string> = {
   pending: "미처리",
   checked: "확인",
   completed: "처리완료",
-};
-
-const customerRequestCategoryLabel: Record<CustomerRequestCategory, string> = {
-  direct: "바로 전달하기",
-  special: "특별한",
-};
-
-const customerRequestGenderLabel: Record<CustomerRequestGender, string> = {
-  male: "남자",
-  female: "여자",
 };
 
 function defaultMenuForm(categoryId: string): MenuFormState {
@@ -254,8 +244,9 @@ export function AdminScreen({ initialData }: AdminScreenProps) {
   const [menuForm, setMenuForm] = useState<MenuFormState>(defaultMenuForm(initialData.categories[0]?.id ?? ""));
   const [noticeForm, setNoticeForm] = useState<NoticeFormState>(defaultNoticeForm);
   const [customerRequests, setCustomerRequests] = useState<CustomerRequest[]>([]);
+  const [specialRequests, setSpecialRequests] = useState<SpecialRequest[]>([]);
   const [isLoadingCustomerRequests, setIsLoadingCustomerRequests] = useState<boolean>(true);
-  const [selectedSpecialRequest, setSelectedSpecialRequest] = useState<CustomerRequest | null>(null);
+  const [selectedSpecialRequest, setSelectedSpecialRequest] = useState<SpecialRequest | null>(null);
   const [statusMessage, setStatusMessage] = useState<string>("");
   useEffect(() => {
     if (!statusMessage) {
@@ -274,9 +265,13 @@ export function AdminScreen({ initialData }: AdminScreenProps) {
 
     void (async () => {
       try {
-        const requests = await listCustomerRequests();
+        const [requests, special] = await Promise.all([
+          listCustomerRequests(),
+          listSpecialRequests(),
+        ]);
         if (isMounted) {
           setCustomerRequests(requests);
+          setSpecialRequests(special);
         }
       } catch (error) {
         if (isMounted) {
@@ -316,21 +311,13 @@ export function AdminScreen({ initialData }: AdminScreenProps) {
 
     return appData.items.filter((item) => item.categoryId === menuManageCategoryId);
   }, [appData.items, menuManageCategoryId]);
-  const directCustomerRequests = useMemo(
-    () => customerRequests.filter((item) => item.category === "direct"),
-    [customerRequests],
-  );
-  const specialCustomerRequests = useMemo(
-    () => customerRequests.filter((item) => item.category === "special"),
-    [customerRequests],
-  );
   const specialMaleCustomerRequests = useMemo(
-    () => specialCustomerRequests.filter((item) => item.gender === "male"),
-    [specialCustomerRequests],
+    () => specialRequests.filter((item) => item.gender === "male"),
+    [specialRequests],
   );
   const specialFemaleCustomerRequests = useMemo(
-    () => specialCustomerRequests.filter((item) => item.gender === "female"),
-    [specialCustomerRequests],
+    () => specialRequests.filter((item) => item.gender === "female"),
+    [specialRequests],
   );
 
   useEffect(() => {
@@ -806,87 +793,105 @@ export function AdminScreen({ initialData }: AdminScreenProps) {
     return list.map((customerRequest) => (
       <article
         key={customerRequest.id}
-        className={
-          customerRequest.category === "special"
-            ? "admin-manage-card admin-manage-card-special"
-            : "admin-manage-card admin-manage-card-stack"
-        }
+        className="admin-manage-card admin-manage-card-stack"
       >
         <div className="admin-manage-copy">
-          {customerRequest.category === "special" ? (
-            <div className="admin-special-summary">
-              <div className="admin-special-summary-row">
-                <span className="admin-special-summary-name">{customerRequest.name}</span>
-                <span className="admin-special-summary-age">{customerRequest.age}</span>
-              </div>
+          <>
+            <div className="admin-manage-meta admin-request-meta">
+              <span>바로 전달하기</span>
+              <span>{customerRequestStatusLabel[customerRequest.status]}</span>
+              <span>{formatCustomerRequestDate(customerRequest.createdAt)}</span>
+              {customerRequest.handledAt ? <span>처리 {formatCustomerRequestDate(customerRequest.handledAt)}</span> : null}
             </div>
-          ) : (
-            <>
-              <div className="admin-manage-meta admin-request-meta">
-                <span>{customerRequestCategoryLabel[customerRequest.category]}</span>
-                <span>{customerRequestStatusLabel[customerRequest.status]}</span>
-                <span>{formatCustomerRequestDate(customerRequest.createdAt)}</span>
-                {customerRequest.handledAt ? <span>처리 {formatCustomerRequestDate(customerRequest.handledAt)}</span> : null}
-              </div>
-              <p className="admin-manage-text">{customerRequest.text}</p>
-            </>
-          )}
+            <p className="admin-manage-text">{customerRequest.text}</p>
+          </>
         </div>
-        {customerRequest.category === "special" ? (
-          <div className="admin-special-actions">
+        <div className="admin-row-actions">
+          {customerRequest.status === "pending" ? (
             <button
               type="button"
-              className="admin-ghost-button admin-compact-action"
-              onClick={() => setSelectedSpecialRequest(customerRequest)}
-            >
-              상세보기
-            </button>
-            <button
-              type="button"
-              className="admin-danger-button admin-compact-action"
+              className="admin-small-button"
               disabled={isPending}
-              onClick={() => {
-                startTransition(async () => {
-                  try {
-                    const nextRequests = await deleteCustomerRequest(customerRequest.id);
-                    setCustomerRequests(nextRequests);
-                    if (selectedSpecialRequest?.id === customerRequest.id) {
-                      setSelectedSpecialRequest(null);
-                    }
-                    setStatusMessage("특별한 요청을 삭제했습니다.");
-                  } catch (error) {
-                    setStatusMessage(error instanceof Error ? error.message : "특별한 요청 삭제에 실패했습니다.");
-                  }
-                });
-              }}
+              onClick={() => handleCustomerRequestStatusChange(customerRequest.id, "checked")}
             >
-              삭제
+              확인
             </button>
+          ) : null}
+          {customerRequest.status === "checked" ? (
+            <button
+              type="button"
+              className="admin-small-button"
+              disabled={isPending}
+              onClick={() => handleCustomerRequestStatusChange(customerRequest.id, "completed")}
+            >
+              처리완료
+            </button>
+          ) : null}
+        </div>
+      </article>
+    ));
+  }
+
+  function renderSpecialRequests(list: SpecialRequest[], emptyMessage: string) {
+    if (isLoadingCustomerRequests) {
+      return (
+        <article className="admin-manage-card admin-manage-card-stack">
+          <p className="admin-manage-text">손님 요청을 불러오는 중입니다.</p>
+        </article>
+      );
+    }
+
+    if (list.length === 0) {
+      return (
+        <article className="admin-manage-card admin-manage-card-stack">
+          <p className="admin-manage-text">{emptyMessage}</p>
+        </article>
+      );
+    }
+
+    return list.map((specialRequest) => (
+      <article
+        key={specialRequest.id}
+        className="admin-manage-card admin-manage-card-special"
+      >
+        <div className="admin-manage-copy">
+          <div className="admin-special-summary">
+            <div className="admin-special-summary-row">
+              <span className="admin-special-summary-name">{specialRequest.name}</span>
+              <span className="admin-special-summary-age">{specialRequest.age}</span>
+            </div>
           </div>
-        ) : (
-          <div className="admin-row-actions">
-            {customerRequest.status === "pending" ? (
-              <button
-                type="button"
-                className="admin-small-button"
-                disabled={isPending}
-                onClick={() => handleCustomerRequestStatusChange(customerRequest.id, "checked")}
-              >
-                확인
-              </button>
-            ) : null}
-            {customerRequest.status === "checked" ? (
-              <button
-                type="button"
-                className="admin-small-button"
-                disabled={isPending}
-                onClick={() => handleCustomerRequestStatusChange(customerRequest.id, "completed")}
-              >
-                처리완료
-              </button>
-            ) : null}
-          </div>
-        )}
+        </div>
+        <div className="admin-special-actions">
+          <button
+            type="button"
+            className="admin-ghost-button admin-compact-action"
+            onClick={() => setSelectedSpecialRequest(specialRequest)}
+          >
+            상세보기
+          </button>
+          <button
+            type="button"
+            className="admin-danger-button admin-compact-action"
+            disabled={isPending}
+            onClick={() => {
+              startTransition(async () => {
+                try {
+                  const nextRequests = await deleteSpecialRequest(specialRequest.id);
+                  setSpecialRequests(nextRequests);
+                  if (selectedSpecialRequest?.id === specialRequest.id) {
+                    setSelectedSpecialRequest(null);
+                  }
+                  setStatusMessage("특별한 요청을 삭제했습니다.");
+                } catch (error) {
+                  setStatusMessage(error instanceof Error ? error.message : "특별한 요청 삭제에 실패했습니다.");
+                }
+              });
+            }}
+          >
+            삭제
+          </button>
+        </div>
       </article>
     ));
   }
@@ -1253,10 +1258,10 @@ export function AdminScreen({ initialData }: AdminScreenProps) {
               <div className="admin-request-board">
                 <div className="admin-manage-header">
                   <strong>바로 전달하기</strong>
-                  <span>{directCustomerRequests.length}개</span>
+                  <span>{customerRequests.length}개</span>
                 </div>
-                <div className={getRequestListClassName(directCustomerRequests.length)}>
-                  {renderCustomerRequests(directCustomerRequests, "아직 바로 전달하기 요청이 없습니다.")}
+                <div className={getRequestListClassName(customerRequests.length)}>
+                  {renderCustomerRequests(customerRequests, "아직 바로 전달하기 요청이 없습니다.")}
                 </div>
               </div>
               <div className="admin-request-board">
@@ -1265,7 +1270,7 @@ export function AdminScreen({ initialData }: AdminScreenProps) {
                   <span>{specialMaleCustomerRequests.length}개</span>
                 </div>
                 <div className={getRequestListClassName(specialMaleCustomerRequests.length)}>
-                  {renderCustomerRequests(specialMaleCustomerRequests, "아직 특별한 남자 요청이 없습니다.")}
+                  {renderSpecialRequests(specialMaleCustomerRequests, "아직 특별한 남자 요청이 없습니다.")}
                 </div>
               </div>
               <div className="admin-request-board">
@@ -1274,7 +1279,7 @@ export function AdminScreen({ initialData }: AdminScreenProps) {
                   <span>{specialFemaleCustomerRequests.length}개</span>
                 </div>
                 <div className={getRequestListClassName(specialFemaleCustomerRequests.length)}>
-                  {renderCustomerRequests(specialFemaleCustomerRequests, "아직 특별한 여자 요청이 없습니다.")}
+                  {renderSpecialRequests(specialFemaleCustomerRequests, "아직 특별한 여자 요청이 없습니다.")}
                 </div>
               </div>
             </div>
