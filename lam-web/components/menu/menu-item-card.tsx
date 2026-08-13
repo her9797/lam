@@ -31,7 +31,14 @@ export function MenuItemCard({ item, imageArea = "menu" }: MenuItemCardProps) {
         )}
       </div>
       <div className="menu-copy">
-        {item.badge ? <p className="menu-badge">{item.badge}</p> : null}
+        {item.badge ? (
+          <p
+            className="menu-badge"
+            data-badge-color={item.badgeColor || "green"}
+          >
+            {item.badge}
+          </p>
+        ) : null}
         <h3>{item.name}</h3>
         <p>{item.description}</p>
       </div>

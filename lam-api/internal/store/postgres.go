@@ -22,6 +22,7 @@ var (
 type CreateMenuItemInput struct {
 	CategoryID  string
 	Badge       string
+	BadgeColor  string
 	Name        string
 	Description string
 	Price       string
@@ -74,6 +75,7 @@ CREATE TABLE IF NOT EXISTS menu_items (
   id TEXT PRIMARY KEY,
   category_id TEXT NOT NULL REFERENCES menu_categories(id) ON DELETE CASCADE,
   badge TEXT,
+  badge_color TEXT,
   name TEXT NOT NULL,
   description TEXT NOT NULL,
   price TEXT NOT NULL,
@@ -115,6 +117,7 @@ CREATE TABLE IF NOT EXISTS notices (
 
 CREATE TABLE IF NOT EXISTS customer_requests (
   id TEXT PRIMARY KEY,
+  table_number TEXT NOT NULL DEFAULT '',
   text TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'pending',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -124,6 +127,7 @@ CREATE TABLE IF NOT EXISTS customer_requests (
 
 CREATE TABLE IF NOT EXISTS special_requests (
   id TEXT PRIMARY KEY,
+  table_number TEXT NOT NULL DEFAULT '',
   gender TEXT NOT NULL,
   name TEXT NOT NULL,
   age TEXT NOT NULL,
@@ -136,11 +140,17 @@ CREATE TABLE IF NOT EXISTS special_requests (
 
 ALTER TABLE menu_categories ADD COLUMN IF NOT EXISTS is_visible BOOLEAN NOT NULL DEFAULT TRUE;
 ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS is_visible BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS badge_color TEXT;
 ALTER TABLE request_guides ADD COLUMN IF NOT EXISTS is_visible BOOLEAN NOT NULL DEFAULT TRUE;
 ALTER TABLE notices ADD COLUMN IF NOT EXISTS is_visible BOOLEAN NOT NULL DEFAULT TRUE;
 ALTER TABLE menu_item_images ADD COLUMN IF NOT EXISTS display_area TEXT NOT NULL DEFAULT 'menu';
 ALTER TABLE menu_item_images ADD COLUMN IF NOT EXISTS focus_x INTEGER NOT NULL DEFAULT 50;
 ALTER TABLE menu_item_images ADD COLUMN IF NOT EXISTS focus_y INTEGER NOT NULL DEFAULT 50;
+ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS table_number TEXT NOT NULL DEFAULT '';
+ALTER TABLE special_requests ADD COLUMN IF NOT EXISTS table_number TEXT NOT NULL DEFAULT '';
+UPDATE store_profile
+SET address = '서울 마포구 망원동 57-23'
+WHERE id = 1 AND address = '서울 강남구';
 DO $$
 BEGIN
   IF EXISTS (
@@ -196,7 +206,7 @@ func (r *Repository) SeedDefaults(ctx context.Context) error {
 	defer tx.Rollback(ctx)
 
 	if _, err := tx.Exec(ctx, `INSERT INTO store_profile (id, name, subtitle, address) VALUES (1, $1, $2, $3)`,
-		"lam", "혼술 바를 위한 QR 메뉴 초안", "서울 강남구"); err != nil {
+		"lam", "혼술 바를 위한 QR 메뉴 초안", "서울 마포구 망원동 57-23"); err != nil {
 		return err
 	}
 
@@ -254,8 +264,8 @@ func (r *Repository) SeedDefaults(ctx context.Context) error {
 		{ID: "white-bottle-3", CategoryID: "wine", Name: "화이트 와인 보틀", Description: "산뜻한 타입부터 묵직한 타입까지 준비", Price: "37,000원~", IsVisible: true},
 	}
 	for index, item := range items {
-		if _, err := tx.Exec(ctx, `INSERT INTO menu_items (id, category_id, badge, name, description, price, is_visible, sort_order) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-			item.ID, item.CategoryID, nullable(item.Badge), item.Name, item.Description, item.Price, item.IsVisible, index+1); err != nil {
+		if _, err := tx.Exec(ctx, `INSERT INTO menu_items (id, category_id, badge, badge_color, name, description, price, is_visible, sort_order) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+			item.ID, item.CategoryID, nullable(item.Badge), nullable(item.BadgeColor), item.Name, item.Description, item.Price, item.IsVisible, index+1); err != nil {
 			return err
 		}
 	}
@@ -323,7 +333,7 @@ func (r *Repository) GetBootstrapData(ctx context.Context) (lamdata.BootstrapDat
 		categories = append(categories, item)
 	}
 
-	menuRows, err := r.pool.Query(ctx, `SELECT id, category_id, COALESCE(badge, ''), name, description, price, is_visible FROM menu_items ORDER BY sort_order, id`)
+	menuRows, err := r.pool.Query(ctx, `SELECT id, category_id, COALESCE(badge, ''), COALESCE(badge_color, ''), name, description, price, is_visible FROM menu_items ORDER BY sort_order, id`)
 	if err != nil {
 		return lamdata.BootstrapData{}, err
 	}
@@ -332,7 +342,7 @@ func (r *Repository) GetBootstrapData(ctx context.Context) (lamdata.BootstrapDat
 	items := make([]lamdata.MenuItem, 0)
 	for menuRows.Next() {
 		var item lamdata.MenuItem
-		if err := menuRows.Scan(&item.ID, &item.CategoryID, &item.Badge, &item.Name, &item.Description, &item.Price, &item.IsVisible); err != nil {
+		if err := menuRows.Scan(&item.ID, &item.CategoryID, &item.Badge, &item.BadgeColor, &item.Name, &item.Description, &item.Price, &item.IsVisible); err != nil {
 			return lamdata.BootstrapData{}, err
 		}
 		items = append(items, item)
@@ -431,8 +441,8 @@ func (r *Repository) CreateMenuItem(ctx context.Context, input CreateMenuItemInp
 	}
 
 	id := fmt.Sprintf("menu-%d", time.Now().UnixMilli())
-	_, err = r.pool.Exec(ctx, `INSERT INTO menu_items (id, category_id, badge, name, description, price, is_visible, sort_order) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-		id, input.CategoryID, nullable(input.Badge), input.Name, input.Description, input.Price, input.IsVisible, sortOrder)
+	_, err = r.pool.Exec(ctx, `INSERT INTO menu_items (id, category_id, badge, badge_color, name, description, price, is_visible, sort_order) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+		id, input.CategoryID, nullable(input.Badge), nullable(input.BadgeColor), input.Name, input.Description, input.Price, input.IsVisible, sortOrder)
 	return classifyError(err)
 }
 
@@ -455,6 +465,7 @@ func (r *Repository) ListCustomerRequests(ctx context.Context) ([]lamdata.Custom
 	rows, err := r.pool.Query(ctx, `
 		SELECT
 			id,
+			COALESCE(table_number, ''),
 			COALESCE(text, ''),
 			status,
 			created_at,
@@ -481,6 +492,7 @@ func (r *Repository) ListCustomerRequests(ctx context.Context) ([]lamdata.Custom
 		var handledAt *time.Time
 		if err := rows.Scan(
 			&item.ID,
+			&item.TableNumber,
 			&item.Text,
 			&item.Status,
 			&createdAt,
@@ -498,16 +510,16 @@ func (r *Repository) ListCustomerRequests(ctx context.Context) ([]lamdata.Custom
 	return requests, rows.Err()
 }
 
-func (r *Repository) CreateCustomerRequest(ctx context.Context, text string) error {
-	if strings.TrimSpace(text) == "" {
+func (r *Repository) CreateCustomerRequest(ctx context.Context, tableNumber string, text string) error {
+	if strings.TrimSpace(tableNumber) == "" || strings.TrimSpace(text) == "" {
 		return ErrInvalidInput
 	}
 
 	id := fmt.Sprintf("customer-request-%d", time.Now().UnixMilli())
 	_, err := r.pool.Exec(ctx, `
-		INSERT INTO customer_requests (id, text, status)
-		VALUES ($1, $2, 'pending')
-	`, id, text)
+		INSERT INTO customer_requests (id, table_number, text, status)
+		VALUES ($1, $2, $3, 'pending')
+	`, id, tableNumber, text)
 	return classifyError(err)
 }
 
@@ -515,6 +527,7 @@ func (r *Repository) ListSpecialRequests(ctx context.Context) ([]lamdata.Special
 	rows, err := r.pool.Query(ctx, `
 		SELECT
 			id,
+			COALESCE(table_number, ''),
 			gender,
 			name,
 			age,
@@ -537,6 +550,7 @@ func (r *Repository) ListSpecialRequests(ctx context.Context) ([]lamdata.Special
 		var createdAt time.Time
 		if err := rows.Scan(
 			&item.ID,
+			&item.TableNumber,
 			&item.Gender,
 			&item.Name,
 			&item.Age,
@@ -556,7 +570,8 @@ func (r *Repository) ListSpecialRequests(ctx context.Context) ([]lamdata.Special
 }
 
 func (r *Repository) CreateSpecialRequest(ctx context.Context, input lamdata.SpecialRequest) error {
-	if !isValidCustomerRequestGender(input.Gender) ||
+	if strings.TrimSpace(input.TableNumber) == "" ||
+		!isValidCustomerRequestGender(input.Gender) ||
 		strings.TrimSpace(input.Name) == "" ||
 		strings.TrimSpace(input.Age) == "" ||
 		strings.TrimSpace(input.Residence) == "" ||
@@ -568,10 +583,11 @@ func (r *Repository) CreateSpecialRequest(ctx context.Context, input lamdata.Spe
 
 	id := fmt.Sprintf("special-request-%d", time.Now().UnixMilli())
 	_, err := r.pool.Exec(ctx, `
-		INSERT INTO special_requests (id, gender, name, age, residence, instagram, ideal_type, text)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		INSERT INTO special_requests (id, table_number, gender, name, age, residence, instagram, ideal_type, text)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 	`,
 		id,
+		input.TableNumber,
 		input.Gender,
 		input.Name,
 		input.Age,

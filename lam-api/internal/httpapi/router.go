@@ -62,7 +62,11 @@ func NewMux(repository *store.Repository, cfg config.Config) http.Handler {
 			return
 		}
 
-		if err := repository.CreateCustomerRequest(r.Context(), strings.TrimSpace(payload.Text)); err != nil {
+		if err := repository.CreateCustomerRequest(
+			r.Context(),
+			strings.TrimSpace(payload.TableNumber),
+			strings.TrimSpace(payload.Text),
+		); err != nil {
 			writeStoreError(w, err)
 			return
 		}
@@ -227,6 +231,7 @@ func NewMux(repository *store.Repository, cfg config.Config) http.Handler {
 		if err := repository.CreateMenuItem(r.Context(), store.CreateMenuItemInput{
 			CategoryID:  strings.TrimSpace(payload.CategoryID),
 			Badge:       strings.TrimSpace(payload.Badge),
+			BadgeColor:  strings.TrimSpace(payload.BadgeColor),
 			Name:        strings.TrimSpace(payload.Name),
 			Description: strings.TrimSpace(payload.Description),
 			Price:       strings.TrimSpace(payload.Price),
@@ -689,13 +694,14 @@ func parseStatusResourceID(path string, prefix string) (string, bool) {
 
 func storeInputSpecialRequest(payload createSpecialRequestRequest) lamdata.SpecialRequest {
 	return lamdata.SpecialRequest{
-		Gender:    strings.TrimSpace(payload.Gender),
-		Name:      strings.TrimSpace(payload.Name),
-		Age:       strings.TrimSpace(payload.Age),
-		Residence: strings.TrimSpace(payload.Residence),
-		Instagram: strings.TrimSpace(payload.Instagram),
-		IdealType: strings.TrimSpace(payload.IdealType),
-		Text:      strings.TrimSpace(payload.Text),
+		TableNumber: strings.TrimSpace(payload.TableNumber),
+		Gender:      strings.TrimSpace(payload.Gender),
+		Name:        strings.TrimSpace(payload.Name),
+		Age:         strings.TrimSpace(payload.Age),
+		Residence:   strings.TrimSpace(payload.Residence),
+		Instagram:   strings.TrimSpace(payload.Instagram),
+		IdealType:   strings.TrimSpace(payload.IdealType),
+		Text:        strings.TrimSpace(payload.Text),
 	}
 }
 

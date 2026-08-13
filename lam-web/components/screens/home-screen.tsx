@@ -3,6 +3,7 @@ import Link from "next/link";
 import { MenuItemCard } from "@/components/menu/menu-item-card";
 import { FloatingHomeBadge } from "@/components/navigation/floating-home-badge";
 import { PrimaryNav } from "@/components/navigation/primary-nav";
+import { TableSessionCard } from "@/components/table/table-session-card";
 import type { MenuCategory, MenuItem, StoreInfo } from "@/data/menu-data";
 
 type HomeScreenProps = {
@@ -19,9 +20,20 @@ export function HomeScreen({ store, featuredCategory, featuredItems }: HomeScree
         <header className="hero-card">
           <p className="eyebrow">BAR LAM</p>
           <h1>{store.name}</h1>
-          <p className="hero-copy">{store.subtitle}</p>
+          <div className="hero-badge-row">
+            <a
+              className="hero-link-badge"
+              href="https://www.instagram.com/bar_laam/"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Instagram
+            </a>
+          </div>
           <p className="hero-meta">{store.address}</p>
         </header>
+
+        <TableSessionCard autoOpenIfMissing />
 
         <PrimaryNav />
 

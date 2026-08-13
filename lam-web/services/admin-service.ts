@@ -11,6 +11,7 @@ type CategoryInput = {
 type MenuItemInput = {
   categoryId: string;
   badge: string;
+  badgeColor: string;
   name: string;
   description: string;
   price: string;

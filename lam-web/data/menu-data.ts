@@ -8,6 +8,7 @@ export type MenuItem = {
   id: string;
   categoryId: string;
   badge?: string;
+  badgeColor?: "green" | "amber" | "pink" | "blue";
   name: string;
   description: string;
   price: string;
@@ -43,7 +44,7 @@ export type StoreInfo = {
 export const store: StoreInfo = {
   name: "lam",
   subtitle: "혼술 바를 위한 QR 메뉴 초안",
-  address: "서울 강남구",
+  address: "서울 마포구 망원동 57-23",
 };
 
 export const categories: MenuCategory[] = [

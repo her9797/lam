@@ -11,6 +11,7 @@ import {
   createSpecialRequest,
 } from "@/services/customer-request-service";
 import type { StoreInfo } from "@/data/menu-data";
+import { getStoredTableNumber } from "@/lib/table-session";
 
 type RequestsScreenProps = {
   store: StoreInfo;
@@ -39,11 +40,16 @@ const defaultSpecialForm: SpecialFormState = {
 export function RequestsScreen({ store }: RequestsScreenProps) {
   const [activeCategory, setActiveCategory] =
     useState<"direct" | "special">("direct");
+  const [tableNumber, setTableNumber] = useState("");
   const [message, setMessage] = useState("");
   const [specialForm, setSpecialForm] =
     useState<SpecialFormState>(defaultSpecialForm);
   const [feedback, setFeedback] = useState("");
   const [isPending, startTransition] = useTransition();
+
+  useEffect(() => {
+    setTableNumber(getStoredTableNumber());
+  }, []);
 
   useEffect(() => {
     if (!feedback) {
@@ -60,6 +66,11 @@ export function RequestsScreen({ store }: RequestsScreenProps) {
   function handleDirectSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const nextMessage = message.trim();
+    if (!tableNumber) {
+      setFeedback("메인 화면에서 먼저 테이블 번호를 선택해주세요.");
+      return;
+    }
+
     if (!nextMessage) {
       setFeedback("남기실 내용을 입력해주세요.");
       return;
@@ -68,6 +79,7 @@ export function RequestsScreen({ store }: RequestsScreenProps) {
     startTransition(async () => {
       try {
         await createCustomerRequest({
+          tableNumber,
           text: nextMessage,
         });
         setMessage("");
@@ -86,6 +98,7 @@ export function RequestsScreen({ store }: RequestsScreenProps) {
     event.preventDefault();
 
     if (
+      !tableNumber ||
       !specialForm.name.trim() ||
       !specialForm.age.trim() ||
       !specialForm.residence.trim() ||
@@ -93,13 +106,18 @@ export function RequestsScreen({ store }: RequestsScreenProps) {
       !specialForm.idealType.trim() ||
       !specialForm.text.trim()
     ) {
-      setFeedback("특별한 폼의 모든 항목을 입력해주세요.");
+      setFeedback(
+        tableNumber
+          ? "특별한 폼의 모든 항목을 입력해주세요."
+          : "메인 화면에서 먼저 테이블 번호를 선택해주세요.",
+      );
       return;
     }
 
     startTransition(async () => {
       try {
         await createSpecialRequest({
+          tableNumber,
           gender: specialForm.gender,
           name: specialForm.name.trim(),
           age: specialForm.age.trim(),

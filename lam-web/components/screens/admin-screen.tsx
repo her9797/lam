@@ -28,6 +28,7 @@ import type { AppData } from "@/services/app-service";
 type MenuFormState = {
   categoryId: string;
   badge: string;
+  badgeColor: string;
   name: string;
   description: string;
   price: string;
@@ -53,6 +54,7 @@ type EditableCategoryState = {
 type EditableMenuState = {
   categoryId: string;
   badge: string;
+  badgeColor: string;
   name: string;
   description: string;
   price: string;
@@ -76,6 +78,12 @@ type CropTransformState = {
 
 type AdminScreenProps = {
   initialData: AppData;
+};
+
+type CustomSelectOption = {
+  value: string;
+  label: string;
+  textColor?: string;
 };
 
 const adminSections = [
@@ -102,10 +110,23 @@ const customerRequestStatusLabel: Record<CustomerRequestStatus, string> = {
   completed: "처리완료",
 };
 
+const badgeColorOptions = [
+  { value: "green", label: "그린", textColor: "#6ee7a2" },
+  { value: "amber", label: "앰버", textColor: "#fcd34d" },
+  { value: "pink", label: "핑크", textColor: "#f9a8d4" },
+  { value: "blue", label: "블루", textColor: "#93c5fd" },
+] as const;
+
+const menuPanels = [
+  { id: "manage", label: "관리" },
+  { id: "create", label: "등록" },
+] as const;
+
 function defaultMenuForm(categoryId: string): MenuFormState {
   return {
     categoryId,
     badge: "",
+    badgeColor: "green",
     name: "",
     description: "",
     price: "",
@@ -133,6 +154,7 @@ function createEditableMenu(item: MenuItem): EditableMenuState {
   return {
     categoryId: item.categoryId,
     badge: item.badge ?? "",
+    badgeColor: item.badgeColor ?? "green",
     name: item.name,
     description: item.description,
     price: item.price,
@@ -141,6 +163,80 @@ function createEditableMenu(item: MenuItem): EditableMenuState {
 
 function getPrimaryMenuImage(item: MenuItem) {
   return item.images?.find((image) => image.isPrimary) ?? item.images?.[0];
+}
+
+function CustomSelect({
+  label,
+  value,
+  options,
+  onChange,
+  disabled = false,
+}: {
+  label: string;
+  value: string;
+  options: readonly CustomSelectOption[];
+  onChange: (value: string) => void;
+  disabled?: boolean;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const selectedOption = options.find((option) => option.value === value) ?? options[0];
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, [isOpen]);
+
+  return (
+    <div ref={rootRef} className={disabled ? "admin-custom-select is-disabled" : "admin-custom-select"}>
+      <button
+        type="button"
+        className={isOpen ? "admin-custom-select-trigger active" : "admin-custom-select-trigger"}
+        onClick={() => {
+          if (!disabled) {
+            setIsOpen((current) => !current);
+          }
+        }}
+        disabled={disabled}
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+        aria-label={label}
+      >
+        <span style={selectedOption?.textColor ? { color: selectedOption.textColor } : undefined}>
+          {selectedOption?.label ?? ""}
+        </span>
+        <span className="admin-custom-select-arrow">▾</span>
+      </button>
+      {isOpen ? (
+        <div className="admin-custom-select-menu" role="listbox" aria-label={label}>
+          {options.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              className={option.value === value ? "admin-custom-select-option active" : "admin-custom-select-option"}
+              onClick={() => {
+                onChange(option.value);
+                setIsOpen(false);
+              }}
+              style={option.textColor ? { color: option.textColor } : undefined}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 function loadImageElement(src: string) {
@@ -295,8 +391,11 @@ export function AdminScreen({ initialData }: AdminScreenProps) {
   const [editingMenuId, setEditingMenuId] = useState<string | null>(null);
   const [editingMenu, setEditingMenu] = useState<EditableMenuState>(defaultMenuForm(initialData.categories[0]?.id ?? ""));
   const [editingMenuCropDraft, setEditingMenuCropDraft] = useState<CropDraftState | null>(null);
+  const [isEditingMenuCropModalOpen, setIsEditingMenuCropModalOpen] = useState<boolean>(false);
   const [menuManageCategoryId, setMenuManageCategoryId] = useState<string>(initialData.categories[0]?.id ?? "");
+  const [activeMenuPanel, setActiveMenuPanel] = useState<(typeof menuPanels)[number]["id"]>("manage");
   const [newMenuCropDraft, setNewMenuCropDraft] = useState<CropDraftState | null>(null);
+  const [isNewMenuCropModalOpen, setIsNewMenuCropModalOpen] = useState<boolean>(false);
   const [editingNoticeId, setEditingNoticeId] = useState<string | null>(null);
   const [editingNoticeText, setEditingNoticeText] = useState<string>("");
   const [activeRequestBoardIndex, setActiveRequestBoardIndex] = useState<number>(0);
@@ -520,6 +619,7 @@ export function AdminScreen({ initialData }: AdminScreenProps) {
   function cancelMenuEdit() {
     setEditingMenuId(null);
     setEditingMenu(defaultMenuForm(categoryOptions[0]?.id ?? ""));
+    setIsEditingMenuCropModalOpen(false);
     setEditingMenuCropDraft((current) => {
       if (current?.imageUrl) {
         URL.revokeObjectURL(current.imageUrl);
@@ -535,6 +635,7 @@ export function AdminScreen({ initialData }: AdminScreenProps) {
     }
 
     const nextBadge = editingMenu.badge.trim() || undefined;
+    const nextBadgeColor = nextBadge ? editingMenu.badgeColor : undefined;
     const nextName = editingMenu.name.trim();
     const nextDescription = editingMenu.description.trim();
     const nextPrice = editingMenu.price.trim();
@@ -548,6 +649,7 @@ export function AdminScreen({ initialData }: AdminScreenProps) {
               ...item,
               categoryId: nextCategoryId,
               badge: nextBadge,
+              badgeColor: nextBadgeColor,
               name: nextName,
               description: nextDescription,
               price: nextPrice,
@@ -579,6 +681,7 @@ export function AdminScreen({ initialData }: AdminScreenProps) {
                     ...currentItem,
                     categoryId: nextCategoryId,
                     badge: nextBadge,
+                    badgeColor: nextBadgeColor,
                     name: nextName,
                     description: nextDescription,
                     price: nextPrice,
@@ -631,6 +734,7 @@ export function AdminScreen({ initialData }: AdminScreenProps) {
 
           return nextDraft;
         });
+        setIsEditingMenuCropModalOpen(true);
       } catch (error) {
         setStatusMessage(error instanceof Error ? error.message : "이미지를 불러오지 못했습니다.");
       }
@@ -717,6 +821,7 @@ export function AdminScreen({ initialData }: AdminScreenProps) {
         let nextData = await createMenuItem({
           categoryId: menuForm.categoryId,
           badge: menuForm.badge.trim(),
+          badgeColor: menuForm.badge.trim() ? menuForm.badgeColor : "",
           name: menuForm.name.trim(),
           description: menuForm.description.trim(),
           price: menuForm.price.trim(),
@@ -747,6 +852,7 @@ export function AdminScreen({ initialData }: AdminScreenProps) {
           }
           return null;
         });
+        setIsNewMenuCropModalOpen(false);
         setStatusMessage("메뉴를 저장했습니다.");
       } catch (error) {
         setStatusMessage(error instanceof Error ? error.message : "메뉴 저장에 실패했습니다.");
@@ -827,6 +933,7 @@ export function AdminScreen({ initialData }: AdminScreenProps) {
           <>
             <div className="admin-manage-meta admin-request-meta">
               <span>바로 전달하기</span>
+              {customerRequest.tableNumber ? <span>테이블 {customerRequest.tableNumber}</span> : null}
               <span>{customerRequestStatusLabel[customerRequest.status]}</span>
               <span>{formatCustomerRequestDate(customerRequest.createdAt)}</span>
               {customerRequest.handledAt ? <span>처리 {formatCustomerRequestDate(customerRequest.handledAt)}</span> : null}
@@ -888,6 +995,11 @@ export function AdminScreen({ initialData }: AdminScreenProps) {
               <span className="admin-special-summary-name">{specialRequest.name}</span>
               <span className="admin-special-summary-age">{specialRequest.age}</span>
             </div>
+            {specialRequest.tableNumber ? (
+              <div className="admin-manage-meta admin-request-meta">
+                <span>테이블 {specialRequest.tableNumber}</span>
+              </div>
+            ) : null}
           </div>
         </div>
         <div className="admin-special-actions">
@@ -1037,230 +1149,343 @@ export function AdminScreen({ initialData }: AdminScreenProps) {
                 <h2>메뉴 관리</h2>
               </div>
             </div>
-            <div className="admin-manage-section">
-              <div className="admin-manage-header">
-                <strong>등록된 메뉴 관리</strong>
-                <span>{managedMenuItems.length}개</span>
-              </div>
-              <div className="admin-filter-row">
-                {categoryOptions.map((category) => (
-                  <button
-                    key={category.id}
-                    type="button"
-                    className={menuManageCategoryId === category.id ? "admin-filter-chip active" : "admin-filter-chip"}
-                    onClick={() => setMenuManageCategoryId(category.id)}
-                  >
-                    {category.label}
-                  </button>
-                ))}
-              </div>
-              <div className="admin-manage-list">
-                {managedMenuItems.map((item) => {
-                  const itemCategory = categoryOptions.find((category) => category.id === item.categoryId);
-                  const isEditing = editingMenuId === item.id;
+            <div className="admin-subtabs" role="tablist" aria-label="메뉴 작업 구분">
+              {menuPanels.map((panel) => (
+                <button
+                  key={panel.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={activeMenuPanel === panel.id}
+                  className={activeMenuPanel === panel.id ? "admin-subtab active" : "admin-subtab"}
+                  onClick={() => setActiveMenuPanel(panel.id)}
+                >
+                  {panel.label}
+                </button>
+              ))}
+            </div>
+            {activeMenuPanel === "manage" ? (
+              <div className="admin-manage-section">
+                <div className="admin-manage-header">
+                  <strong>등록된 메뉴 관리</strong>
+                  <span>{managedMenuItems.length}개</span>
+                </div>
+                <div className="admin-filter-row">
+                  {categoryOptions.map((category) => (
+                    <button
+                      key={category.id}
+                      type="button"
+                      className={menuManageCategoryId === category.id ? "admin-filter-chip active" : "admin-filter-chip"}
+                      onClick={() => setMenuManageCategoryId(category.id)}
+                    >
+                      {category.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="admin-manage-list admin-manage-list-menu-scroll">
+                  {managedMenuItems.map((item) => {
+                    const itemCategory = categoryOptions.find((category) => category.id === item.categoryId);
+                    const isEditing = editingMenuId === item.id;
 
-                  return (
-                    <article key={item.id} className="admin-manage-card">
-                      {isEditing ? (
-                        <>
-                          <div className="admin-manage-copy">
-                            <div className="admin-manage-meta admin-manage-meta-edit">
-                              <label className="admin-field admin-field-chip">
-                                <span className="sr-only">카테고리</span>
-                                <select value={editingMenu.categoryId} onChange={(event) => setEditingMenu((current) => ({ ...current, categoryId: event.target.value }))}>
-                                  {categoryOptions.map((category) => (
-                                    <option key={category.id} value={category.id}>{category.label}</option>
-                                  ))}
-                                </select>
-                              </label>
-                            </div>
-                            <div className="admin-menu-row">
-                              <div className="admin-image-block admin-image-block-inline">
-                                <label className="admin-image-editor admin-image-editor-inline">
-                                  <input type="file" accept="image/*" className="admin-image-input" onChange={(event) => handleExistingMenuImageChange(item.id, event)} />
-                                  {editingMenuCropDraft ? (
-                                    <div className="admin-menu-image-empty admin-menu-image-empty-inline">크롭</div>
-                                  ) : getPrimaryMenuImage(item) ? (
-                                    <img
-                                      src={getPrimaryMenuImage(item)?.contentUrl}
-                                      alt={editingMenu.name || item.name}
-                                      className="admin-menu-image-preview admin-menu-image-preview-inline"
-                                      style={{ objectPosition: `${getPrimaryMenuImage(item)?.focusX ?? 50}% ${getPrimaryMenuImage(item)?.focusY ?? 50}%` }}
-                                    />
-                                  ) : (
-                                    <div className="admin-menu-image-empty admin-menu-image-empty-inline">사진</div>
-                                  )}
-                                  <span className="admin-image-edit-badge admin-image-edit-badge-inline">수정</span>
-                                </label>
-                              </div>
-                              <div className="admin-menu-copy">
-                                <label className="admin-field admin-field-inline-badge">
-                                  <span className="sr-only">배지</span>
-                                  <input
-                                    value={editingMenu.badge}
-                                    onChange={(event) => setEditingMenu((current) => ({ ...current, badge: event.target.value }))}
-                                    placeholder="badge"
-                                  />
-                                </label>
-                                <label className="admin-field admin-field-inline-title">
-                                  <span className="sr-only">메뉴명</span>
-                                  <input value={editingMenu.name} onChange={(event) => setEditingMenu((current) => ({ ...current, name: event.target.value }))} />
-                                </label>
-                                <label className="admin-field admin-field-inline-body">
-                                  <span className="sr-only">설명</span>
-                                  <textarea value={editingMenu.description} onChange={(event) => setEditingMenu((current) => ({ ...current, description: event.target.value }))} />
-                                </label>
-                                {editingMenuCropDraft ? (
-                                  <ImageCropEditor
-                                    imageUrl={editingMenuCropDraft.imageUrl}
-                                    transform={editingMenuCropDraft.transform}
-                                    onTransformChange={(transform) =>
-                                      setEditingMenuCropDraft((current) => (current ? { ...current, transform } : current))
+                    return (
+                      <article key={item.id} className="admin-manage-card">
+                        {isEditing ? (
+                          <>
+                            <div className="admin-manage-copy">
+                              <div className="admin-manage-meta admin-manage-meta-edit">
+                                <label className="admin-field admin-field-chip">
+                                  <span className="sr-only">카테고리</span>
+                                  <CustomSelect
+                                    label="수정 메뉴 카테고리"
+                                    value={editingMenu.categoryId}
+                                    options={categoryOptions.map((category) => ({
+                                      value: category.id,
+                                      label: category.label,
+                                    }))}
+                                    onChange={(nextValue) =>
+                                      setEditingMenu((current) => ({
+                                        ...current,
+                                        categoryId: nextValue,
+                                      }))
                                     }
                                   />
-                                ) : null}
+                                </label>
                               </div>
-                            </div>
-                          </div>
-                          <div className="admin-manage-side">
-                            <label className="admin-field admin-field-inline-price">
-                              <span className="sr-only">가격</span>
-                              <input value={editingMenu.price} onChange={(event) => setEditingMenu((current) => ({ ...current, price: event.target.value }))} />
-                            </label>
-                            <div className="admin-row-actions">
-                              <button type="button" className="admin-small-button" onClick={() => saveMenuEdit(item.id)}>저장</button>
-                              <button type="button" className="admin-ghost-button" onClick={cancelMenuEdit}>취소</button>
-                            </div>
-                          </div>
-                        </>
-                      ) : (
-                        <>
-                          <div className="admin-manage-copy">
-                            <div className="admin-manage-meta">
-                              <span>{itemCategory?.label ?? item.categoryId}</span>
-                              {item.badge ? <span>{item.badge}</span> : null}
-                            </div>
-                            <div className="admin-menu-row">
-                              <div className="admin-image-block admin-image-block-inline">
-                                <div className="admin-image-editor admin-image-editor-inline admin-image-editor-readonly">
-                                  {getPrimaryMenuImage(item) ? (
-                                    <img
-                                      src={getPrimaryMenuImage(item)?.contentUrl}
-                                      alt={item.name}
-                                      className="admin-menu-image-preview admin-menu-image-preview-inline"
-                                      style={{ objectPosition: `${getPrimaryMenuImage(item)?.focusX ?? 50}% ${getPrimaryMenuImage(item)?.focusY ?? 50}%` }}
-                                    />
-                                  ) : (
-                                    <div className="admin-menu-image-empty admin-menu-image-empty-inline">사진</div>
-                                  )}
+                              <div className="admin-menu-row">
+                                <div className="admin-image-block admin-image-block-inline">
+                                  <label className="admin-image-editor admin-image-editor-inline">
+                                    <input type="file" accept="image/*" className="admin-image-input" onChange={(event) => handleExistingMenuImageChange(item.id, event)} />
+                                    {editingMenuCropDraft ? (
+                                      <div className="admin-menu-image-empty admin-menu-image-empty-inline">크롭</div>
+                                    ) : getPrimaryMenuImage(item) ? (
+                                      <img
+                                        src={getPrimaryMenuImage(item)?.contentUrl}
+                                        alt={editingMenu.name || item.name}
+                                        className="admin-menu-image-preview admin-menu-image-preview-inline"
+                                        style={{ objectPosition: `${getPrimaryMenuImage(item)?.focusX ?? 50}% ${getPrimaryMenuImage(item)?.focusY ?? 50}%` }}
+                                      />
+                                    ) : (
+                                      <div className="admin-menu-image-empty admin-menu-image-empty-inline">사진</div>
+                                    )}
+                                    <span className="admin-image-edit-badge admin-image-edit-badge-inline">수정</span>
+                                  </label>
+                                </div>
+                                <div className="admin-menu-copy">
+                                  <div className="admin-badge-row">
+                                    <label className="admin-field admin-field-inline-badge">
+                                      <span className="sr-only">배지</span>
+                                      <input
+                                        value={editingMenu.badge}
+                                        onChange={(event) =>
+                                          setEditingMenu((current) => ({
+                                            ...current,
+                                            badge: event.target.value,
+                                            badgeColor: event.target.value.trim() ? current.badgeColor : "green",
+                                          }))
+                                        }
+                                        placeholder="badge"
+                                      />
+                                    </label>
+                                    <label className="admin-field admin-field-inline-badge-color">
+                                      <span className="sr-only">배지 색상</span>
+                                      <CustomSelect
+                                        label="수정 배지 색상"
+                                        value={editingMenu.badgeColor}
+                                        options={badgeColorOptions}
+                                        onChange={(nextValue) =>
+                                          setEditingMenu((current) => ({
+                                            ...current,
+                                            badgeColor: nextValue,
+                                          }))
+                                        }
+                                        disabled={!editingMenu.badge.trim()}
+                                      />
+                                    </label>
+                                  </div>
+                                  <label className="admin-field admin-field-inline-title">
+                                    <span className="sr-only">메뉴명</span>
+                                    <input value={editingMenu.name} onChange={(event) => setEditingMenu((current) => ({ ...current, name: event.target.value }))} />
+                                  </label>
+                                  <label className="admin-field admin-field-inline-body">
+                                    <span className="sr-only">설명</span>
+                                    <textarea value={editingMenu.description} onChange={(event) => setEditingMenu((current) => ({ ...current, description: event.target.value }))} />
+                                  </label>
+                                  {editingMenuCropDraft ? (
+                                    <div className="admin-inline-crop-summary">
+                                      <span>사진 영역 선택 완료</span>
+                                      <button
+                                        type="button"
+                                        className="admin-ghost-button"
+                                        onClick={() => setIsEditingMenuCropModalOpen(true)}
+                                      >
+                                        영역 설정
+                                      </button>
+                                    </div>
+                                  ) : null}
                                 </div>
                               </div>
-                              <div className="admin-menu-copy">
-                                <strong>{item.name}</strong>
-                                <p>{item.description}</p>
+                            </div>
+                            <div className="admin-manage-side">
+                              <label className="admin-field admin-field-inline-price">
+                                <span className="sr-only">가격</span>
+                                <input value={editingMenu.price} onChange={(event) => setEditingMenu((current) => ({ ...current, price: event.target.value }))} />
+                              </label>
+                              <div className="admin-row-actions">
+                                <button type="button" className="admin-small-button" onClick={() => saveMenuEdit(item.id)}>저장</button>
+                                <button type="button" className="admin-ghost-button" onClick={cancelMenuEdit}>취소</button>
                               </div>
                             </div>
-                          </div>
-                          <div className="admin-manage-side">
-                            <strong>{item.price}</strong>
-                            <div className="admin-row-actions">
-                              <button type="button" className="admin-ghost-button" onClick={() => beginMenuEdit(item)}>수정</button>
-                              <button type="button" className="admin-danger-button" onClick={() => deleteMenu(item.id)}>삭제</button>
+                          </>
+                        ) : (
+                          <>
+                            <div className="admin-manage-copy">
+                              <div className="admin-manage-meta">
+                                <span>{itemCategory?.label ?? item.categoryId}</span>
+                                {item.badge ? <span>{item.badge}</span> : null}
+                              </div>
+                              <div className="admin-menu-row">
+                                <div className="admin-image-block admin-image-block-inline">
+                                  <div className="admin-image-editor admin-image-editor-inline admin-image-editor-readonly">
+                                    {getPrimaryMenuImage(item) ? (
+                                      <img
+                                        src={getPrimaryMenuImage(item)?.contentUrl}
+                                        alt={item.name}
+                                        className="admin-menu-image-preview admin-menu-image-preview-inline"
+                                        style={{ objectPosition: `${getPrimaryMenuImage(item)?.focusX ?? 50}% ${getPrimaryMenuImage(item)?.focusY ?? 50}%` }}
+                                      />
+                                    ) : (
+                                      <div className="admin-menu-image-empty admin-menu-image-empty-inline">사진</div>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="admin-menu-copy">
+                                  <strong>{item.name}</strong>
+                                  <p>{item.description}</p>
+                                </div>
+                              </div>
                             </div>
-                          </div>
-                        </>
-                      )}
-                    </article>
-                  );
-                })}
-              </div>
-            </div>
-            <div className="admin-manage-section">
-              <div className="admin-manage-header">
-                <strong>새 메뉴 등록</strong>
-              </div>
-              <form className="admin-form" onSubmit={handleMenuSubmit}>
-                <label className="admin-field">
-                  <span>카테고리</span>
-                  <select value={menuForm.categoryId} onChange={(event) => setMenuForm((current) => ({ ...current, categoryId: event.target.value }))}>
-                    {categoryOptions.map((category) => (
-                      <option key={category.id} value={category.id}>{category.label}</option>
-                    ))}
-                  </select>
-                </label>
-                <label className="admin-field">
-                  <span>배지</span>
-                  <input value={menuForm.badge} onChange={(event) => setMenuForm((current) => ({ ...current, badge: event.target.value }))} placeholder="예: signature" />
-                </label>
-                <label className="admin-field admin-field-wide">
-                  <span>메뉴명</span>
-                  <input value={menuForm.name} onChange={(event) => setMenuForm((current) => ({ ...current, name: event.target.value }))} placeholder="예: 하우스 진토닉" />
-                </label>
-                <label className="admin-field admin-field-wide">
-                  <span>설명</span>
-                  <textarea value={menuForm.description} onChange={(event) => setMenuForm((current) => ({ ...current, description: event.target.value }))} placeholder="메뉴 설명을 입력하세요" />
-                </label>
-                <label className="admin-field">
-                  <span>가격</span>
-                  <input value={menuForm.price} onChange={(event) => setMenuForm((current) => ({ ...current, price: event.target.value }))} placeholder="예: 11,000원" />
-                </label>
-                <div className="admin-field admin-field-wide">
-                  <span>메뉴 사진</span>
-                  <label className="admin-image-editor admin-image-editor-form">
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="admin-image-input"
-                      onChange={(event) => {
-                        const file = event.target.files?.[0] ?? null;
-                        void (async () => {
-                          if (!file) {
-                            setNewMenuCropDraft((current) => {
-                              if (current?.imageUrl) {
-                                URL.revokeObjectURL(current.imageUrl);
-                              }
-
-                              return null;
-                            });
-                            return;
-                          }
-
-                          try {
-                            const nextDraft = await createCropDraft(file);
-                            setNewMenuCropDraft((current) => {
-                              if (current?.imageUrl) {
-                                URL.revokeObjectURL(current.imageUrl);
-                              }
-
-                              return nextDraft;
-                            });
-                          } catch (error) {
-                            setStatusMessage(error instanceof Error ? error.message : "이미지를 불러오지 못했습니다.");
-                          }
-                        })();
-                      }}
-                    />
-                    {newMenuCropDraft ? (
-                      <div className="admin-menu-image-empty">크롭 영역 선택</div>
-                    ) : (
-                      <div className="admin-menu-image-empty">사진 영역 클릭해서 등록</div>
-                    )}
-                    <span className="admin-image-edit-badge">사진 선택</span>
-                  </label>
-                  <small className="admin-field-help">{newMenuCropDraft?.file.name ?? "선택된 파일 없음"}</small>
-                  {newMenuCropDraft ? (
-                    <ImageCropEditor
-                      imageUrl={newMenuCropDraft.imageUrl}
-                      transform={newMenuCropDraft.transform}
-                      onTransformChange={(transform) =>
-                        setNewMenuCropDraft((current) => (current ? { ...current, transform } : current))
-                      }
-                    />
-                  ) : null}
+                            <div className="admin-manage-side">
+                              <strong>{item.price}</strong>
+                              <div className="admin-row-actions">
+                                <button type="button" className="admin-ghost-button" onClick={() => beginMenuEdit(item)}>수정</button>
+                                <button type="button" className="admin-danger-button" onClick={() => deleteMenu(item.id)}>삭제</button>
+                              </div>
+                            </div>
+                          </>
+                        )}
+                      </article>
+                    );
+                  })}
                 </div>
-                <button className="admin-button" type="submit" disabled={isPending}>메뉴 추가</button>
-              </form>
-            </div>
+              </div>
+            ) : (
+              <div className="admin-manage-section">
+                <div className="admin-manage-header">
+                  <strong>새 메뉴 등록</strong>
+                </div>
+                <form className="admin-form admin-create-form single-column" onSubmit={handleMenuSubmit}>
+                  <div className="admin-form-panel">
+                    <div className="admin-form-panel-header">
+                      <strong>기본 정보</strong>
+                    </div>
+                    <div className="admin-form-panel-grid">
+                      <div className="admin-field">
+                        <span>카테고리</span>
+                        <CustomSelect
+                          label="메뉴 카테고리"
+                          value={menuForm.categoryId}
+                          options={categoryOptions.map((category) => ({
+                            value: category.id,
+                            label: category.label,
+                          }))}
+                          onChange={(nextValue) =>
+                            setMenuForm((current) => ({
+                              ...current,
+                              categoryId: nextValue,
+                            }))
+                          }
+                        />
+                      </div>
+                      <label className="admin-field">
+                        <span>가격</span>
+                        <input value={menuForm.price} onChange={(event) => setMenuForm((current) => ({ ...current, price: event.target.value }))} placeholder="예: 11,000원" />
+                      </label>
+                      <label className="admin-field admin-field-wide">
+                        <span>메뉴명</span>
+                        <input value={menuForm.name} onChange={(event) => setMenuForm((current) => ({ ...current, name: event.target.value }))} placeholder="예: 하우스 진토닉" />
+                      </label>
+                      <label className="admin-field admin-field-wide">
+                        <span>설명</span>
+                        <textarea value={menuForm.description} onChange={(event) => setMenuForm((current) => ({ ...current, description: event.target.value }))} placeholder="메뉴 설명을 입력하세요" />
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="admin-form-panel">
+                    <div className="admin-form-panel-header">
+                      <strong>배지 설정</strong>
+                    </div>
+                    <div className="admin-form-panel-grid">
+                      <div className="admin-field admin-badge-field">
+                        <span>배지</span>
+                        <div className="admin-badge-row">
+                          <input
+                            value={menuForm.badge}
+                            onChange={(event) =>
+                              setMenuForm((current) => ({
+                                ...current,
+                                badge: event.target.value,
+                                badgeColor: event.target.value.trim() ? current.badgeColor : "green",
+                              }))
+                            }
+                            placeholder="예: signature"
+                          />
+                        </div>
+                        <CustomSelect
+                          label="배지 색상"
+                          value={menuForm.badgeColor}
+                          options={badgeColorOptions}
+                          onChange={(nextValue) =>
+                            setMenuForm((current) => ({
+                              ...current,
+                              badgeColor: nextValue,
+                            }))
+                          }
+                          disabled={!menuForm.badge.trim()}
+                        />
+                        <small className="admin-field-help">배지가 없으면 색상은 적용되지 않습니다.</small>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="admin-form-panel">
+                    <div className="admin-form-panel-header">
+                      <strong>사진</strong>
+                    </div>
+                    <div className="admin-form-panel-grid">
+                      <div className="admin-field admin-field-wide">
+                        <span>메뉴 사진</span>
+                        <label className="admin-image-editor admin-image-editor-form admin-image-editor-create">
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="admin-image-input"
+                            onChange={(event) => {
+                              const file = event.target.files?.[0] ?? null;
+                              void (async () => {
+                                if (!file) {
+                                  setNewMenuCropDraft((current) => {
+                                    if (current?.imageUrl) {
+                                      URL.revokeObjectURL(current.imageUrl);
+                                    }
+
+                                    return null;
+                                  });
+                                  return;
+                                }
+
+                                try {
+                                  const nextDraft = await createCropDraft(file);
+                                  setNewMenuCropDraft((current) => {
+                                    if (current?.imageUrl) {
+                                      URL.revokeObjectURL(current.imageUrl);
+                                    }
+
+                                    return nextDraft;
+                                  });
+                                  setIsNewMenuCropModalOpen(true);
+                                } catch (error) {
+                                  setStatusMessage(error instanceof Error ? error.message : "이미지를 불러오지 못했습니다.");
+                                }
+                              })();
+                            }}
+                          />
+                          {newMenuCropDraft ? (
+                            <div className="admin-menu-image-empty">크롭 영역 선택</div>
+                          ) : (
+                            <div className="admin-menu-image-empty">사진 영역 클릭해서 등록</div>
+                          )}
+                          <span className="admin-image-edit-badge">사진 선택</span>
+                        </label>
+                        <small className="admin-field-help">{newMenuCropDraft?.file.name ?? "선택된 파일 없음"}</small>
+                        {newMenuCropDraft ? (
+                          <div className="admin-inline-crop-summary">
+                            <span>사진 영역 선택 완료</span>
+                            <button
+                              type="button"
+                              className="admin-ghost-button"
+                              onClick={() => setIsNewMenuCropModalOpen(true)}
+                            >
+                              영역 설정
+                            </button>
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+                  <button className="admin-button" type="submit" disabled={isPending}>메뉴 추가</button>
+                </form>
+              </div>
+            )}
           </section>
 
           <section
@@ -1409,6 +1634,10 @@ export function AdminScreen({ initialData }: AdminScreenProps) {
             <div className="admin-special-ledger">
               <div className="admin-special-card-list">
                 <div className="admin-special-row">
+                  <strong>테이블</strong>
+                  <p>{selectedSpecialRequest.tableNumber}</p>
+                </div>
+                <div className="admin-special-row">
                   <strong>이름</strong>
                   <p>{selectedSpecialRequest.name}</p>
                 </div>
@@ -1434,6 +1663,78 @@ export function AdminScreen({ initialData }: AdminScreenProps) {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      ) : null}
+      {editingMenuCropDraft && isEditingMenuCropModalOpen ? (
+        <div
+          className="admin-modal-backdrop"
+          role="presentation"
+          onClick={() => setIsEditingMenuCropModalOpen(false)}
+        >
+          <div
+            className="admin-modal-card admin-crop-modal-card"
+            role="dialog"
+            aria-modal="true"
+            aria-label="메뉴 사진 영역 설정"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="admin-modal-header">
+              <div>
+                <p className="section-kicker">crop</p>
+                <h2>메뉴 사진 영역 설정</h2>
+              </div>
+              <button
+                type="button"
+                className="admin-ghost-button"
+                onClick={() => setIsEditingMenuCropModalOpen(false)}
+              >
+                완료
+              </button>
+            </div>
+            <ImageCropEditor
+              imageUrl={editingMenuCropDraft.imageUrl}
+              transform={editingMenuCropDraft.transform}
+              onTransformChange={(transform) =>
+                setEditingMenuCropDraft((current) => (current ? { ...current, transform } : current))
+              }
+            />
+          </div>
+        </div>
+      ) : null}
+      {newMenuCropDraft && isNewMenuCropModalOpen ? (
+        <div
+          className="admin-modal-backdrop"
+          role="presentation"
+          onClick={() => setIsNewMenuCropModalOpen(false)}
+        >
+          <div
+            className="admin-modal-card admin-crop-modal-card"
+            role="dialog"
+            aria-modal="true"
+            aria-label="새 메뉴 사진 영역 설정"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="admin-modal-header">
+              <div>
+                <p className="section-kicker">crop</p>
+                <h2>새 메뉴 사진 영역 설정</h2>
+              </div>
+              <button
+                type="button"
+                className="admin-ghost-button"
+                onClick={() => setIsNewMenuCropModalOpen(false)}
+              >
+                완료
+              </button>
+            </div>
+            <ImageCropEditor
+              imageUrl={newMenuCropDraft.imageUrl}
+              transform={newMenuCropDraft.transform}
+              onTransformChange={(transform) =>
+                setNewMenuCropDraft((current) => (current ? { ...current, transform } : current))
+              }
+            />
           </div>
         </div>
       ) : null}

@@ -40,6 +40,17 @@ function normalizeMenuImages(images: MenuImage[] | undefined) {
   }));
 }
 
+function normalizeStoreInfo(store: StoreInfo): StoreInfo {
+  if (store.address === "서울 강남구") {
+    return {
+      ...store,
+      address: "서울 마포구 망원동 57-23",
+    };
+  }
+
+  return store;
+}
+
 function getFallbackAppData(): AppData {
   return {
     store: fallbackStore,
@@ -93,6 +104,7 @@ export async function getAppData(): Promise<AppData> {
 export function normalizeAppDataImages(appData: AppData): AppData {
   return {
     ...appData,
+    store: normalizeStoreInfo(appData.store),
     items: appData.items.map((item) => ({
       ...item,
       images: normalizeMenuImages(item.images),

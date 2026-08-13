@@ -3,6 +3,7 @@ export type CustomerRequestGender = "male" | "female";
 
 export type CustomerRequest = {
   id: string;
+  tableNumber: string;
   text: string;
   status: CustomerRequestStatus;
   createdAt: string;
@@ -10,11 +11,13 @@ export type CustomerRequest = {
 };
 
 export type CustomerRequestInput = {
+  tableNumber: string;
   text: string;
 };
 
 export type SpecialRequest = {
   id: string;
+  tableNumber: string;
   gender: CustomerRequestGender;
   name: string;
   age: string;

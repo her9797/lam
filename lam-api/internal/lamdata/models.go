@@ -16,6 +16,7 @@ type MenuItem struct {
 	ID          string      `json:"id"`
 	CategoryID  string      `json:"categoryId"`
 	Badge       string      `json:"badge,omitempty"`
+	BadgeColor  string      `json:"badgeColor,omitempty"`
 	Name        string      `json:"name"`
 	Description string      `json:"description"`
 	Price       string      `json:"price"`
@@ -43,23 +44,25 @@ type NoticeItem struct {
 }
 
 type CustomerRequest struct {
-	ID         string `json:"id"`
-	Text       string `json:"text"`
-	Status     string `json:"status"`
-	CreatedAt  string `json:"createdAt"`
-	HandledAt  string `json:"handledAt,omitempty"`
+	ID          string `json:"id"`
+	TableNumber string `json:"tableNumber"`
+	Text        string `json:"text"`
+	Status      string `json:"status"`
+	CreatedAt   string `json:"createdAt"`
+	HandledAt   string `json:"handledAt,omitempty"`
 }
 
 type SpecialRequest struct {
-	ID        string `json:"id"`
-	Gender    string `json:"gender"`
-	Name      string `json:"name"`
-	Age       string `json:"age"`
-	Residence string `json:"residence"`
-	Instagram string `json:"instagram"`
-	IdealType string `json:"idealType"`
-	Text      string `json:"text"`
-	CreatedAt string `json:"createdAt"`
+	ID          string `json:"id"`
+	TableNumber string `json:"tableNumber"`
+	Gender      string `json:"gender"`
+	Name        string `json:"name"`
+	Age         string `json:"age"`
+	Residence   string `json:"residence"`
+	Instagram   string `json:"instagram"`
+	IdealType   string `json:"idealType"`
+	Text        string `json:"text"`
+	CreatedAt   string `json:"createdAt"`
 }
 
 type BootstrapData struct {
