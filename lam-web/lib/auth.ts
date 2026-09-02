@@ -1,10 +1,11 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
-type SessionKind = "admin" | "qr";
+type SessionKind = "admin" | "qr" | "staff";
 
 const SESSION_VERSION = "v1";
 const ADMIN_COOKIE = "lam_admin_session";
 const QR_COOKIE = "lam_qr_session";
+const STAFF_COOKIE = "lam_staff_session";
 const ADMIN_MAX_AGE_SECONDS = 60 * 60 * 12;
 const QR_MAX_AGE_SECONDS = 60 * 60 * 8;
 
@@ -60,6 +61,10 @@ export function createQrSessionValue() {
   return createSessionValue("qr", QR_MAX_AGE_SECONDS);
 }
 
+export function createStaffSessionValue() {
+  return createSessionValue("staff", QR_MAX_AGE_SECONDS);
+}
+
 export function isAdminSessionValid(value: string | undefined) {
   return verifySessionValue(value, "admin");
 }
@@ -68,12 +73,24 @@ export function isQrSessionValid(value: string | undefined) {
   return verifySessionValue(value, "qr");
 }
 
+export function isStaffSessionValid(value: string | undefined) {
+  return verifySessionValue(value, "staff");
+}
+
 export function getAdminCookieName() {
   return ADMIN_COOKIE;
 }
 
 export function getQrCookieName() {
   return QR_COOKIE;
+}
+
+export function getStaffCookieName() {
+  return STAFF_COOKIE;
+}
+
+export function getStaffEntryToken() {
+  return process.env.STAFF_ENTRY_TOKEN ?? "";
 }
 
 export function getAdminPassword() {

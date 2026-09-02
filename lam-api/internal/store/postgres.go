@@ -148,6 +148,9 @@ ALTER TABLE menu_item_images ADD COLUMN IF NOT EXISTS focus_x INTEGER NOT NULL D
 ALTER TABLE menu_item_images ADD COLUMN IF NOT EXISTS focus_y INTEGER NOT NULL DEFAULT 50;
 ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS table_number TEXT NOT NULL DEFAULT '';
 ALTER TABLE special_requests ADD COLUMN IF NOT EXISTS table_number TEXT NOT NULL DEFAULT '';
+ALTER TABLE store_profile ADD COLUMN IF NOT EXISTS song_request_copy TEXT NOT NULL DEFAULT '';
+ALTER TABLE store_profile ADD COLUMN IF NOT EXISTS request_copy TEXT NOT NULL DEFAULT '';
+ALTER TABLE store_profile ADD COLUMN IF NOT EXISTS event_copy TEXT NOT NULL DEFAULT '';
 UPDATE store_profile
 SET address = '서울 마포구 망원동 57-23'
 WHERE id = 1 AND address = '서울 강남구';
@@ -310,10 +313,26 @@ func (r *Repository) GetMenuData(ctx context.Context) (lamdata.MenuData, error) 
 	}, nil
 }
 
+func (r *Repository) UpdateStoreCopies(ctx context.Context, songRequestCopy string, requestCopy string, eventCopy string) error {
+	if strings.TrimSpace(songRequestCopy) == "" || strings.TrimSpace(requestCopy) == "" || strings.TrimSpace(eventCopy) == "" {
+		return ErrInvalidInput
+	}
+
+	result, err := r.pool.Exec(ctx, `UPDATE store_profile SET song_request_copy = $1, request_copy = $2, event_copy = $3 WHERE id = 1`, strings.TrimSpace(songRequestCopy), strings.TrimSpace(requestCopy), strings.TrimSpace(eventCopy))
+	if err != nil {
+		return err
+	}
+	if result.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+
+	return nil
+}
+
 func (r *Repository) GetBootstrapData(ctx context.Context) (lamdata.BootstrapData, error) {
 	storeInfo := lamdata.StoreInfo{}
-	if err := r.pool.QueryRow(ctx, `SELECT name, subtitle, address FROM store_profile WHERE id = 1`).Scan(
-		&storeInfo.Name, &storeInfo.Subtitle, &storeInfo.Address,
+	if err := r.pool.QueryRow(ctx, `SELECT name, subtitle, address, song_request_copy, request_copy, event_copy FROM store_profile WHERE id = 1`).Scan(
+		&storeInfo.Name, &storeInfo.Subtitle, &storeInfo.Address, &storeInfo.SongRequestCopy, &storeInfo.RequestCopy, &storeInfo.EventCopy,
 	); err != nil {
 		return lamdata.BootstrapData{}, err
 	}
@@ -667,6 +686,21 @@ func (r *Repository) CreateNotice(ctx context.Context, text string, isVisible bo
 	id := fmt.Sprintf("notice-%d", time.Now().UnixMilli())
 	_, err = r.pool.Exec(ctx, `INSERT INTO notices (id, text, is_visible, sort_order) VALUES ($1, $2, $3, $4)`, id, text, isVisible, sortOrder)
 	return classifyError(err)
+}
+
+func (r *Repository) UpdateNotice(ctx context.Context, id string, text string) error {
+	if strings.TrimSpace(id) == "" || strings.TrimSpace(text) == "" {
+		return ErrInvalidInput
+	}
+
+	tag, err := r.pool.Exec(ctx, `UPDATE notices SET text = $2 WHERE id = $1`, id, text)
+	if err != nil {
+		return classifyError(err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 func (r *Repository) UpdateCategoryVisibility(ctx context.Context, id string, isVisible bool) error {

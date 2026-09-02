@@ -28,9 +28,6 @@ func main() {
 	if err := repository.EnsureSchema(ctx); err != nil {
 		log.Fatalf("unable to ensure schema: %v", err)
 	}
-	if err := repository.SeedDefaults(ctx); err != nil {
-		log.Fatalf("unable to seed defaults: %v", err)
-	}
 
 	server := &http.Server{
 		Addr:              cfg.Addr,

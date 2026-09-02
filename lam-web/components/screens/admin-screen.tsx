@@ -13,6 +13,8 @@ import {
   deleteMenuItem,
   deleteNotice as deleteNoticeApi,
   uploadMenuImage,
+  updateNotice,
+  updateStoreCopies,
 } from "@/services/admin-service";
 import {
   deleteSpecialRequest,
@@ -87,10 +89,12 @@ type CustomSelectOption = {
 };
 
 const adminSections = [
-  { id: "category", label: "카테고리", kicker: "category", title: "카테고리 만들기" },
-  { id: "menu", label: "메뉴", kicker: "menu", title: "메뉴 등록" },
   { id: "request", label: "손님 요청", kicker: "request", title: "손님 요청 확인" },
+  { id: "song", label: "노래신청", kicker: "song", title: "노래신청 관리" },
   { id: "event", label: "이벤트", kicker: "event", title: "이벤트/공지 작성" },
+  { id: "copy", label: "안내문구", kicker: "copy", title: "손님 화면 안내 문구" },
+  { id: "menu", label: "메뉴", kicker: "menu", title: "메뉴 등록" },
+  { id: "category", label: "카테고리", kicker: "category", title: "카테고리 만들기" },
 ] as const;
 
 const defaultCategoryForm: CategoryFormState = {
@@ -339,6 +343,9 @@ export function AdminScreen({ initialData }: AdminScreenProps) {
   const [categoryForm, setCategoryForm] = useState<CategoryFormState>(defaultCategoryForm);
   const [menuForm, setMenuForm] = useState<MenuFormState>(defaultMenuForm(initialData.categories[0]?.id ?? ""));
   const [noticeForm, setNoticeForm] = useState<NoticeFormState>(defaultNoticeForm);
+  const [songRequestSubtitle, setSongRequestSubtitle] = useState<string>(initialData.store.songRequestCopy);
+  const [requestCopy, setRequestCopy] = useState<string>(initialData.store.requestCopy);
+  const [eventCopy, setEventCopy] = useState<string>(initialData.store.eventCopy);
   const [customerRequests, setCustomerRequests] = useState<CustomerRequest[]>([]);
   const [specialRequests, setSpecialRequests] = useState<SpecialRequest[]>([]);
   const [isLoadingCustomerRequests, setIsLoadingCustomerRequests] = useState<boolean>(true);
@@ -384,7 +391,7 @@ export function AdminScreen({ initialData }: AdminScreenProps) {
       isMounted = false;
     };
   }, []);
-  const [activeSection, setActiveSection] = useState<(typeof adminSections)[number]["id"]>("category");
+  const [activeSection, setActiveSection] = useState<(typeof adminSections)[number]["id"]>("request");
   const [sliderHeight, setSliderHeight] = useState<number>(0);
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
   const [editingCategory, setEditingCategory] = useState<EditableCategoryState>(defaultCategoryForm);
@@ -408,6 +415,14 @@ export function AdminScreen({ initialData }: AdminScreenProps) {
   const managedMenuItems = useMemo(
     () => appData.items.filter((item) => item.categoryId === menuManageCategoryId),
     [appData.items, menuManageCategoryId],
+  );
+  const songRequests = useMemo(
+    () => customerRequests.filter((item) => item.text.startsWith("[노래 신청]")),
+    [customerRequests],
+  );
+  const directCustomerRequests = useMemo(
+    () => customerRequests.filter((item) => !item.text.startsWith("[노래 신청]")),
+    [customerRequests],
   );
   const specialMaleCustomerRequests = useMemo(
     () => specialRequests.filter((item) => item.gender === "male"),
@@ -512,7 +527,7 @@ export function AdminScreen({ initialData }: AdminScreenProps) {
 
   useEffect(() => {
     handleRequestBoardScroll();
-  }, [customerRequests.length, specialMaleCustomerRequests.length, specialFemaleCustomerRequests.length]);
+  }, [directCustomerRequests.length, specialMaleCustomerRequests.length, specialFemaleCustomerRequests.length]);
 
   useEffect(() => {
     const activeSlide = slideRefs.current[activeSection];
@@ -635,7 +650,9 @@ export function AdminScreen({ initialData }: AdminScreenProps) {
     }
 
     const nextBadge = editingMenu.badge.trim() || undefined;
-    const nextBadgeColor = nextBadge ? editingMenu.badgeColor : undefined;
+    const nextBadgeColor = nextBadge
+      ? (editingMenu.badgeColor as MenuItem["badgeColor"])
+      : undefined;
     const nextName = editingMenu.name.trim();
     const nextDescription = editingMenu.description.trim();
     const nextPrice = editingMenu.price.trim();
@@ -759,12 +776,18 @@ export function AdminScreen({ initialData }: AdminScreenProps) {
       return;
     }
 
-    setAppData((current) => ({
-      ...current,
-      notices: current.notices.map((item) => (item.id === itemId ? { ...item, text: nextText } : item)),
-    }));
-    cancelNoticeEdit();
-    setStatusMessage("이벤트 수정 UI를 반영했습니다.");
+    startTransition(async () => {
+      try {
+        const nextData = await updateNotice(itemId, { text: nextText });
+        applyNextData(nextData);
+        cancelNoticeEdit();
+        setStatusMessage("이벤트/공지를 수정했습니다.");
+      } catch (error) {
+        setStatusMessage(
+          error instanceof Error ? error.message : "이벤트/공지 수정에 실패했습니다.",
+        );
+      }
+    });
   }
 
   function deleteNotice(itemId: string) {
@@ -895,6 +918,23 @@ export function AdminScreen({ initialData }: AdminScreenProps) {
     }).format(date);
   }
 
+  function handleSongRequestSubtitleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    startTransition(async () => {
+      try {
+        const nextData = await updateStoreCopies({ songRequestCopy: songRequestSubtitle, requestCopy, eventCopy });
+        applyNextData(nextData);
+        setSongRequestSubtitle(nextData.store.songRequestCopy);
+        setRequestCopy(nextData.store.requestCopy);
+        setEventCopy(nextData.store.eventCopy);
+        setStatusMessage("안내 문구를 저장했습니다.");
+      } catch (error) {
+        setStatusMessage(error instanceof Error ? error.message : "노래신청 안내 문구 저장에 실패했습니다.");
+      }
+    });
+  }
+
   function handleCustomerRequestStatusChange(requestId: string, status: CustomerRequestStatus) {
     startTransition(async () => {
       try {
@@ -907,7 +947,11 @@ export function AdminScreen({ initialData }: AdminScreenProps) {
     });
   }
 
-  function renderCustomerRequests(list: CustomerRequest[], emptyMessage: string) {
+  function renderCustomerRequests(
+    list: CustomerRequest[],
+    emptyMessage: string,
+    requestType: "노래신청" | "평범한",
+  ) {
     if (isLoadingCustomerRequests) {
       return (
         <article className="admin-manage-card admin-manage-card-stack">
@@ -932,13 +976,17 @@ export function AdminScreen({ initialData }: AdminScreenProps) {
         <div className="admin-manage-copy">
           <>
             <div className="admin-manage-meta admin-request-meta">
-              <span>바로 전달하기</span>
+              <span>{requestType}</span>
               {customerRequest.tableNumber ? <span>테이블 {customerRequest.tableNumber}</span> : null}
               <span>{customerRequestStatusLabel[customerRequest.status]}</span>
               <span>{formatCustomerRequestDate(customerRequest.createdAt)}</span>
               {customerRequest.handledAt ? <span>처리 {formatCustomerRequestDate(customerRequest.handledAt)}</span> : null}
             </div>
-            <p className="admin-manage-text">{customerRequest.text}</p>
+            <p className="admin-manage-text">
+              {requestType === "노래신청"
+                ? customerRequest.text.replace(/^\[노래 신청\]\s*/, "")
+                : customerRequest.text}
+            </p>
           </>
         </div>
         <div className="admin-row-actions">
@@ -1073,7 +1121,7 @@ export function AdminScreen({ initialData }: AdminScreenProps) {
             ref={(element) => {
               slideRefs.current.category = element;
             }}
-            className="content-card admin-card admin-slide"
+            className="content-card admin-card admin-slide admin-slide-category"
           >
             <div className="section-header">
               <div>
@@ -1141,7 +1189,7 @@ export function AdminScreen({ initialData }: AdminScreenProps) {
             ref={(element) => {
               slideRefs.current.menu = element;
             }}
-            className="content-card admin-card admin-slide"
+            className="content-card admin-card admin-slide admin-slide-menu"
           >
             <div className="section-header">
               <div>
@@ -1492,7 +1540,7 @@ export function AdminScreen({ initialData }: AdminScreenProps) {
             ref={(element) => {
               slideRefs.current.request = element;
             }}
-            className="content-card admin-card admin-slide"
+            className="content-card admin-card admin-slide admin-slide-request"
           >
             <div className="section-header">
               <div>
@@ -1519,11 +1567,11 @@ export function AdminScreen({ initialData }: AdminScreenProps) {
             >
               <div className="admin-request-board">
                 <div className="admin-manage-header">
-                  <strong>바로 전달하기</strong>
-                  <span>{customerRequests.length}개</span>
+                  <strong>평범한</strong>
+                  <span>{directCustomerRequests.length}개</span>
                 </div>
-                <div className={getRequestListClassName(customerRequests.length)}>
-                  {renderCustomerRequests(customerRequests, "아직 바로 전달하기 요청이 없습니다.")}
+                <div className={getRequestListClassName(directCustomerRequests.length)}>
+                  {renderCustomerRequests(directCustomerRequests, "아직 평범한 요청이 없습니다.", "평범한")}
                 </div>
               </div>
               <div className="admin-request-board">
@@ -1549,9 +1597,67 @@ export function AdminScreen({ initialData }: AdminScreenProps) {
 
           <section
             ref={(element) => {
+              slideRefs.current.song = element;
+            }}
+            className="content-card admin-card admin-slide admin-slide-song"
+          >
+            <div className="section-header">
+              <div>
+                <p className="section-kicker">song request</p>
+                <h2>노래신청 관리</h2>
+              </div>
+            </div>
+            <div className="admin-manage-section">
+              <div className="admin-manage-header">
+                <strong>들어온 노래신청</strong>
+                <span>{songRequests.length}개</span>
+              </div>
+              <div className={getRequestListClassName(songRequests.length)}>
+                {renderCustomerRequests(songRequests, "아직 노래신청이 없습니다.", "노래신청")}
+              </div>
+            </div>
+          </section>
+
+          <section
+            ref={(element) => {
+              slideRefs.current.copy = element;
+            }}
+            className="content-card admin-card admin-slide admin-slide-copy"
+          >
+            <div className="section-header">
+              <div>
+                <p className="section-kicker">guide copy</p>
+                <h2>손님 화면 안내 문구</h2>
+              </div>
+            </div>
+            <form className="admin-form single-column" onSubmit={handleSongRequestSubtitleSubmit}>
+              <label className="admin-field admin-field-wide">
+                <span>노래신청 안내 문구</span>
+                <textarea
+                  value={songRequestSubtitle}
+                  onChange={(event) => setSongRequestSubtitle(event.target.value)}
+                  placeholder="예: 오늘 듣고 싶은 곡을 남겨주세요."
+                />
+              </label>
+              <label className="admin-field admin-field-wide">
+                <span>한마디 안내 문구</span>
+                <textarea value={requestCopy} onChange={(event) => setRequestCopy(event.target.value)} />
+              </label>
+              <label className="admin-field admin-field-wide">
+                <span>이벤트 안내 문구</span>
+                <textarea value={eventCopy} onChange={(event) => setEventCopy(event.target.value)} />
+              </label>
+              <button className="admin-button" type="submit" disabled={isPending}>
+                안내 문구 저장
+              </button>
+            </form>
+          </section>
+
+          <section
+            ref={(element) => {
               slideRefs.current.event = element;
             }}
-            className="content-card admin-card admin-slide"
+            className="content-card admin-card admin-slide admin-slide-event"
           >
             <div className="section-header">
               <div>

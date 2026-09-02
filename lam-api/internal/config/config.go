@@ -12,7 +12,12 @@ type Config struct {
 func Load() Config {
 	addr := os.Getenv("APP_ADDR")
 	if addr == "" {
-		addr = ":9090"
+		port := os.Getenv("PORT")
+		if port != "" {
+			addr = ":" + port
+		} else {
+			addr = ":9090"
+		}
 	}
 
 	databaseURL := os.Getenv("DATABASE_URL")

@@ -1,9 +1,12 @@
 package lamdata
 
 type StoreInfo struct {
-	Name     string `json:"name"`
-	Subtitle string `json:"subtitle"`
-	Address  string `json:"address"`
+	Name            string `json:"name"`
+	Subtitle        string `json:"subtitle"`
+	Address         string `json:"address"`
+	SongRequestCopy string `json:"songRequestCopy"`
+	RequestCopy     string `json:"requestCopy"`
+	EventCopy       string `json:"eventCopy"`
 }
 
 type MenuCategory struct {

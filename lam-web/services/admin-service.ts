@@ -86,6 +86,18 @@ export function createNotice(payload: NoticeInput) {
   return postJSON("/api/admin/notices", payload);
 }
 
+export function updateNotice(noticeId: string, payload: Pick<NoticeInput, "text">) {
+  return patchJSON(`/api/admin/notices/${noticeId}`, payload);
+}
+
+export function updateStoreCopies(payload: {
+  songRequestCopy: string;
+  requestCopy: string;
+  eventCopy: string;
+}) {
+  return patchJSON("/api/admin/store-profile", payload);
+}
+
 export function updateCategoryVisibility(categoryId: string, isVisible: boolean) {
   return patchJSON(`/api/admin/categories/${categoryId}/visibility`, { isVisible });
 }

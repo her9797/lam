@@ -41,14 +41,13 @@ function normalizeMenuImages(images: MenuImage[] | undefined) {
 }
 
 function normalizeStoreInfo(store: StoreInfo): StoreInfo {
-  if (store.address === "서울 강남구") {
-    return {
-      ...store,
-      address: "서울 마포구 망원동 57-23",
-    };
-  }
-
-  return store;
+  return {
+    ...store,
+    address: store.address === "서울 강남구" ? "서울 마포구 망원동 57-23" : store.address,
+    songRequestCopy: store.songRequestCopy || "듣고 싶은 곡을 남겨주세요.",
+    requestCopy: store.requestCopy || "전하고 싶은 요청이나 하고 싶은 말을 남겨주세요.",
+    eventCopy: store.eventCopy || "공지와 운영 이벤트를 모아봤습니다.",
+  };
 }
 
 function getFallbackAppData(): AppData {

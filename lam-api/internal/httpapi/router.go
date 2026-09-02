@@ -154,6 +154,33 @@ func NewMux(repository *store.Repository, cfg config.Config) http.Handler {
 		writeJSON(w, http.StatusCreated, bootstrap)
 	}))
 
+	mux.HandleFunc("/api/v1/admin/store-profile", withCORS(cfg.AllowedOrigin, func(w http.ResponseWriter, r *http.Request) {
+		if !requireAdminAuth(w, r, cfg.AdminAPIToken) {
+			return
+		}
+		if r.Method != http.MethodPatch {
+			writeMethodNotAllowed(w)
+			return
+		}
+
+		var payload updateStoreCopiesRequest
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		if err := repository.UpdateStoreCopies(r.Context(), payload.SongRequestCopy, payload.RequestCopy, payload.EventCopy); err != nil {
+			writeStoreError(w, err)
+			return
+		}
+
+		bootstrap, err := repository.GetBootstrapData(r.Context())
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, bootstrap)
+	}))
+
 	mux.HandleFunc("/api/v1/admin/categories/", withCORS(cfg.AllowedOrigin, func(w http.ResponseWriter, r *http.Request) {
 		if !requireAdminAuth(w, r, cfg.AdminAPIToken) {
 			return
@@ -633,21 +660,34 @@ func NewMux(repository *store.Repository, cfg config.Config) http.Handler {
 			return
 		}
 
-		id, ok := parseVisibilityResourceID(r.URL.Path, "/api/v1/admin/notices/")
-		if !ok {
-			http.NotFound(w, r)
-			return
-		}
+		if id, ok := parseResourceID(r.URL.Path, "/api/v1/admin/notices/"); ok {
+			var payload updateNoticeRequest
+			if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+				writeError(w, http.StatusBadRequest, err)
+				return
+			}
 
-		var payload updateVisibilityRequest
-		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-			writeError(w, http.StatusBadRequest, err)
-			return
-		}
+			if err := repository.UpdateNotice(r.Context(), id, strings.TrimSpace(payload.Text)); err != nil {
+				writeStoreError(w, err)
+				return
+			}
+		} else {
+			id, ok := parseVisibilityResourceID(r.URL.Path, "/api/v1/admin/notices/")
+			if !ok {
+				http.NotFound(w, r)
+				return
+			}
 
-		if err := repository.UpdateNoticeVisibility(r.Context(), id, payload.IsVisible); err != nil {
-			writeStoreError(w, err)
-			return
+			var payload updateVisibilityRequest
+			if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+				writeError(w, http.StatusBadRequest, err)
+				return
+			}
+
+			if err := repository.UpdateNoticeVisibility(r.Context(), id, payload.IsVisible); err != nil {
+				writeStoreError(w, err)
+				return
+			}
 		}
 
 		bootstrap, err := repository.GetBootstrapData(r.Context())

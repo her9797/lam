@@ -21,6 +21,10 @@ type createNoticeRequest struct {
 	IsVisible bool   `json:"isVisible"`
 }
 
+type updateNoticeRequest struct {
+	Text string `json:"text"`
+}
+
 type createCustomerRequestRequest struct {
 	TableNumber string `json:"tableNumber"`
 	Text        string `json:"text"`
@@ -43,4 +47,10 @@ type updateVisibilityRequest struct {
 
 type updateCustomerRequestStatusRequest struct {
 	Status string `json:"status"`
+}
+
+type updateStoreCopiesRequest struct {
+	SongRequestCopy string `json:"songRequestCopy"`
+	RequestCopy     string `json:"requestCopy"`
+	EventCopy       string `json:"eventCopy"`
 }

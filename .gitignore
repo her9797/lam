@@ -7,3 +7,5 @@ lam-web/out
 
 # API
 lam-api/bin
+lam-api/.env
+lam-api/.env.local

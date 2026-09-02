@@ -17,7 +17,7 @@ export function EventsScreen({ store, notices }: EventsScreenProps) {
         <header className="hero-card compact">
           <p className="eyebrow">BAR LAM</p>
           <h1>이벤트</h1>
-          <p className="hero-copy">{store.name}의 공지와 운영 이벤트를 모아봤습니다.</p>
+          <p className="hero-copy">{store.eventCopy}</p>
         </header>
 
         <PrimaryNav active="events" />

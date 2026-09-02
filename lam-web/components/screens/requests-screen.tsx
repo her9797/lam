@@ -15,6 +15,7 @@ import { getStoredTableNumber } from "@/lib/table-session";
 
 type RequestsScreenProps = {
   store: StoreInfo;
+  initialCategory: "direct" | "special";
 };
 
 type SpecialFormState = {
@@ -37,9 +38,8 @@ const defaultSpecialForm: SpecialFormState = {
   text: "",
 };
 
-export function RequestsScreen({ store }: RequestsScreenProps) {
-  const [activeCategory, setActiveCategory] =
-    useState<"direct" | "special">("direct");
+export function RequestsScreen({ store, initialCategory }: RequestsScreenProps) {
+  const activeCategory = initialCategory;
   const [tableNumber, setTableNumber] = useState("");
   const [message, setMessage] = useState("");
   const [specialForm, setSpecialForm] =
@@ -83,7 +83,7 @@ export function RequestsScreen({ store }: RequestsScreenProps) {
           text: nextMessage,
         });
         setMessage("");
-        setFeedback("사장님께 전달할 내용을 남겼어요.");
+        setFeedback("평범한 요청을 남겼어요.");
       } catch (error) {
         setFeedback(
           error instanceof Error
@@ -145,50 +145,24 @@ export function RequestsScreen({ store }: RequestsScreenProps) {
       <div className="phone-frame">
         <header className="hero-card compact">
           <p className="eyebrow">BAR LAM</p>
-          <h1>사장님께 한마디</h1>
+          <h1>{activeCategory === "special" ? "특별한 요청" : "사장님께 한마디"}</h1>
           <p className="hero-copy">
-            {store.name}에 전하고 싶은 요청이나 하고 싶은 말을
-            카테고리별로 남겨주세요.
+            {activeCategory === "special"
+              ? "특별한 요청을 남겨주세요."
+              : store.requestCopy}
           </p>
         </header>
 
-        <PrimaryNav active="requests" />
-
-        <div className="request-category-strip" role="tablist" aria-label="한마디 카테고리">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeCategory === "direct"}
-            className={
-              activeCategory === "direct"
-                ? "request-category-pill active"
-                : "request-category-pill"
-            }
-            onClick={() => setActiveCategory("direct")}
-          >
-            바로 전달하기
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeCategory === "special"}
-            className={
-              activeCategory === "special"
-                ? "request-category-pill request-category-pill-special active"
-                : "request-category-pill request-category-pill-special"
-            }
-            onClick={() => setActiveCategory("special")}
-          >
-            특별한
-          </button>
-        </div>
+        <PrimaryNav
+          active={activeCategory === "special" ? "special-requests" : "requests"}
+        />
 
         {activeCategory === "direct" ? (
           <section className="content-card request-compose-card">
             <div className="section-header">
               <div>
                 <p className="section-kicker">direct</p>
-                <h2>바로 전달하기</h2>
+                <h2>평범한</h2>
               </div>
             </div>
             <form className="request-compose-form" onSubmit={handleDirectSubmit}>

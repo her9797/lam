@@ -1,45 +1,7 @@
-import { cookies } from "next/headers";
-import { notFound } from "next/navigation";
 import { redirect } from "next/navigation";
-
-import { CategoryScreen } from "@/components/screens/category-screen";
-import { getQrCookieName, isQrSessionValid } from "@/lib/auth";
-import {
-  getAppData,
-  getCategoryByIdFromData,
-  getMenuItemsByCategoryFromData,
-  getVisibleCategoriesFromData,
-} from "@/services/app-service";
 
 export const dynamic = "force-dynamic";
 
-type CategoryPageProps = {
-  params: Promise<{
-    category: string;
-  }>;
-};
-
-export default async function CategoryPage({ params }: CategoryPageProps) {
-  const cookieStore = await cookies();
-  const qrSession = cookieStore.get(getQrCookieName())?.value;
-  if (!isQrSessionValid(qrSession)) {
-    redirect("/access-required");
-  }
-
-  const { category } = await params;
-  const appData = await getAppData();
-  const selectedCategory = getCategoryByIdFromData(appData, category);
-
-  if (!selectedCategory) {
-    notFound();
-  }
-
-  return (
-    <CategoryScreen
-      store={appData.store}
-      categories={getVisibleCategoriesFromData(appData)}
-      category={selectedCategory}
-      items={getMenuItemsByCategoryFromData(appData, selectedCategory.id)}
-    />
-  );
+export default async function CategoryPage() {
+  redirect("/");
 }

@@ -39,12 +39,18 @@ export type StoreInfo = {
   name: string;
   subtitle: string;
   address: string;
+  songRequestCopy: string;
+  requestCopy: string;
+  eventCopy: string;
 };
 
 export const store: StoreInfo = {
   name: "lam",
   subtitle: "혼술 바를 위한 QR 메뉴 초안",
   address: "서울 마포구 망원동 57-23",
+  songRequestCopy: "듣고 싶은 곡을 남겨주세요.",
+  requestCopy: "전하고 싶은 요청이나 하고 싶은 말을 남겨주세요.",
+  eventCopy: "공지와 운영 이벤트를 모아봤습니다.",
 };
 
 export const categories: MenuCategory[] = [
