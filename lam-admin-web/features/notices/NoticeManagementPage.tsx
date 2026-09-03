@@ -4,6 +4,7 @@ import "@/i18n/client";
 
 import { useState } from "react";
 import type { FormEvent } from "react";
+import { useTranslation } from "react-i18next";
 
 import {
   AlertDialog,
@@ -48,6 +49,7 @@ type NoticeFormState = {
 const EMPTY_FORM: NoticeFormState = { text: "", isVisible: true };
 
 export function NoticeManagementPage() {
+  const { t } = useTranslation("notices");
   const bootstrapQuery = useBootstrapQuery();
 
   const createMutation = useCreateNoticeMutation();
@@ -56,21 +58,24 @@ export function NoticeManagementPage() {
   const deleteMutation = useDeleteNoticeMutation();
 
   const [form, setForm] = useState<NoticeFormState>(EMPTY_FORM);
-  const [formError, setFormError] = useState<string | undefined>(undefined);
+  // Validation state holds translation KEYS (see `validateNoticeText` in
+  // `./api`), not rendered text, so a language switch re-renders the message
+  // too.
+  const [formErrorKey, setFormErrorKey] = useState<string | undefined>(undefined);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState("");
-  const [editingError, setEditingError] = useState<string | undefined>(undefined);
+  const [editingErrorKey, setEditingErrorKey] = useState<string | undefined>(undefined);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   if (bootstrapQuery.isLoading) {
-    return <LoadingState label="공지/이벤트 정보를 불러오는 중입니다." />;
+    return <LoadingState label={t("loading")} />;
   }
 
   if (bootstrapQuery.isError) {
     return (
       <ErrorState
-        title="공지/이벤트 정보를 불러오지 못했습니다."
+        title={t("errorTitle")}
         message={bootstrapQuery.error instanceof Error ? bootstrapQuery.error.message : undefined}
         onRetry={() => bootstrapQuery.refetch()}
       />
@@ -95,7 +100,7 @@ export function NoticeManagementPage() {
   function handleCreateSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const error = validateNoticeText(form.text);
-    setFormError(error);
+    setFormErrorKey(error);
     if (error) {
       return;
     }
@@ -105,7 +110,7 @@ export function NoticeManagementPage() {
       {
         onSuccess: () => {
           setForm(EMPTY_FORM);
-          setStatusMessage("공지/이벤트를 등록했습니다.");
+          setStatusMessage(t("created"));
         },
       },
     );
@@ -114,18 +119,18 @@ export function NoticeManagementPage() {
   function beginEdit(notice: NoticeItem) {
     setEditingId(notice.id);
     setEditingText(notice.text);
-    setEditingError(undefined);
+    setEditingErrorKey(undefined);
   }
 
   function cancelEdit() {
     setEditingId(null);
     setEditingText("");
-    setEditingError(undefined);
+    setEditingErrorKey(undefined);
   }
 
   function saveEdit(id: string) {
     const error = validateNoticeText(editingText);
-    setEditingError(error);
+    setEditingErrorKey(error);
     if (error) {
       return;
     }
@@ -134,7 +139,7 @@ export function NoticeManagementPage() {
       { id, text: editingText.trim() },
       {
         onSuccess: () => {
-          setStatusMessage("공지/이벤트를 수정했습니다.");
+          setStatusMessage(t("updated"));
           cancelEdit();
         },
       },
@@ -148,7 +153,7 @@ export function NoticeManagementPage() {
     const targetId = pendingDeleteId;
     deleteMutation.mutate(targetId, {
       onSuccess: () => {
-        setStatusMessage("공지/이벤트를 삭제했습니다.");
+        setStatusMessage(t("deleted"));
         setPendingDeleteId(null);
         if (editingId === targetId) {
           cancelEdit();
@@ -161,14 +166,14 @@ export function NoticeManagementPage() {
     visibilityMutation.mutate(
       { id: notice.id, isVisible: !notice.isVisible },
       {
-        onSuccess: () => setStatusMessage("공개 상태를 변경했습니다."),
+        onSuccess: () => setStatusMessage(t("visibilityChanged")),
       },
     );
   }
 
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="text-lg font-semibold text-foreground">이벤트·공지</h1>
+      <h1 className="text-lg font-semibold text-foreground">{t("title")}</h1>
 
       {statusMessage ? (
         <p role="status" aria-live="polite" className="text-sm text-emerald-600 dark:text-emerald-400">
@@ -178,22 +183,22 @@ export function NoticeManagementPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>새 공지/이벤트 등록</CardTitle>
+          <CardTitle>{t("createCardTitle")}</CardTitle>
         </CardHeader>
         <CardContent>
           <form className="flex flex-col gap-3" onSubmit={handleCreateSubmit} noValidate>
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="notice-text">공지 문구</Label>
+              <Label htmlFor="notice-text">{t("textLabel")}</Label>
               <Textarea
                 id="notice-text"
                 value={form.text}
                 onChange={(event) => setForm((current) => ({ ...current, text: event.target.value }))}
-                aria-invalid={Boolean(formError)}
-                placeholder="예: 매주 수요일 하이볼 1,000원 할인"
+                aria-invalid={Boolean(formErrorKey)}
+                placeholder={t("textPlaceholder")}
               />
-              {formError ? (
+              {formErrorKey ? (
                 <p role="alert" className="text-sm text-destructive">
-                  {formError}
+                  {t(formErrorKey)}
                 </p>
               ) : null}
             </div>
@@ -204,19 +209,19 @@ export function NoticeManagementPage() {
                 checked={form.isVisible}
                 onChange={(event) => setForm((current) => ({ ...current, isVisible: event.target.checked }))}
               />
-              공개
+              {t("common:isPublic")}
             </label>
 
             {createMutation.isError ? (
               <p role="alert" className="text-sm text-destructive">
                 {createMutation.error instanceof Error
                   ? createMutation.error.message
-                  : "공지 등록에 실패했습니다."}
+                  : t("createFailed")}
               </p>
             ) : null}
 
             <Button type="submit" disabled={createMutation.isPending}>
-              등록
+              {t("submit")}
             </Button>
           </form>
         </CardContent>
@@ -224,33 +229,33 @@ export function NoticeManagementPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>공지·이벤트 목록</CardTitle>
+          <CardTitle>{t("listCardTitle")}</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           {deleteMutation.isError ? (
             <p role="alert" className="text-sm text-destructive">
               {deleteMutation.error instanceof Error
                 ? deleteMutation.error.message
-                : "공지 삭제에 실패했습니다."}
+                : t("deleteFailed")}
             </p>
           ) : null}
           {visibilityMutation.isError ? (
             <p role="alert" className="text-sm text-destructive">
               {visibilityMutation.error instanceof Error
                 ? visibilityMutation.error.message
-                : "공개 상태 변경에 실패했습니다."}
+                : t("visibilityFailed")}
             </p>
           ) : null}
 
           {notices.length === 0 ? (
-            <EmptyState title="등록된 공지/이벤트가 없습니다." description="위 양식으로 공지를 추가하세요." />
+            <EmptyState title={t("emptyTitle")} description={t("emptyDescription")} />
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>문구</TableHead>
-                  <TableHead>공개 여부</TableHead>
-                  <TableHead>작업</TableHead>
+                  <TableHead>{t("columnText")}</TableHead>
+                  <TableHead>{t("common:columnVisibility")}</TableHead>
+                  <TableHead>{t("common:columnActions")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -262,13 +267,13 @@ export function NoticeManagementPage() {
                         {isEditing ? (
                           <div className="flex flex-col gap-1.5">
                             <Textarea
-                              aria-label="공지 문구 수정"
+                              aria-label={t("editTextAria")}
                               value={editingText}
                               onChange={(event) => setEditingText(event.target.value)}
                             />
-                            {editingError ? (
+                            {editingErrorKey ? (
                               <p role="alert" className="text-sm text-destructive">
-                                {editingError}
+                                {t(editingErrorKey)}
                               </p>
                             ) : null}
                           </div>
@@ -284,7 +289,7 @@ export function NoticeManagementPage() {
                           disabled={isVisibilityPending(notice.id)}
                           onClick={() => handleToggleVisibility(notice)}
                         >
-                          {notice.isVisible ? "공개" : "숨김"}
+                          {notice.isVisible ? t("common:visible") : t("common:hidden")}
                         </Button>
                       </TableCell>
                       <TableCell>
@@ -297,10 +302,10 @@ export function NoticeManagementPage() {
                                 disabled={isUpdatePending(notice.id)}
                                 onClick={() => saveEdit(notice.id)}
                               >
-                                저장
+                                {t("common:save")}
                               </Button>
                               <Button type="button" size="sm" variant="ghost" onClick={cancelEdit}>
-                                취소
+                                {t("common:cancel")}
                               </Button>
                             </>
                           ) : (
@@ -311,7 +316,7 @@ export function NoticeManagementPage() {
                                 variant="outline"
                                 onClick={() => beginEdit(notice)}
                               >
-                                수정
+                                {t("common:edit")}
                               </Button>
                               <Button
                                 type="button"
@@ -320,7 +325,7 @@ export function NoticeManagementPage() {
                                 disabled={isDeletePending(notice.id)}
                                 onClick={() => setPendingDeleteId(notice.id)}
                               >
-                                삭제
+                                {t("common:delete")}
                               </Button>
                             </>
                           )}
@@ -345,13 +350,13 @@ export function NoticeManagementPage() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>공지/이벤트를 삭제할까요?</AlertDialogTitle>
-            <AlertDialogDescription>삭제하면 되돌릴 수 없습니다.</AlertDialogDescription>
+            <AlertDialogTitle>{t("deleteTitle")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("common:deleteIrreversible")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogCancel>{t("common:cancel")}</AlertDialogCancel>
             <AlertDialogAction disabled={deleteMutation.isPending} onClick={handleConfirmDelete}>
-              삭제
+              {t("common:delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

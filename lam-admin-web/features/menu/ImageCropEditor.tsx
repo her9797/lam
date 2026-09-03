@@ -1,7 +1,10 @@
 "use client";
 
+import "@/i18n/client";
+
 import { useRef } from "react";
 import type { KeyboardEvent, PointerEvent } from "react";
+import { useTranslation } from "react-i18next";
 
 import { CROP_FRAME_SIZE, clampCropTransform, panCropTransform, zoomCropTransform, type CropTransform } from "./crop";
 
@@ -35,6 +38,7 @@ const KEY_PAN_DELTA: Record<string, [number, number]> = {
  * empty space inside the frame.
  */
 export function ImageCropEditor({ imageUrl, transform, onTransformChange }: ImageCropEditorProps) {
+  const { t } = useTranslation("menu");
   const dragStateRef = useRef<DragState | null>(null);
 
   function handlePointerDown(event: PointerEvent<HTMLDivElement>) {
@@ -85,7 +89,7 @@ export function ImageCropEditor({ imageUrl, transform, onTransformChange }: Imag
     <div className="flex flex-col gap-4">
       <div
         role="application"
-        aria-label="이미지 크롭 영역, 화살표 키로 이동합니다."
+        aria-label={t("cropFrameAria")}
         tabIndex={0}
         className="relative mx-auto overflow-hidden rounded-2xl bg-muted outline-none focus-visible:ring-3 focus-visible:ring-ring/30"
         style={{ width: CROP_FRAME_SIZE, height: CROP_FRAME_SIZE, touchAction: "none" }}
@@ -110,10 +114,10 @@ export function ImageCropEditor({ imageUrl, transform, onTransformChange }: Imag
       </div>
 
       <label className="flex flex-col gap-1.5 text-sm text-foreground">
-        <span>확대/축소</span>
+        <span>{t("zoomLabel")}</span>
         <input
           type="range"
-          aria-label="이미지 확대/축소"
+          aria-label={t("zoomAria")}
           min={1}
           max={3}
           step={0.01}
@@ -123,7 +127,7 @@ export function ImageCropEditor({ imageUrl, transform, onTransformChange }: Imag
       </label>
 
       <div className="flex items-center gap-2">
-        <span className="text-sm text-muted-foreground">미리보기</span>
+        <span className="text-sm text-muted-foreground">{t("previewLabel")}</span>
         <div
           aria-hidden="true"
           className="overflow-hidden rounded-full border border-border"

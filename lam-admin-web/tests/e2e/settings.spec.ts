@@ -22,6 +22,13 @@ test.describe("설정과 모바일 내비게이션 회귀", () => {
       .getByRole("link", { name: /^(대시보드|Dashboard)$/ });
     await expect(navDashboardLink).toHaveText("대시보드");
 
+    // The page's OWN copy, not just the shell — this is what the
+    // whole-branch review found missing (i18n covered the shell only).
+    const pageHeading = page.getByRole("heading", { level: 1 });
+    const shortcutCard = page.locator("main").getByText(/^(확인이 필요한 일반 요청|General requests awaiting review)$/);
+    await expect(pageHeading).toHaveText("대시보드");
+    await expect(shortcutCard).toHaveText("확인이 필요한 일반 요청");
+
     await page.getByRole("button", { name: /언어:/ }).click();
     await page.getByRole("menuitem", { name: "영어" }).click();
 
@@ -29,6 +36,8 @@ test.describe("설정과 모바일 내비게이션 회귀", () => {
     // this is the user-visible effect of the language switch.
     await expect(navDashboardLink).toHaveText("Dashboard");
     await expect(page.getByRole("button", { name: /Language:/ })).toBeVisible();
+    await expect(pageHeading).toHaveText("Dashboard");
+    await expect(shortcutCard).toHaveText("General requests awaiting review");
 
     await page.reload();
 
@@ -37,6 +46,7 @@ test.describe("설정과 모바일 내비게이션 회귀", () => {
     // the reloaded page renders in English again without re-selecting it.
     await expect(navDashboardLink).toHaveText("Dashboard");
     await expect(page.getByRole("button", { name: /Language:/ })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Dashboard");
     // Accessibility: screen readers rely on `<html lang>`, not just the
     // visible text, so the restored-from-storage locale must also update it
     // (per the design spec's "언어 변경 시 문서의 lang 속성도 갱신한다").

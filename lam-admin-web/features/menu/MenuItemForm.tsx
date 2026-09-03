@@ -1,7 +1,10 @@
 "use client";
 
+import "@/i18n/client";
+
 import { useState } from "react";
 import type { FormEvent } from "react";
+import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -44,11 +47,11 @@ type MenuItemFormState = {
 // — `badgeColor` is a free-form string on the wire, but the operator picks
 // from this known set rather than typing a raw value.
 const BADGE_COLOR_OPTIONS = [
-  { value: "", label: "배지 없음" },
-  { value: "green", label: "그린" },
-  { value: "amber", label: "앰버" },
-  { value: "pink", label: "핑크" },
-  { value: "blue", label: "블루" },
+  { value: "", labelKey: "badgeNone" },
+  { value: "green", labelKey: "badgeGreen" },
+  { value: "amber", labelKey: "badgeAmber" },
+  { value: "pink", labelKey: "badgePink" },
+  { value: "blue", labelKey: "badgeBlue" },
 ] as const;
 
 function emptyForm(categoryId: string): MenuItemFormState {
@@ -81,11 +84,14 @@ type MenuItemFormProps = {
 };
 
 export function MenuItemForm({ categories, items }: MenuItemFormProps) {
+  const { t } = useTranslation("menu");
   const [form, setForm] = useState<MenuItemFormState>(() => emptyForm(categories[0]?.id ?? ""));
   const [errors, setErrors] = useState<MenuItemFormErrors>({});
   const [pendingImage, setPendingImage] = useState<PendingImage | null>(null);
   const [isCropDialogOpen, setIsCropDialogOpen] = useState(false);
-  const [imageError, setImageError] = useState<string | null>(null);
+  // Holds a translation key (from `validateImageFile`, or one raised here),
+  // not rendered text, so the message follows a language switch.
+  const [imageErrorKey, setImageErrorKey] = useState<string | null>(null);
   const createMutation = useCreateMenuItemMutation();
   const uploadMutation = useUploadMenuItemImageMutation();
 
@@ -108,14 +114,14 @@ export function MenuItemForm({ categories, items }: MenuItemFormProps) {
   }
 
   async function handleImageSelected(file: File | undefined) {
-    setImageError(null);
+    setImageErrorKey(null);
     if (!file) {
       return;
     }
 
-    const validationError = validateImageFile(file);
-    if (validationError) {
-      setImageError(validationError);
+    const validationErrorKey = validateImageFile(file);
+    if (validationErrorKey) {
+      setImageErrorKey(validationErrorKey);
       return;
     }
 
@@ -126,7 +132,7 @@ export function MenuItemForm({ categories, items }: MenuItemFormProps) {
       setIsCropDialogOpen(true);
     } catch {
       URL.revokeObjectURL(imageUrl);
-      setImageError("이미지를 불러오지 못했습니다.");
+      setImageErrorKey("imageLoadFailed");
     }
   }
 
@@ -153,11 +159,11 @@ export function MenuItemForm({ categories, items }: MenuItemFormProps) {
     // express zoom at all — see `./crop`'s module doc.
     let croppedImage: File | null = null;
     if (imageToUpload) {
-      setImageError(null);
+      setImageErrorKey(null);
       try {
         croppedImage = await cropImageFileToSquare(imageToUpload.file, imageToUpload.transform);
       } catch {
-        setImageError("이미지를 잘라내는 데 실패했습니다.");
+        setImageErrorKey("cropFailed");
         return;
       }
     }
@@ -200,11 +206,11 @@ export function MenuItemForm({ categories, items }: MenuItemFormProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>메뉴 등록</CardTitle>
+        <CardTitle>{t("itemFormTitle")}</CardTitle>
       </CardHeader>
       <CardContent>
         {!hasCategories ? (
-          <p className="text-sm text-muted-foreground">먼저 카테고리를 추가하세요.</p>
+          <p className="text-sm text-muted-foreground">{t("noCategoriesHint")}</p>
         ) : (
           <form
             className="flex flex-col gap-3"
@@ -212,7 +218,7 @@ export function MenuItemForm({ categories, items }: MenuItemFormProps) {
             noValidate
           >
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="menu-category">카테고리</Label>
+              <Label htmlFor="menu-category">{t("itemCategoryLabel")}</Label>
               <select
                 id="menu-category"
                 className="h-9 rounded-3xl border border-transparent bg-input/50 px-3 text-sm text-foreground"
@@ -228,13 +234,13 @@ export function MenuItemForm({ categories, items }: MenuItemFormProps) {
               </select>
               {errors.categoryId ? (
                 <p role="alert" className="text-sm text-destructive">
-                  {errors.categoryId}
+                  {t(errors.categoryId)}
                 </p>
               ) : null}
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="menu-name">이름</Label>
+              <Label htmlFor="menu-name">{t("itemNameLabel")}</Label>
               <Input
                 id="menu-name"
                 value={form.name}
@@ -243,13 +249,13 @@ export function MenuItemForm({ categories, items }: MenuItemFormProps) {
               />
               {errors.name ? (
                 <p role="alert" className="text-sm text-destructive">
-                  {errors.name}
+                  {t(errors.name)}
                 </p>
               ) : null}
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="menu-description">설명</Label>
+              <Label htmlFor="menu-description">{t("itemDescriptionLabel")}</Label>
               <Textarea
                 id="menu-description"
                 value={form.description}
@@ -258,7 +264,7 @@ export function MenuItemForm({ categories, items }: MenuItemFormProps) {
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="menu-price">가격</Label>
+              <Label htmlFor="menu-price">{t("itemPriceLabel")}</Label>
               <Input
                 id="menu-price"
                 value={form.price}
@@ -267,14 +273,14 @@ export function MenuItemForm({ categories, items }: MenuItemFormProps) {
               />
               {errors.price ? (
                 <p role="alert" className="text-sm text-destructive">
-                  {errors.price}
+                  {t(errors.price)}
                 </p>
               ) : null}
             </div>
 
             <div className="flex flex-col gap-3 sm:flex-row">
               <div className="flex flex-1 flex-col gap-1.5">
-                <Label htmlFor="menu-badge">배지 문구</Label>
+                <Label htmlFor="menu-badge">{t("itemBadgeLabel")}</Label>
                 <Input
                   id="menu-badge"
                   value={form.badge}
@@ -282,7 +288,7 @@ export function MenuItemForm({ categories, items }: MenuItemFormProps) {
                 />
               </div>
               <div className="flex flex-1 flex-col gap-1.5">
-                <Label htmlFor="menu-badge-color">배지 색상</Label>
+                <Label htmlFor="menu-badge-color">{t("itemBadgeColorLabel")}</Label>
                 <select
                   id="menu-badge-color"
                   className="h-9 rounded-3xl border border-transparent bg-input/50 px-3 text-sm text-foreground"
@@ -291,7 +297,7 @@ export function MenuItemForm({ categories, items }: MenuItemFormProps) {
                 >
                   {BADGE_COLOR_OPTIONS.map((option) => (
                     <option key={option.value} value={option.value}>
-                      {option.label}
+                      {t(option.labelKey)}
                     </option>
                   ))}
                 </select>
@@ -304,19 +310,19 @@ export function MenuItemForm({ categories, items }: MenuItemFormProps) {
                 checked={form.isVisible}
                 onChange={(event) => setForm((current) => ({ ...current, isVisible: event.target.checked }))}
               />
-              공개
+              {t("common:isPublic")}
             </label>
 
             <div className="flex flex-col gap-1.5">
-              <Label>이미지 (선택)</Label>
+              <Label>{t("imageOptionalLabel")}</Label>
               <div className="flex items-center gap-3">
                 <label className="cursor-pointer text-sm text-primary underline-offset-4 hover:underline">
-                  {pendingImage ? "이미지 다시 선택" : "이미지 선택"}
+                  {pendingImage ? t("imageReselect") : t("imageSelect")}
                   <input
                     type="file"
                     accept="image/jpeg,image/png,image/webp"
                     className="sr-only"
-                    aria-label="새 메뉴 이미지 선택"
+                    aria-label={t("imageSelectNewItemAria")}
                     onChange={(event) => {
                       const file = event.target.files?.[0];
                       void handleImageSelected(file);
@@ -328,17 +334,17 @@ export function MenuItemForm({ categories, items }: MenuItemFormProps) {
                   <>
                     <span className="text-sm text-muted-foreground">{pendingImage.file.name}</span>
                     <Button type="button" size="sm" variant="outline" onClick={() => setIsCropDialogOpen(true)}>
-                      영역 조정
+                      {t("adjustCrop")}
                     </Button>
                     <Button type="button" size="sm" variant="ghost" onClick={clearPendingImage}>
-                      제거
+                      {t("common:remove")}
                     </Button>
                   </>
                 ) : null}
               </div>
-              {imageError ? (
+              {imageErrorKey ? (
                 <p role="alert" className="text-sm text-destructive">
-                  {imageError}
+                  {t(imageErrorKey)}
                 </p>
               ) : null}
             </div>
@@ -347,18 +353,18 @@ export function MenuItemForm({ categories, items }: MenuItemFormProps) {
               <p role="alert" className="text-sm text-destructive">
                 {createMutation.error instanceof Error
                   ? createMutation.error.message
-                  : "메뉴 추가에 실패했습니다."}
+                  : t("itemCreateFailed")}
               </p>
             ) : null}
 
             {uploadMutation.isError ? (
               <p role="alert" className="text-sm text-destructive">
-                메뉴는 등록되었지만 이미지 업로드에 실패했습니다. 메뉴 목록에서 이미지를 다시 선택해주세요.
+                {t("imageUploadAfterCreateFailed")}
               </p>
             ) : null}
 
             <Button type="submit" disabled={createMutation.isPending}>
-              메뉴 추가
+              {t("itemAdd")}
             </Button>
           </form>
         )}
@@ -372,7 +378,7 @@ export function MenuItemForm({ categories, items }: MenuItemFormProps) {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>이미지 영역 선택</DialogTitle>
+            <DialogTitle>{t("cropDialogTitle")}</DialogTitle>
           </DialogHeader>
           {pendingImage ? (
             <ImageCropEditor
@@ -392,10 +398,10 @@ export function MenuItemForm({ categories, items }: MenuItemFormProps) {
                 setIsCropDialogOpen(false);
               }}
             >
-              취소
+              {t("common:cancel")}
             </Button>
             <Button type="button" onClick={() => setIsCropDialogOpen(false)}>
-              확인
+              {t("common:confirm")}
             </Button>
           </DialogFooter>
         </DialogContent>

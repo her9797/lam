@@ -3,6 +3,7 @@
 import "@/i18n/client";
 
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import {
   AlertDialog,
@@ -30,20 +31,22 @@ import { formatDateTime } from "@/lib/utils";
 import type { SpecialRequest } from "./model";
 import { useDeleteSpecialRequestMutation, useSpecialRequestsQuery } from "./queries";
 
-// Field list and labels mirror `admin-screen.tsx`'s special-request detail
-// modal exactly (테이블/이름/나이/사는 곳/연락처/이상형/하고 싶은 말) so the
-// operator sees the same fields they already know from the current app.
-const DETAIL_FIELDS: Array<{ key: keyof SpecialRequest; label: string }> = [
-  { key: "tableNumber", label: "테이블" },
-  { key: "name", label: "이름" },
-  { key: "age", label: "나이" },
-  { key: "residence", label: "사는 곳" },
-  { key: "instagram", label: "연락처" },
-  { key: "idealType", label: "이상형" },
-  { key: "text", label: "하고 싶은 말" },
+// Field list mirrors `admin-screen.tsx`'s special-request detail modal
+// exactly (table / name / age / residence / contact / ideal type / message)
+// so the operator sees the same fields they already know from the current
+// app. Labels are keys in the `specialRequests` namespace.
+const DETAIL_FIELDS: Array<{ key: keyof SpecialRequest; labelKey: string }> = [
+  { key: "tableNumber", labelKey: "fieldTableNumber" },
+  { key: "name", labelKey: "fieldName" },
+  { key: "age", labelKey: "fieldAge" },
+  { key: "residence", labelKey: "fieldResidence" },
+  { key: "instagram", labelKey: "fieldInstagram" },
+  { key: "idealType", labelKey: "fieldIdealType" },
+  { key: "text", labelKey: "fieldText" },
 ];
 
 export function SpecialRequestPage() {
+  const { t, i18n } = useTranslation("specialRequests");
   const requestsQuery = useSpecialRequestsQuery();
   const deleteMutation = useDeleteSpecialRequestMutation();
   // Both dialogs are driven by in-memory ids only (never a URL/query param),
@@ -53,13 +56,13 @@ export function SpecialRequestPage() {
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
   if (requestsQuery.isLoading) {
-    return <LoadingState label="특별 요청을 불러오는 중입니다." />;
+    return <LoadingState label={t("loading")} />;
   }
 
   if (requestsQuery.isError) {
     return (
       <ErrorState
-        title="특별 요청을 불러오지 못했습니다."
+        title={t("errorTitle")}
         message={requestsQuery.error instanceof Error ? requestsQuery.error.message : undefined}
         onRetry={() => requestsQuery.refetch()}
       />
@@ -91,35 +94,32 @@ export function SpecialRequestPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="text-lg font-semibold text-foreground">특별 요청</h1>
+      <h1 className="text-lg font-semibold text-foreground">{t("title")}</h1>
 
       {deleteMutation.isError ? (
         <p role="alert" className="text-sm text-destructive">
           {deleteMutation.error instanceof Error
             ? deleteMutation.error.message
-            : "특별 요청 삭제에 실패했습니다."}
+            : t("deleteFailed")}
         </p>
       ) : null}
 
       {requests.length === 0 ? (
-        <EmptyState
-          title="접수된 특별 요청이 없습니다."
-          description="새 요청이 들어오면 이 목록에 표시됩니다."
-        />
+        <EmptyState title={t("emptyTitle")} description={t("emptyDescription")} />
       ) : (
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>생성 시각</TableHead>
-              <TableHead>테이블</TableHead>
-              <TableHead>이름</TableHead>
-              <TableHead>작업</TableHead>
+              <TableHead>{t("common:columnCreatedAt")}</TableHead>
+              <TableHead>{t("common:columnTable")}</TableHead>
+              <TableHead>{t("common:columnName")}</TableHead>
+              <TableHead>{t("common:columnActions")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {requests.map((request) => (
               <TableRow key={request.id}>
-                <TableCell>{formatDateTime(request.createdAt)}</TableCell>
+                <TableCell>{formatDateTime(request.createdAt, i18n.language)}</TableCell>
                 <TableCell>{request.tableNumber || "-"}</TableCell>
                 <TableCell>{request.name}</TableCell>
                 <TableCell>
@@ -130,7 +130,7 @@ export function SpecialRequestPage() {
                       variant="outline"
                       onClick={() => setDetailId(request.id)}
                     >
-                      상세보기
+                      {t("viewDetail")}
                     </Button>
                     <Button
                       type="button"
@@ -139,7 +139,7 @@ export function SpecialRequestPage() {
                       disabled={isRowDeleting(request.id)}
                       onClick={() => setPendingDeleteId(request.id)}
                     >
-                      삭제
+                      {t("common:delete")}
                     </Button>
                   </div>
                 </TableCell>
@@ -159,13 +159,13 @@ export function SpecialRequestPage() {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>특별 요청 상세</DialogTitle>
+            <DialogTitle>{t("detailTitle")}</DialogTitle>
           </DialogHeader>
           {detailRequest ? (
             <dl className="flex flex-col gap-3">
               {DETAIL_FIELDS.map((field) => (
                 <div key={field.key} className="flex flex-col gap-0.5">
-                  <dt className="text-sm font-medium text-foreground">{field.label}</dt>
+                  <dt className="text-sm font-medium text-foreground">{t(field.labelKey)}</dt>
                   <dd className="text-sm text-muted-foreground">{detailRequest[field.key]}</dd>
                 </div>
               ))}
@@ -184,16 +184,16 @@ export function SpecialRequestPage() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>특별 요청을 삭제할까요?</AlertDialogTitle>
+            <AlertDialogTitle>{t("deleteTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
-              {deleteTarget ? `${deleteTarget.name}님의 특별 요청을 삭제합니다. ` : ""}
-              삭제하면 되돌릴 수 없습니다.
+              {deleteTarget ? t("deleteTarget", { name: deleteTarget.name }) : ""}
+              {t("common:deleteIrreversible")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogCancel>{t("common:cancel")}</AlertDialogCancel>
             <AlertDialogAction disabled={deleteMutation.isPending} onClick={handleConfirmDelete}>
-              삭제
+              {t("common:delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

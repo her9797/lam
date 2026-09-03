@@ -3,6 +3,7 @@
 import "@/i18n/client";
 
 import Link from "next/link";
+import { useTranslation } from "react-i18next";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states/PageStates";
@@ -15,8 +16,9 @@ import { buildDashboardSummary, type DashboardSummary } from "./summary";
 type ShortcutCard = {
   key: string;
   href: string;
-  title: string;
-  description: string;
+  /** Key in the `dashboard` namespace, resolved at render. */
+  titleKey: string;
+  descriptionKey: string;
   value: number;
 };
 
@@ -30,42 +32,43 @@ function buildCards(summary: DashboardSummary): ShortcutCard[] {
     {
       key: "general",
       href: "/requests",
-      title: "손님 요청",
-      description: "확인이 필요한 일반 요청",
+      titleKey: "cardGeneralTitle",
+      descriptionKey: "cardGeneralDescription",
       value: summary.pendingGeneralRequestCount,
     },
     {
       key: "song",
       href: "/song-requests",
-      title: "노래 신청",
-      description: "확인이 필요한 노래 신청",
+      titleKey: "cardSongTitle",
+      descriptionKey: "cardSongDescription",
       value: summary.pendingSongRequestCount,
     },
     {
       key: "special",
       href: "/special-requests",
-      title: "특별 요청",
-      description: "접수된 특별 요청",
+      titleKey: "cardSpecialTitle",
+      descriptionKey: "cardSpecialDescription",
       value: summary.specialRequestCount,
     },
     {
       key: "menu",
       href: "/menu",
-      title: "메뉴 관리",
-      description: "등록된 메뉴 항목",
+      titleKey: "cardMenuTitle",
+      descriptionKey: "cardMenuDescription",
       value: summary.menuItemCount,
     },
     {
       key: "notices",
       href: "/notices",
-      title: "이벤트·공지",
-      description: "등록된 공지 항목",
+      titleKey: "cardNoticesTitle",
+      descriptionKey: "cardNoticesDescription",
       value: summary.noticeCount,
     },
   ];
 }
 
 export function DashboardPage() {
+  const { t } = useTranslation("dashboard");
   const bootstrapQuery = useBootstrapQuery();
   const requestsQuery = useCustomerRequestsQuery();
   const specialRequestsQuery = useSpecialRequestsQuery();
@@ -89,13 +92,13 @@ export function DashboardPage() {
   }
 
   if (isLoading) {
-    return <LoadingState label="대시보드를 불러오는 중입니다." />;
+    return <LoadingState label={t("loading")} />;
   }
 
   if (failedQuery || !bootstrapQuery.data || !requestsQuery.data || !specialRequestsQuery.data) {
     return (
       <ErrorState
-        title="대시보드를 불러오지 못했습니다."
+        title={t("errorTitle")}
         message={
           failedQuery?.error instanceof Error ? failedQuery.error.message : undefined
         }
@@ -123,20 +126,17 @@ export function DashboardPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="text-lg font-semibold text-foreground">대시보드</h1>
+      <h1 className="text-lg font-semibold text-foreground">{t("title")}</h1>
       {isEmpty ? (
-        <EmptyState
-          title="표시할 데이터가 없습니다."
-          description="요청, 메뉴, 공지가 등록되면 이 대시보드에 표시됩니다."
-        />
+        <EmptyState title={t("emptyTitle")} description={t("emptyDescription")} />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {buildCards(summary).map((card) => (
             <Link key={card.key} href={card.href} className="block">
               <Card className="transition-shadow hover:shadow-lg">
                 <CardHeader>
-                  <CardTitle>{card.title}</CardTitle>
-                  <CardDescription>{card.description}</CardDescription>
+                  <CardTitle>{t(card.titleKey)}</CardTitle>
+                  <CardDescription>{t(card.descriptionKey)}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <p className="text-2xl font-semibold text-foreground">{card.value}</p>

@@ -49,9 +49,26 @@ export type UploadMenuItemImageInput = {
 export const ALLOWED_IMAGE_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
 export const MAX_IMAGE_SIZE_BYTES = 8 * 1024 * 1024;
 
+/**
+ * Every validator below returns a translation KEY in the `menu` namespace,
+ * never rendered text. That keeps these functions pure and framework-free
+ * (they're called from event handlers, not render) while still letting the
+ * operator see the message in whichever language they picked — the calling
+ * component runs the key through its own `t()`.
+ */
+export type MenuValidationKey =
+  | "errorCategoryIdRequired"
+  | "errorCategoryIdDuplicate"
+  | "errorCategoryNameRequired"
+  | "errorCategoryMissing"
+  | "errorItemNameRequired"
+  | "errorPriceRequired"
+  | "errorImageType"
+  | "errorImageSize";
+
 export type CategoryFormErrors = {
-  id?: string;
-  label?: string;
+  id?: MenuValidationKey;
+  label?: MenuValidationKey;
 };
 
 export function validateCategoryForm(
@@ -63,22 +80,22 @@ export function validateCategoryForm(
   const label = input.label.trim();
 
   if (!id) {
-    errors.id = "카테고리 ID를 입력하세요.";
+    errors.id = "errorCategoryIdRequired";
   } else if (existingCategoryIds.includes(id)) {
-    errors.id = "이미 존재하는 카테고리 ID입니다.";
+    errors.id = "errorCategoryIdDuplicate";
   }
 
   if (!label) {
-    errors.label = "카테고리 이름을 입력하세요.";
+    errors.label = "errorCategoryNameRequired";
   }
 
   return errors;
 }
 
 export type MenuItemFormErrors = {
-  categoryId?: string;
-  name?: string;
-  price?: string;
+  categoryId?: MenuValidationKey;
+  name?: MenuValidationKey;
+  price?: MenuValidationKey;
 };
 
 export function validateMenuItemForm(
@@ -89,30 +106,30 @@ export function validateMenuItemForm(
   const categoryId = input.categoryId.trim();
 
   if (!categoryId || !existingCategoryIds.includes(categoryId)) {
-    errors.categoryId = "존재하는 카테고리를 선택하세요.";
+    errors.categoryId = "errorCategoryMissing";
   }
 
   if (!input.name.trim()) {
-    errors.name = "메뉴 이름을 입력하세요.";
+    errors.name = "errorItemNameRequired";
   }
 
   if (!input.price.trim()) {
-    errors.price = "가격을 입력하세요.";
+    errors.price = "errorPriceRequired";
   }
 
   return errors;
 }
 
 /**
- * Returns an error message when `file` isn't an allowed image type or
- * exceeds the size cap, otherwise `undefined`.
+ * Returns a `menu`-namespace translation key when `file` isn't an allowed
+ * image type or exceeds the size cap, otherwise `undefined`.
  */
-export function validateImageFile(file: File): string | undefined {
+export function validateImageFile(file: File): MenuValidationKey | undefined {
   if (!ALLOWED_IMAGE_MIME_TYPES.includes(file.type as (typeof ALLOWED_IMAGE_MIME_TYPES)[number])) {
-    return "지원하지 않는 이미지 형식입니다. (JPG, PNG, WEBP만 업로드할 수 있습니다.)";
+    return "errorImageType";
   }
   if (file.size > MAX_IMAGE_SIZE_BYTES) {
-    return "이미지 용량이 너무 큽니다. (최대 8MB)";
+    return "errorImageSize";
   }
   return undefined;
 }

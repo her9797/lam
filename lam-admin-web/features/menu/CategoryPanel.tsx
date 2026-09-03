@@ -1,7 +1,10 @@
 "use client";
 
+import "@/i18n/client";
+
 import { useState } from "react";
 import type { FormEvent } from "react";
+import { useTranslation } from "react-i18next";
 
 import {
   AlertDialog,
@@ -45,6 +48,7 @@ type CategoryFormState = {
 const EMPTY_FORM: CategoryFormState = { id: "", label: "", isVisible: true };
 
 export function CategoryPanel({ categories }: { categories: MenuCategory[] }) {
+  const { t } = useTranslation("menu");
   const [form, setForm] = useState<CategoryFormState>(EMPTY_FORM);
   const [errors, setErrors] = useState<CategoryFormErrors>({});
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
@@ -92,12 +96,12 @@ export function CategoryPanel({ categories }: { categories: MenuCategory[] }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>카테고리</CardTitle>
+        <CardTitle>{t("categoryCardTitle")}</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <form className="flex flex-col gap-3 sm:flex-row sm:items-end" onSubmit={handleSubmit} noValidate>
           <div className="flex flex-1 flex-col gap-1.5">
-            <Label htmlFor="category-id">카테고리 ID</Label>
+            <Label htmlFor="category-id">{t("categoryIdLabel")}</Label>
             <Input
               id="category-id"
               value={form.id}
@@ -106,12 +110,12 @@ export function CategoryPanel({ categories }: { categories: MenuCategory[] }) {
             />
             {errors.id ? (
               <p role="alert" className="text-sm text-destructive">
-                {errors.id}
+                {t(errors.id)}
               </p>
             ) : null}
           </div>
           <div className="flex flex-1 flex-col gap-1.5">
-            <Label htmlFor="category-label">카테고리 이름</Label>
+            <Label htmlFor="category-label">{t("categoryNameLabel")}</Label>
             <Input
               id="category-label"
               value={form.label}
@@ -120,7 +124,7 @@ export function CategoryPanel({ categories }: { categories: MenuCategory[] }) {
             />
             {errors.label ? (
               <p role="alert" className="text-sm text-destructive">
-                {errors.label}
+                {t(errors.label)}
               </p>
             ) : null}
           </div>
@@ -130,10 +134,10 @@ export function CategoryPanel({ categories }: { categories: MenuCategory[] }) {
               checked={form.isVisible}
               onChange={(event) => setForm((current) => ({ ...current, isVisible: event.target.checked }))}
             />
-            공개
+            {t("common:isPublic")}
           </label>
           <Button type="submit" disabled={createMutation.isPending}>
-            카테고리 추가
+            {t("categoryAdd")}
           </Button>
         </form>
 
@@ -141,20 +145,23 @@ export function CategoryPanel({ categories }: { categories: MenuCategory[] }) {
           <p role="alert" className="text-sm text-destructive">
             {createMutation.error instanceof Error
               ? createMutation.error.message
-              : "카테고리 추가에 실패했습니다."}
+              : t("categoryCreateFailed")}
           </p>
         ) : null}
 
         {categories.length === 0 ? (
-          <EmptyState title="등록된 카테고리가 없습니다." description="위 양식으로 카테고리를 추가하세요." />
+          <EmptyState
+            title={t("categoryEmptyTitle")}
+            description={t("categoryEmptyDescription")}
+          />
         ) : (
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>ID</TableHead>
-                <TableHead>이름</TableHead>
-                <TableHead>공개 여부</TableHead>
-                <TableHead>작업</TableHead>
+                <TableHead>{t("columnId")}</TableHead>
+                <TableHead>{t("common:columnName")}</TableHead>
+                <TableHead>{t("common:columnVisibility")}</TableHead>
+                <TableHead>{t("common:columnActions")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -172,7 +179,7 @@ export function CategoryPanel({ categories }: { categories: MenuCategory[] }) {
                         visibilityMutation.mutate({ id: category.id, isVisible: !category.isVisible })
                       }
                     >
-                      {category.isVisible ? "공개" : "숨김"}
+                      {category.isVisible ? t("common:visible") : t("common:hidden")}
                     </Button>
                   </TableCell>
                   <TableCell>
@@ -183,7 +190,7 @@ export function CategoryPanel({ categories }: { categories: MenuCategory[] }) {
                       disabled={isDeletePending(category.id)}
                       onClick={() => setPendingDeleteId(category.id)}
                     >
-                      삭제
+                      {t("common:delete")}
                     </Button>
                   </TableCell>
                 </TableRow>
@@ -203,10 +210,10 @@ export function CategoryPanel({ categories }: { categories: MenuCategory[] }) {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>카테고리를 삭제할까요?</AlertDialogTitle>
+            <AlertDialogTitle>{t("categoryDeleteTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
-              {deleteTarget ? `'${deleteTarget.label}' 카테고리를 삭제합니다. ` : ""}
-              삭제하면 되돌릴 수 없습니다.
+              {deleteTarget ? t("categoryDeleteTarget", { label: deleteTarget.label }) : ""}
+              {t("common:deleteIrreversible")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           {/*
@@ -220,13 +227,13 @@ export function CategoryPanel({ categories }: { categories: MenuCategory[] }) {
             <p role="alert" className="text-sm text-destructive">
               {deleteMutation.error instanceof Error
                 ? deleteMutation.error.message
-                : "카테고리 삭제에 실패했습니다."}
+                : t("categoryDeleteFailed")}
             </p>
           ) : null}
           <AlertDialogFooter>
-            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogCancel>{t("common:cancel")}</AlertDialogCancel>
             <AlertDialogAction disabled={deleteMutation.isPending} onClick={handleConfirmDelete}>
-              삭제
+              {t("common:delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

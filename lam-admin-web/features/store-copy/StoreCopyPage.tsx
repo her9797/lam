@@ -4,6 +4,7 @@ import "@/i18n/client";
 
 import { useState } from "react";
 import type { FormEvent } from "react";
+import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,13 +16,15 @@ import { useBootstrapQuery } from "@/features/bootstrap/queries";
 
 import { useUpdateStoreCopiesMutation, type StoreCopiesInput } from "./api";
 
-const FIELDS: Array<{ key: keyof StoreCopiesInput; label: string }> = [
-  { key: "songRequestCopy", label: "노래 신청 안내" },
-  { key: "requestCopy", label: "요청 안내" },
-  { key: "eventCopy", label: "이벤트 안내" },
+// Labels are keys in the `storeCopy` namespace, resolved at render.
+const FIELDS: Array<{ key: keyof StoreCopiesInput; labelKey: string }> = [
+  { key: "songRequestCopy", labelKey: "fieldSongRequestCopy" },
+  { key: "requestCopy", labelKey: "fieldRequestCopy" },
+  { key: "eventCopy", labelKey: "fieldEventCopy" },
 ];
 
 export function StoreCopyPage() {
+  const { t } = useTranslation("storeCopy");
   const bootstrapQuery = useBootstrapQuery();
   const updateMutation = useUpdateStoreCopiesMutation();
 
@@ -52,7 +55,7 @@ export function StoreCopyPage() {
   if (bootstrapQuery.isError) {
     return (
       <ErrorState
-        title="안내 문구를 불러오지 못했습니다."
+        title={t("errorTitle")}
         message={bootstrapQuery.error instanceof Error ? bootstrapQuery.error.message : undefined}
         onRetry={() => bootstrapQuery.refetch()}
       />
@@ -60,7 +63,7 @@ export function StoreCopyPage() {
   }
 
   if (bootstrapQuery.isLoading || form === null) {
-    return <LoadingState label="안내 문구를 불러오는 중입니다." />;
+    return <LoadingState label={t("loading")} />;
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -83,7 +86,7 @@ export function StoreCopyPage() {
             requestCopy: appData.store.requestCopy,
             eventCopy: appData.store.eventCopy,
           });
-          setStatusMessage("안내 문구를 저장했습니다.");
+          setStatusMessage(t("saved"));
         },
         // Deliberately no onError handler: a failed save must leave the
         // textareas exactly as the operator typed them, not revert to the
@@ -94,7 +97,7 @@ export function StoreCopyPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="text-lg font-semibold text-foreground">안내 문구</h1>
+      <h1 className="text-lg font-semibold text-foreground">{t("title")}</h1>
 
       {statusMessage ? (
         <p role="status" aria-live="polite" className="text-sm text-emerald-600 dark:text-emerald-400">
@@ -104,13 +107,13 @@ export function StoreCopyPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>손님 화면 안내 문구</CardTitle>
+          <CardTitle>{t("cardTitle")}</CardTitle>
         </CardHeader>
         <CardContent>
           <form className="flex flex-col gap-4" onSubmit={handleSubmit} noValidate>
             {FIELDS.map((field) => (
               <div key={field.key} className="flex flex-col gap-1.5">
-                <Label htmlFor={`store-copy-${field.key}`}>{field.label}</Label>
+                <Label htmlFor={`store-copy-${field.key}`}>{t(field.labelKey)}</Label>
                 <Textarea
                   id={`store-copy-${field.key}`}
                   value={form[field.key]}
@@ -127,12 +130,12 @@ export function StoreCopyPage() {
               <p role="alert" className="text-sm text-destructive">
                 {updateMutation.error instanceof Error
                   ? updateMutation.error.message
-                  : "안내 문구 저장에 실패했습니다."}
+                  : t("saveFailed")}
               </p>
             ) : null}
 
             <Button type="submit" disabled={updateMutation.isPending}>
-              저장
+              {t("common:save")}
             </Button>
           </form>
         </CardContent>

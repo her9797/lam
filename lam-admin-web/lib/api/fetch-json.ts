@@ -6,6 +6,8 @@
  * shared 401 → login-redirect boundary in `lib/query/query-client.ts`) can
  * branch on `error.status` instead of re-parsing responses themselves.
  */
+import { requestFailedMessage } from "@/i18n/messages";
+
 export class FetchJsonError extends Error {
   readonly status: number;
   readonly body: unknown;
@@ -28,7 +30,12 @@ function extractErrorMessage(status: number, body: unknown): string {
   ) {
     return (body as { error: string }).error;
   }
-  return `요청이 실패했습니다. (${status})`;
+  // Only reached when the BFF/upstream gave no `error` string of its own.
+  // Translated via `i18n/messages` (not `useTranslation`, not the i18next
+  // singleton) because this module runs outside React and is reachable from
+  // `app/api/*` route handlers — see that module's doc comment. The message
+  // is rendered verbatim by the feature pages' error states.
+  return requestFailedMessage(status);
 }
 
 export async function fetchJson<T = unknown>(

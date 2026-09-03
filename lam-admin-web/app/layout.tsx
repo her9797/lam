@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import { SkipLink } from "@/components/layout/SkipLink";
 import { AppProviders } from "@/components/providers/AppProviders";
 
 import "./globals.css";
@@ -37,9 +38,7 @@ export default function RootLayout({
     <html lang="ko" suppressHydrationWarning>
       <body>
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
-        <a href="#main-content" className="skip-link">
-          본문으로 바로가기
-        </a>
+        <SkipLink />
         <AppProviders>{children}</AppProviders>
       </body>
     </html>

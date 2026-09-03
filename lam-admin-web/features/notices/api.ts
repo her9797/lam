@@ -52,10 +52,16 @@ export function deleteNotice(id: string): Promise<AppData> {
  * Rejects blank/whitespace-only notice text before it ever reaches the
  * network — mirrors `lam-api`'s own `strings.TrimSpace(payload.Text)`
  * handling, which would otherwise silently store an empty notice.
+ *
+ * Returns a translation KEY in the `notices` namespace, not rendered text,
+ * so this stays a pure function and the caller renders it through its own
+ * `t()` in the operator's chosen language.
  */
-export function validateNoticeText(text: string): string | undefined {
+export type NoticeValidationKey = "errorTextRequired";
+
+export function validateNoticeText(text: string): NoticeValidationKey | undefined {
   if (!text.trim()) {
-    return "공지 문구를 입력하세요.";
+    return "errorTextRequired";
   }
   return undefined;
 }

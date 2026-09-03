@@ -3,6 +3,7 @@
 import "@/i18n/client";
 
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import {
   AlertDialog,
@@ -54,6 +55,7 @@ type CropDraft = {
 };
 
 export function MenuManagementPage() {
+  const { t } = useTranslation("menu");
   const bootstrapQuery = useBootstrapQuery();
   const visibilityMutation = useUpdateMenuItemVisibilityMutation();
   const deleteMutation = useDeleteMenuItemMutation();
@@ -61,16 +63,18 @@ export function MenuManagementPage() {
 
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [cropDraft, setCropDraft] = useState<CropDraft | null>(null);
-  const [imageError, setImageError] = useState<string | null>(null);
+  // Holds a translation key (from `validateImageFile`, or one raised here),
+  // not rendered text, so the message follows a language switch.
+  const [imageErrorKey, setImageErrorKey] = useState<string | null>(null);
 
   if (bootstrapQuery.isLoading) {
-    return <LoadingState label="메뉴 정보를 불러오는 중입니다." />;
+    return <LoadingState label={t("loading")} />;
   }
 
   if (bootstrapQuery.isError) {
     return (
       <ErrorState
-        title="메뉴 정보를 불러오지 못했습니다."
+        title={t("errorTitle")}
         message={bootstrapQuery.error instanceof Error ? bootstrapQuery.error.message : undefined}
         onRetry={() => bootstrapQuery.refetch()}
       />
@@ -103,14 +107,14 @@ export function MenuManagementPage() {
   }
 
   async function handleImageSelected(menuItemId: string, file: File | undefined) {
-    setImageError(null);
+    setImageErrorKey(null);
     if (!file) {
       return;
     }
 
-    const validationError = validateImageFile(file);
-    if (validationError) {
-      setImageError(validationError);
+    const validationErrorKey = validateImageFile(file);
+    if (validationErrorKey) {
+      setImageErrorKey(validationErrorKey);
       return;
     }
 
@@ -125,7 +129,7 @@ export function MenuManagementPage() {
       });
     } catch {
       URL.revokeObjectURL(imageUrl);
-      setImageError("이미지를 불러오지 못했습니다.");
+      setImageErrorKey("imageLoadFailed");
     }
   }
 
@@ -137,12 +141,12 @@ export function MenuManagementPage() {
       return;
     }
 
-    setImageError(null);
+    setImageErrorKey(null);
     let croppedImage: File;
     try {
       croppedImage = await cropImageFileToSquare(cropDraft.file, cropDraft.transform);
     } catch {
-      setImageError("이미지를 잘라내는 데 실패했습니다.");
+      setImageErrorKey("cropFailed");
       return;
     }
 
@@ -168,41 +172,41 @@ export function MenuManagementPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="text-lg font-semibold text-foreground">메뉴 관리</h1>
+      <h1 className="text-lg font-semibold text-foreground">{t("title")}</h1>
 
       <CategoryPanel categories={categories} />
       <MenuItemForm categories={categories} items={items} />
 
       <Card>
         <CardHeader>
-          <CardTitle>메뉴 목록</CardTitle>
+          <CardTitle>{t("listCardTitle")}</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
-          {imageError ? (
+          {imageErrorKey ? (
             <p role="alert" className="text-sm text-destructive">
-              {imageError}
+              {t(imageErrorKey)}
             </p>
           ) : null}
           {uploadMutation.isError ? (
             <p role="alert" className="text-sm text-destructive">
               {uploadMutation.error instanceof Error
                 ? uploadMutation.error.message
-                : "이미지 업로드에 실패했습니다."}
+                : t("imageUploadFailed")}
             </p>
           ) : null}
 
           {items.length === 0 ? (
-            <EmptyState title="등록된 메뉴가 없습니다." description="위 양식으로 메뉴를 추가하세요." />
+            <EmptyState title={t("itemEmptyTitle")} description={t("itemEmptyDescription")} />
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>이름</TableHead>
-                  <TableHead>카테고리</TableHead>
-                  <TableHead>가격</TableHead>
-                  <TableHead>공개 여부</TableHead>
-                  <TableHead>이미지</TableHead>
-                  <TableHead>작업</TableHead>
+                  <TableHead>{t("common:columnName")}</TableHead>
+                  <TableHead>{t("columnCategory")}</TableHead>
+                  <TableHead>{t("columnPrice")}</TableHead>
+                  <TableHead>{t("common:columnVisibility")}</TableHead>
+                  <TableHead>{t("columnImage")}</TableHead>
+                  <TableHead>{t("common:columnActions")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -223,17 +227,17 @@ export function MenuManagementPage() {
                             visibilityMutation.mutate({ id: item.id, isVisible: !item.isVisible })
                           }
                         >
-                          {item.isVisible ? "공개" : "숨김"}
+                          {item.isVisible ? t("common:visible") : t("common:hidden")}
                         </Button>
                       </TableCell>
                       <TableCell>
                         <label className="cursor-pointer text-sm text-primary underline-offset-4 hover:underline">
-                          이미지 선택
+                          {t("imageSelect")}
                           <input
                             type="file"
                             accept="image/jpeg,image/png,image/webp"
                             className="sr-only"
-                            aria-label={`${item.name} 이미지 선택`}
+                            aria-label={t("imageSelectRowAria", { name: item.name })}
                             disabled={isUploadPending(item.id)}
                             onChange={(event) => {
                               const file = event.target.files?.[0];
@@ -251,7 +255,7 @@ export function MenuManagementPage() {
                           disabled={isDeletePending(item.id)}
                           onClick={() => setPendingDeleteId(item.id)}
                         >
-                          삭제
+                          {t("common:delete")}
                         </Button>
                       </TableCell>
                     </TableRow>
@@ -273,10 +277,10 @@ export function MenuManagementPage() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>메뉴를 삭제할까요?</AlertDialogTitle>
+            <AlertDialogTitle>{t("itemDeleteTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
-              {deleteTarget ? `'${deleteTarget.name}' 메뉴를 삭제합니다. ` : ""}
-              삭제하면 되돌릴 수 없습니다.
+              {deleteTarget ? t("itemDeleteTarget", { name: deleteTarget.name }) : ""}
+              {t("common:deleteIrreversible")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           {/*
@@ -288,13 +292,13 @@ export function MenuManagementPage() {
             <p role="alert" className="text-sm text-destructive">
               {deleteMutation.error instanceof Error
                 ? deleteMutation.error.message
-                : "메뉴 삭제에 실패했습니다."}
+                : t("itemDeleteFailed")}
             </p>
           ) : null}
           <AlertDialogFooter>
-            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogCancel>{t("common:cancel")}</AlertDialogCancel>
             <AlertDialogAction disabled={deleteMutation.isPending} onClick={handleConfirmDelete}>
-              삭제
+              {t("common:delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -310,7 +314,7 @@ export function MenuManagementPage() {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>이미지 영역 선택</DialogTitle>
+            <DialogTitle>{t("cropDialogTitle")}</DialogTitle>
           </DialogHeader>
           {cropDraft ? (
             <ImageCropEditor
@@ -323,14 +327,14 @@ export function MenuManagementPage() {
           ) : null}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={closeCropDraft}>
-              취소
+              {t("common:cancel")}
             </Button>
             <Button
               type="button"
               disabled={uploadMutation.isPending}
               onClick={() => void handleSaveCrop()}
             >
-              저장
+              {t("common:save")}
             </Button>
           </DialogFooter>
         </DialogContent>
