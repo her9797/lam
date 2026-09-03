@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { createAdminSessionValue, isAdminSessionValid } from "./session";
+import {
+  createAdminSessionValue,
+  isAdminSessionValid,
+  timingSafeEqualString,
+} from "./session";
 
 describe("admin session", () => {
   it("accepts a freshly created session value", () => {
@@ -35,5 +39,27 @@ describe("admin session", () => {
 
   it("rejects a malformed session value", () => {
     expect(isAdminSessionValid("not-a-valid-session")).toBe(false);
+  });
+});
+
+describe("timingSafeEqualString", () => {
+  it("accepts two identical strings", () => {
+    expect(timingSafeEqualString("correct-password", "correct-password")).toBe(
+      true,
+    );
+  });
+
+  it("rejects a same-length string that differs only in the last byte", () => {
+    expect(timingSafeEqualString("correct-password", "correct-passworD")).toBe(
+      false,
+    );
+  });
+
+  it("rejects strings of different lengths without throwing", () => {
+    expect(timingSafeEqualString("correct-password", "short")).toBe(false);
+  });
+
+  it("rejects an empty string against a non-empty secret", () => {
+    expect(timingSafeEqualString("", "correct-password")).toBe(false);
   });
 });

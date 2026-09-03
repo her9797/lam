@@ -20,6 +20,17 @@ function getAdminApiToken(): string {
 
 const BODYLESS_METHODS = new Set(["GET", "HEAD", "DELETE"]);
 
+// Each path segment must be a plain resource name/id: non-empty, no "/" and
+// not "." or "..". Rejecting anything starting with "." covers both of
+// those in one check. This is defense-in-depth against a segment escaping
+// the intended "/api/v1/admin/" upstream prefix (e.g. "..") even though
+// Next.js's own catch-all splitting shouldn't hand us such a thing.
+const VALID_SLUG_SEGMENT = /^[^./][^/]*$/;
+
+function isValidSlug(slug: string[]): boolean {
+  return slug.length > 0 && slug.every((segment) => VALID_SLUG_SEGMENT.test(segment));
+}
+
 type RouteContext = { params: Promise<{ slug: string[] }> };
 
 async function forward(request: NextRequest, slug: string[]) {
@@ -28,6 +39,13 @@ async function forward(request: NextRequest, slug: string[]) {
     return NextResponse.json(
       { error: "관리자 인증이 필요합니다." },
       { status: 401 },
+    );
+  }
+
+  if (!isValidSlug(slug)) {
+    return NextResponse.json(
+      { error: "잘못된 요청 경로입니다." },
+      { status: 400 },
     );
   }
 

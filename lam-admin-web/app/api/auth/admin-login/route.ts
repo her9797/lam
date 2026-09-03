@@ -4,6 +4,7 @@ import {
   createAdminSessionValue,
   getAdminCookieMaxAgeSeconds,
   getAdminCookieName,
+  timingSafeEqualString,
 } from "@/lib/auth/session";
 
 function getAdminPassword(): string {
@@ -20,7 +21,7 @@ export async function POST(request: NextRequest) {
     | null;
   const password = payload?.password?.trim() ?? "";
 
-  if (!password || password !== getAdminPassword()) {
+  if (!password || !timingSafeEqualString(password, getAdminPassword())) {
     return NextResponse.json(
       { error: "비밀번호가 올바르지 않습니다." },
       { status: 401 },

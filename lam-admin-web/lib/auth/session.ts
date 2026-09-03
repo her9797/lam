@@ -61,6 +61,23 @@ export function isAdminSessionValid(
   }
 }
 
+/**
+ * Constant-time comparison for two secret strings (e.g. a submitted password
+ * against the configured admin password). Plain `===`/`!==` on strings
+ * short-circuits on the first differing byte, leaking timing information
+ * about the secret. `timingSafeEqual` itself requires equal-length buffers
+ * and throws otherwise, which would reintroduce a (smaller) length-based
+ * side channel if we simply padded/checked length first — instead we HMAC
+ * both inputs with a fixed key first so the comparison is always over two
+ * fixed-length (32-byte) digests, regardless of the original strings' length.
+ */
+export function timingSafeEqualString(a: string, b: string): boolean {
+  const key = getSessionSecret();
+  const digestA = createHmac("sha256", key).update(a).digest();
+  const digestB = createHmac("sha256", key).update(b).digest();
+  return timingSafeEqual(digestA, digestB);
+}
+
 export function getAdminCookieName(): string {
   return ADMIN_COOKIE_NAME;
 }

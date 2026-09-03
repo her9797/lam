@@ -121,6 +121,24 @@ describe("/api/admin/[...slug] proxy", () => {
     );
   });
 
+  it("rejects a slug segment that attempts path traversal", async () => {
+    const request = makeRequest("GET", "..%2F..%2Fv2%2Fsecret", {
+      withSession: true,
+    });
+    const response = await GET(request, context(["..", "..", "v2", "secret"]));
+
+    expect(response.status).toBe(400);
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it("rejects a single '..' slug segment", async () => {
+    const request = makeRequest("GET", "categories/..", { withSession: true });
+    const response = await GET(request, context(["categories", ".."]));
+
+    expect(response.status).toBe(400);
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
   it("forwards DELETE requests without a body", async () => {
     const request = makeRequest("DELETE", "categories/1");
     const response = await DELETE(request, context(["categories", "1"]));
