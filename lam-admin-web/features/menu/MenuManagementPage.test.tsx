@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AppData } from "@/features/bootstrap/model";
 
-import { computeFocusPoint, createInitialCropTransform } from "./crop";
+import { UPLOAD_FOCUS_CENTER, createInitialCropTransform, type CropTransform } from "./crop";
 import { validateCategoryForm, validateImageFile, validateMenuItemForm } from "./model";
 
 const useBootstrapQueryMock = vi.fn();
@@ -43,14 +43,29 @@ vi.mock("./queries", () => ({
 }));
 
 const loadImageNaturalSizeMock = vi.fn();
+// jsdom implements neither image decoding nor a 2D canvas context, so the
+// two I/O helpers in `./crop` are mocked while every pure geometry helper
+// (including `computeCropDrawRects`, covered directly in `crop.test.ts`)
+// stays real.
+const cropImageFileToSquareMock = vi.fn();
+
+/** The bitmap `cropImageFileToSquare` stands in for — what must be uploaded. */
+const CROPPED_FILE = new File([new Uint8Array(4)], "cropped.jpg", { type: "image/jpeg" });
 
 vi.mock("./crop", async () => {
   const actual = await vi.importActual<typeof import("./crop")>("./crop");
   return {
     ...actual,
     loadImageNaturalSize: (url: string) => loadImageNaturalSizeMock(url),
+    cropImageFileToSquare: (file: File, transform: unknown) =>
+      cropImageFileToSquareMock(file, transform),
   };
 });
+
+/** The transform the crop editor handed to the cropper on the Nth call. */
+function croppedTransform(callIndex = 0): CropTransform {
+  return cropImageFileToSquareMock.mock.calls[callIndex][1] as CropTransform;
+}
 
 import { MenuManagementPage } from "./MenuManagementPage";
 
@@ -105,6 +120,8 @@ beforeEach(() => {
   refetchMock.mockClear();
   loadImageNaturalSizeMock.mockReset();
   loadImageNaturalSizeMock.mockResolvedValue({ naturalWidth: 400, naturalHeight: 200 });
+  cropImageFileToSquareMock.mockReset();
+  cropImageFileToSquareMock.mockResolvedValue(CROPPED_FILE);
 
   createCategoryMutationState.current = idleMutation(createCategoryMutate);
   updateCategoryVisibilityMutationState.current = idleMutation(updateCategoryVisibilityMutate);
@@ -371,7 +388,10 @@ describe("MenuManagementPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "메뉴 추가" }));
 
-    expect(createMenuItemMutate).toHaveBeenCalledTimes(1);
+    // The crop is rendered before the item is created, so the create call is
+    // one microtask behind the click.
+    await waitFor(() => expect(createMenuItemMutate).toHaveBeenCalledTimes(1));
+    expect(cropImageFileToSquareMock).toHaveBeenCalledTimes(1);
     expect(uploadMenuItemImageMutate).not.toHaveBeenCalled();
 
     // Simulate the create mutation resolving with the refreshed bootstrap
@@ -396,16 +416,40 @@ describe("MenuManagementPage", () => {
     };
     act(() => onSuccess(nextData));
 
-    const expectedFocus = computeFocusPoint(createInitialCropTransform(400, 200));
     expect(uploadMenuItemImageMutate).toHaveBeenCalledTimes(1);
+    // The CROPPED bitmap is uploaded, not the operator's original file.
     expect(uploadMenuItemImageMutate).toHaveBeenCalledWith({
       menuItemId: "menu-999",
-      image: file,
+      image: CROPPED_FILE,
       isPrimary: true,
       displayArea: "menu",
-      focusX: expectedFocus.focusX,
-      focusY: expectedFocus.focusY,
+      focusX: UPLOAD_FOCUS_CENTER,
+      focusY: UPLOAD_FOCUS_CENTER,
     });
+    expect(cropImageFileToSquareMock).toHaveBeenCalledWith(file, expect.anything());
+  });
+
+  it("aborts the create submit without creating anything when the crop fails", async () => {
+    cropImageFileToSquareMock.mockRejectedValue(new Error("canvas unavailable"));
+
+    render(<MenuManagementPage />);
+
+    fireEvent.change(screen.getByLabelText("이름"), { target: { value: "라떼" } });
+    fireEvent.change(screen.getByLabelText("가격"), { target: { value: "4500" } });
+
+    const file = new File([new Uint8Array(10)], "new-item.jpg", { type: "image/jpeg" });
+    fireEvent.change(screen.getByLabelText("새 메뉴 이미지 선택"), { target: { files: [file] } });
+
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "확인" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "메뉴 추가" }));
+
+    await waitFor(() =>
+      expect(screen.getByText("이미지를 잘라내는 데 실패했습니다.")).toBeInTheDocument(),
+    );
+    expect(createMenuItemMutate).not.toHaveBeenCalled();
+    expect(uploadMenuItemImageMutate).not.toHaveBeenCalled();
   });
 
   it("toggles menu item visibility", () => {
@@ -469,7 +513,7 @@ describe("MenuManagementPage", () => {
     expect(loadImageNaturalSizeMock).not.toHaveBeenCalled();
   });
 
-  it("opens the crop editor for a valid image and uploads with a centered focus point on save", async () => {
+  it("opens the crop editor for a valid image and uploads the CROPPED bitmap on save", async () => {
     render(<MenuManagementPage />);
 
     const file = new File([new Uint8Array(10)], "a.jpg", { type: "image/jpeg" });
@@ -481,22 +525,25 @@ describe("MenuManagementPage", () => {
 
     fireEvent.click(within(dialog).getByRole("button", { name: "저장" }));
 
-    const expectedTransform = createInitialCropTransform(400, 200);
-    const expectedFocus = computeFocusPoint(expectedTransform);
+    await waitFor(() => expect(uploadMenuItemImageMutate).toHaveBeenCalledTimes(1));
+    // The original file goes to the cropper; the cropper's output — not the
+    // original — is what gets uploaded, with a no-op centred focus point.
+    expect(cropImageFileToSquareMock).toHaveBeenCalledWith(file, expect.anything());
+    expect(croppedTransform()).toEqual(createInitialCropTransform(400, 200));
     expect(uploadMenuItemImageMutate).toHaveBeenCalledWith(
       {
         menuItemId: "menu-1",
-        image: file,
+        image: CROPPED_FILE,
         isPrimary: true,
         displayArea: "menu",
-        focusX: expectedFocus.focusX,
-        focusY: expectedFocus.focusY,
+        focusX: UPLOAD_FOCUS_CENTER,
+        focusY: UPLOAD_FOCUS_CENTER,
       },
       expect.anything(),
     );
   });
 
-  it("recomputes the focus point after panning the image with the pointer before saving", async () => {
+  it("crops from the panned region after dragging the image with the pointer", async () => {
     render(<MenuManagementPage />);
 
     const file = new File([new Uint8Array(10)], "a.jpg", { type: "image/jpeg" });
@@ -506,19 +553,23 @@ describe("MenuManagementPage", () => {
     const dialog = await screen.findByRole("dialog");
     const frame = within(dialog).getByRole("application");
 
-    fireEvent.pointerDown(frame, { clientX: 0, clientY: 0 });
-    fireEvent.pointerMove(frame, { clientX: -80, clientY: 0 });
-    fireEvent.pointerUp(frame);
+    // jsdom has no `PointerEvent` constructor, so `fireEvent.pointerDown`'s
+    // event init (including `clientX`) is silently dropped and the drag
+    // reads `undefined` coordinates. Dispatching a real `MouseEvent` under
+    // the `pointerdown`/`pointermove` type is what actually carries
+    // coordinates into React's pointer handlers here.
+    fireEvent(frame, new MouseEvent("pointerdown", { bubbles: true, clientX: 0, clientY: 0 }));
+    fireEvent(frame, new MouseEvent("pointermove", { bubbles: true, clientX: -80, clientY: 0 }));
+    fireEvent(frame, new MouseEvent("pointerup", { bubbles: true }));
 
     fireEvent.click(within(dialog).getByRole("button", { name: "저장" }));
 
-    expect(uploadMenuItemImageMutate).toHaveBeenCalledTimes(1);
-    const uploadedPayload = uploadMenuItemImageMutate.mock.calls[0][0] as { focusX: number };
-    const centeredFocus = computeFocusPoint(createInitialCropTransform(400, 200));
-    expect(uploadedPayload.focusX).not.toBe(centeredFocus.focusX);
+    await waitFor(() => expect(cropImageFileToSquareMock).toHaveBeenCalledTimes(1));
+    const centered = createInitialCropTransform(400, 200);
+    expect(croppedTransform().offsetX).toBe(centered.offsetX - 80);
   });
 
-  it("pans the image with arrow keys, keeping the frame fully covered (keyboard operable)", async () => {
+  it("pans the image with arrow keys and crops from the panned region (keyboard operable)", async () => {
     render(<MenuManagementPage />);
 
     const file = new File([new Uint8Array(10)], "a.jpg", { type: "image/jpeg" });
@@ -534,15 +585,17 @@ describe("MenuManagementPage", () => {
 
     fireEvent.click(within(dialog).getByRole("button", { name: "저장" }));
 
-    const uploadedPayload = uploadMenuItemImageMutate.mock.calls[0][0] as {
-      focusX: number;
-      focusY: number;
-    };
-    expect(uploadedPayload.focusX).toBeGreaterThanOrEqual(0);
-    expect(uploadedPayload.focusX).toBeLessThanOrEqual(100);
+    await waitFor(() => expect(cropImageFileToSquareMock).toHaveBeenCalledTimes(1));
+    const transform = croppedTransform();
+    const centered = createInitialCropTransform(400, 200);
+    // ArrowLeft pans the image right (positive offset), so 30 steps of 12px
+    // from the centred -140 run into the left edge and clamp at 0 — the crop
+    // that reaches the cropper is the left edge of the image, not the centre.
+    expect(transform.offsetX).toBeGreaterThan(centered.offsetX);
+    expect(transform.offsetX).toBe(0);
   });
 
-  it("zooms via the range input (keyboard-operable control) and keeps a valid focus point on save", async () => {
+  it("carries the selected zoom into the crop, so a zoomed crop differs from an unzoomed one", async () => {
     render(<MenuManagementPage />);
 
     const file = new File([new Uint8Array(10)], "a.jpg", { type: "image/jpeg" });
@@ -555,14 +608,30 @@ describe("MenuManagementPage", () => {
 
     fireEvent.click(within(dialog).getByRole("button", { name: "저장" }));
 
-    const uploadedPayload = uploadMenuItemImageMutate.mock.calls[0][0] as {
-      focusX: number;
-      focusY: number;
-    };
-    expect(uploadedPayload.focusX).toBeGreaterThanOrEqual(0);
-    expect(uploadedPayload.focusX).toBeLessThanOrEqual(100);
-    expect(uploadedPayload.focusY).toBeGreaterThanOrEqual(0);
-    expect(uploadedPayload.focusY).toBeLessThanOrEqual(100);
+    await waitFor(() => expect(cropImageFileToSquareMock).toHaveBeenCalledTimes(1));
+    // The regression the whole-branch review found: zoom used to be dropped
+    // entirely, so this transform reached nothing that affected the upload.
+    expect(croppedTransform().scale).toBe(3);
+    expect(croppedTransform()).not.toEqual(createInitialCropTransform(400, 200));
+  });
+
+  it("reports a failed crop and uploads nothing", async () => {
+    cropImageFileToSquareMock.mockRejectedValue(new Error("canvas unavailable"));
+
+    render(<MenuManagementPage />);
+
+    const file = new File([new Uint8Array(10)], "a.jpg", { type: "image/jpeg" });
+    fireEvent.change(screen.getByLabelText("아메리카노 이미지 선택"), {
+      target: { files: [file] },
+    });
+
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "저장" }));
+
+    await waitFor(() =>
+      expect(screen.getByText("이미지를 잘라내는 데 실패했습니다.")).toBeInTheDocument(),
+    );
+    expect(uploadMenuItemImageMutate).not.toHaveBeenCalled();
   });
 
   it("closes the crop dialog on cancel without uploading", async () => {

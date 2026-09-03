@@ -2,13 +2,14 @@ import { describe, expect, it } from "vitest";
 
 import {
   CROP_FRAME_SIZE,
+  CROP_OUTPUT_SIZE,
   MAX_SCALE,
   MIN_SCALE,
+  UPLOAD_FOCUS_CENTER,
   clampCropTransform,
   clampScale,
-  computeFocusPoint,
+  computeCropDrawRects,
   createInitialCropTransform,
-  offsetFromFocusPercent,
   panCropTransform,
   zoomCropTransform,
   type CropTransform,
@@ -173,77 +174,130 @@ describe("zoomCropTransform", () => {
   });
 });
 
-describe("computeFocusPoint", () => {
-  it("reports the center (50, 50) for a centered, unzoomed square image", () => {
-    const transform = createInitialCropTransform(300, 300);
-    expect(computeFocusPoint(transform)).toEqual({ focusX: 50, focusY: 50 });
+describe("computeCropDrawRects", () => {
+  const SQUARE = { naturalWidth: 900, naturalHeight: 900 };
+  const WIDE = { naturalWidth: 400, naturalHeight: 200 };
+
+  it("draws the whole square source image at scale 1, into the full output canvas", () => {
+    const transform = createInitialCropTransform(SQUARE.naturalWidth, SQUARE.naturalHeight);
+    const { source, destination } = computeCropDrawRects(transform, SQUARE);
+
+    expect(source.x).toBeCloseTo(0);
+    expect(source.y).toBeCloseTo(0);
+    expect(source.width).toBeCloseTo(SQUARE.naturalWidth);
+    expect(source.height).toBeCloseTo(SQUARE.naturalHeight);
+    expect(destination).toEqual({
+      x: 0,
+      y: 0,
+      width: CROP_OUTPUT_SIZE,
+      height: CROP_OUTPUT_SIZE,
+    });
   });
 
-  it("reports 50 (centered) on an axis with no pan range (minX/minY === 0), not a division by zero", () => {
-    // baseHeight matches the frame exactly at scale 1: no vertical pan
-    // range, so offsetY is pinned at 0 regardless of what's requested.
-    const wide: CropTransform = { baseWidth: CROP_FRAME_SIZE * 2, baseHeight: CROP_FRAME_SIZE, scale: 1, offsetX: 0, offsetY: 0 };
-    expect(computeFocusPoint(wide).focusY).toBe(50);
+  it("draws only the centre square of a wide image at scale 1 (cover-fit crop, not a squash)", () => {
+    const transform = createInitialCropTransform(WIDE.naturalWidth, WIDE.naturalHeight);
+    const { source } = computeCropDrawRects(transform, WIDE);
+
+    // A 400x200 image cover-fitted into a square frame shows a 200x200
+    // region, horizontally centred (x = (400 - 200) / 2).
+    expect(source.width).toBeCloseTo(200);
+    expect(source.height).toBeCloseTo(200);
+    expect(source.x).toBeCloseTo(100);
+    expect(source.y).toBeCloseTo(0);
   });
 
-  // Matches lam-web's actual CSS object-position formula:
-  // offset = (P / 100) * (boxSize - imageSize). For object-position, the
-  // reachable offset range is [minX, 0] (minX is negative), so the percentage
-  // that reproduces a given offsetX is `focusX = 100 * offsetX / minX` — NOT
-  // the fraction of the scaled image sitting at the frame's center (those
-  // only agree when centered).
-  it("computes the exact CSS-consistent focusX for a fully panned wide image (the review's worked example)", () => {
-    // 400x200 source scaled to baseWidth=560/baseHeight=280 for a
-    // frame=280 crop editor; minX = 280 - 560 = -280, so offsetX=-280 is
-    // the full pan to the right edge.
-    const transform: CropTransform = {
-      baseWidth: 560,
-      baseHeight: 280,
-      scale: 1,
-      offsetX: -280,
-      offsetY: 0,
+  // This is the regression the whole-branch review found: the old upload path
+  // sent the ORIGINAL file plus a focus point, so zoom was silently discarded
+  // and every zoom level produced byte-identical output. The source rectangle
+  // must shrink as the operator zooms in.
+  it("reads a strictly smaller source region as the scale increases (zoom actually crops)", () => {
+    const atScale1 = createInitialCropTransform(SQUARE.naturalWidth, SQUARE.naturalHeight);
+    const atScale2 = zoomCropTransform(atScale1, 2);
+    const atScale3 = zoomCropTransform(atScale1, MAX_SCALE);
+
+    const s1 = computeCropDrawRects(atScale1, SQUARE).source;
+    const s2 = computeCropDrawRects(atScale2, SQUARE).source;
+    const s3 = computeCropDrawRects(atScale3, SQUARE).source;
+
+    expect(s2.width).toBeLessThan(s1.width);
+    expect(s3.width).toBeLessThan(s2.width);
+    // Scale N covers 1/N of the source per axis.
+    expect(s2.width).toBeCloseTo(SQUARE.naturalWidth / 2);
+    expect(s3.width).toBeCloseTo(SQUARE.naturalWidth / MAX_SCALE);
+    expect(s3.height).toBeCloseTo(SQUARE.naturalHeight / MAX_SCALE);
+  });
+
+  it("keeps the output canvas size fixed regardless of scale (only the source region changes)", () => {
+    const start = createInitialCropTransform(SQUARE.naturalWidth, SQUARE.naturalHeight);
+    const zoomed = zoomCropTransform(start, MAX_SCALE);
+
+    expect(computeCropDrawRects(start, SQUARE).destination).toEqual(
+      computeCropDrawRects(zoomed, SQUARE).destination,
+    );
+  });
+
+  it("moves the source region as the image is panned", () => {
+    const centred = createInitialCropTransform(WIDE.naturalWidth, WIDE.naturalHeight);
+    const pannedRight = panCropTransform(centred, -60, 0);
+
+    const centredSource = computeCropDrawRects(centred, WIDE).source;
+    const pannedSource = computeCropDrawRects(pannedRight, WIDE).source;
+
+    expect(pannedSource.x).toBeGreaterThan(centredSource.x);
+    // Panning changes only the origin, not how much is shown.
+    expect(pannedSource.width).toBeCloseTo(centredSource.width);
+  });
+
+  it("never produces a source rectangle reaching outside the image, at either pan extreme", () => {
+    const start = createInitialCropTransform(WIDE.naturalWidth, WIDE.naturalHeight);
+    const zoomed = zoomCropTransform(start, MAX_SCALE);
+
+    for (const transform of [
+      panCropTransform(zoomed, 99999, 99999),
+      panCropTransform(zoomed, -99999, -99999),
+      panCropTransform(start, -99999, 0),
+    ]) {
+      const { source } = computeCropDrawRects(transform, WIDE);
+      expect(source.x).toBeGreaterThanOrEqual(0);
+      expect(source.y).toBeGreaterThanOrEqual(0);
+      expect(source.width).toBeGreaterThan(0);
+      expect(source.height).toBeGreaterThan(0);
+      expect(source.x + source.width).toBeLessThanOrEqual(WIDE.naturalWidth + 1e-9);
+      expect(source.y + source.height).toBeLessThanOrEqual(WIDE.naturalHeight + 1e-9);
+    }
+  });
+
+  it("clamps an out-of-range transform before mapping it (same normalisation as the editor)", () => {
+    const raw: CropTransform = {
+      baseWidth: CROP_FRAME_SIZE,
+      baseHeight: CROP_FRAME_SIZE,
+      scale: 99,
+      offsetX: 500,
+      offsetY: 500,
     };
-    expect(computeFocusPoint(transform)).toEqual({ focusX: 100, focusY: 50 });
+    const { source } = computeCropDrawRects(raw, SQUARE);
+
+    expect(source.x).toBe(0);
+    expect(source.y).toBe(0);
+    expect(source.width).toBeCloseTo(SQUARE.naturalWidth / MAX_SCALE);
   });
 
-  it("computes the exact CSS-consistent focusX for a partial pan (not just centered or fully panned)", () => {
-    const start = createInitialCropTransform(400, 200);
-    // start.offsetX === -140 (centered), minX === -280; panning by -40
-    // lands at offsetX === -180, i.e. 180/280 === 64.28...% -> rounds to 64.
-    const panned = panCropTransform(start, -40, 0);
-    expect(panned.offsetX).toBe(-180);
-    expect(computeFocusPoint(panned)).toEqual({ focusX: 64, focusY: 50 });
+  it("honours a caller-supplied output size", () => {
+    const transform = createInitialCropTransform(SQUARE.naturalWidth, SQUARE.naturalHeight);
+    expect(computeCropDrawRects(transform, SQUARE, 128).destination).toEqual({
+      x: 0,
+      y: 0,
+      width: 128,
+      height: 128,
+    });
   });
+});
 
-  it("stays within [0, 100] even when panned to the leftmost/topmost extreme", () => {
-    const start = createInitialCropTransform(400, 200);
-    const pannedToEdge = panCropTransform(start, 99999, 99999);
-    // Panned fully left: offsetX clamps to 0 -> focusX 0. No vertical pan
-    // range on this image, so focusY stays centered at 50.
-    expect(computeFocusPoint(pannedToEdge)).toEqual({ focusX: 0, focusY: 50 });
-  });
-
-  it("stays within [0, 100] even when panned to the rightmost/bottommost extreme", () => {
-    const start = createInitialCropTransform(400, 200);
-    const pannedToEdge = panCropTransform(start, -99999, -99999);
-    // Panned fully right: offsetX clamps to minX (-280) -> focusX 100.
-    expect(computeFocusPoint(pannedToEdge)).toEqual({ focusX: 100, focusY: 50 });
-  });
-
-  it("round-trips through offsetFromFocusPercent for a non-trivial (off-center, zoomed) pan", () => {
-    const start = createInitialCropTransform(400, 200);
-    const zoomed = zoomCropTransform(start, 2);
-    const panned = panCropTransform(zoomed, -30, 0);
-
-    const scaledWidth = panned.baseWidth * panned.scale;
-    const minX = Math.min(0, CROP_FRAME_SIZE - scaledWidth);
-    const { focusX } = computeFocusPoint(panned);
-
-    // computeFocusPoint rounds focusX to the nearest integer percent, so
-    // the round trip can be off by at most half a percent of the pan
-    // range (|minX| / 200) — well short of the ~70px/25%-of-frame
-    // discrepancy the old (incorrect) formula produced.
-    const roundedOffset = offsetFromFocusPercent(focusX, minX);
-    expect(Math.abs(roundedOffset - panned.offsetX)).toBeLessThanOrEqual(Math.abs(minX) / 200 + 0.001);
+describe("UPLOAD_FOCUS_CENTER", () => {
+  // The crop is baked into the uploaded pixels, so `focusX`/`focusY` are a
+  // deliberate no-op — dead centre, matching what `lam-web`'s own admin
+  // screen sends (`services/admin-service.ts`: `payload.focusX ?? 50`).
+  it("is the dead-centre object-position percentage", () => {
+    expect(UPLOAD_FOCUS_CENTER).toBe(50);
   });
 });

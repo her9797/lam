@@ -12,7 +12,13 @@ import { Textarea } from "@/components/ui/textarea";
 
 import type { AppData, MenuCategory } from "@/features/bootstrap/model";
 
-import { computeFocusPoint, createInitialCropTransform, loadImageNaturalSize, type CropTransform } from "./crop";
+import {
+  UPLOAD_FOCUS_CENTER,
+  createInitialCropTransform,
+  cropImageFileToSquare,
+  loadImageNaturalSize,
+  type CropTransform,
+} from "./crop";
 import { ImageCropEditor } from "./ImageCropEditor";
 import { validateImageFile, validateMenuItemForm, type MenuItemFormErrors } from "./model";
 import { useCreateMenuItemMutation, useUploadMenuItemImageMutation } from "./queries";
@@ -124,7 +130,7 @@ export function MenuItemForm({ categories, items }: MenuItemFormProps) {
     }
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const nextErrors = validateMenuItemForm(
       { ...form, categoryId: effectiveCategoryId },
@@ -139,6 +145,22 @@ export function MenuItemForm({ categories, items }: MenuItemFormProps) {
     // existed prior to this create — see the `items` prop doc above.
     const previousItemIds = new Set(items.map((item) => item.id));
     const imageToUpload = pendingImage;
+
+    // The crop (pan AND zoom) is rendered into the uploaded bitmap here,
+    // before the item is created, so a failed crop aborts the whole submit
+    // instead of leaving a new item with the wrong image. Uploading the
+    // original file and describing the crop with `focusX`/`focusY` cannot
+    // express zoom at all — see `./crop`'s module doc.
+    let croppedImage: File | null = null;
+    if (imageToUpload) {
+      setImageError(null);
+      try {
+        croppedImage = await cropImageFileToSquare(imageToUpload.file, imageToUpload.transform);
+      } catch {
+        setImageError("이미지를 잘라내는 데 실패했습니다.");
+        return;
+      }
+    }
 
     createMutation.mutate(
       {
@@ -155,21 +177,20 @@ export function MenuItemForm({ categories, items }: MenuItemFormProps) {
           setForm(emptyForm(effectiveCategoryId));
           clearPendingImage();
 
-          if (!imageToUpload) {
+          if (!croppedImage) {
             return;
           }
           const createdItem = appData.items.find((item) => !previousItemIds.has(item.id));
           if (!createdItem) {
             return;
           }
-          const { focusX, focusY } = computeFocusPoint(imageToUpload.transform);
           uploadMutation.mutate({
             menuItemId: createdItem.id,
-            image: imageToUpload.file,
+            image: croppedImage,
             isPrimary: true,
             displayArea: "menu",
-            focusX,
-            focusY,
+            focusX: UPLOAD_FOCUS_CENTER,
+            focusY: UPLOAD_FOCUS_CENTER,
           });
         },
       },
@@ -185,7 +206,11 @@ export function MenuItemForm({ categories, items }: MenuItemFormProps) {
         {!hasCategories ? (
           <p className="text-sm text-muted-foreground">먼저 카테고리를 추가하세요.</p>
         ) : (
-          <form className="flex flex-col gap-3" onSubmit={handleSubmit} noValidate>
+          <form
+            className="flex flex-col gap-3"
+            onSubmit={(event) => void handleSubmit(event)}
+            noValidate
+          >
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="menu-category">카테고리</Label>
               <select

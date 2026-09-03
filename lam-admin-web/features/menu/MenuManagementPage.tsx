@@ -30,7 +30,13 @@ import {
 import { useBootstrapQuery } from "@/features/bootstrap/queries";
 
 import { CategoryPanel } from "./CategoryPanel";
-import { computeFocusPoint, createInitialCropTransform, loadImageNaturalSize, type CropTransform } from "./crop";
+import {
+  UPLOAD_FOCUS_CENTER,
+  createInitialCropTransform,
+  cropImageFileToSquare,
+  loadImageNaturalSize,
+  type CropTransform,
+} from "./crop";
 import { ImageCropEditor } from "./ImageCropEditor";
 import { MenuItemForm } from "./MenuItemForm";
 import { validateImageFile } from "./model";
@@ -123,19 +129,31 @@ export function MenuManagementPage() {
     }
   }
 
-  function handleSaveCrop() {
+  // Renders the selected crop region (pan AND zoom) into a square bitmap and
+  // uploads that, rather than the original file — `focusX`/`focusY` alone
+  // are a CSS `object-position` and cannot express zoom. See `./crop`.
+  async function handleSaveCrop() {
     if (!cropDraft) {
       return;
     }
-    const { focusX, focusY } = computeFocusPoint(cropDraft.transform);
+
+    setImageError(null);
+    let croppedImage: File;
+    try {
+      croppedImage = await cropImageFileToSquare(cropDraft.file, cropDraft.transform);
+    } catch {
+      setImageError("이미지를 잘라내는 데 실패했습니다.");
+      return;
+    }
+
     uploadMutation.mutate(
       {
         menuItemId: cropDraft.menuItemId,
-        image: cropDraft.file,
+        image: croppedImage,
         isPrimary: true,
         displayArea: "menu",
-        focusX,
-        focusY,
+        focusX: UPLOAD_FOCUS_CENTER,
+        focusY: UPLOAD_FOCUS_CENTER,
       },
       { onSuccess: () => closeCropDraft() },
     );
@@ -307,7 +325,11 @@ export function MenuManagementPage() {
             <Button type="button" variant="outline" onClick={closeCropDraft}>
               취소
             </Button>
-            <Button type="button" disabled={uploadMutation.isPending} onClick={handleSaveCrop}>
+            <Button
+              type="button"
+              disabled={uploadMutation.isPending}
+              onClick={() => void handleSaveCrop()}
+            >
               저장
             </Button>
           </DialogFooter>

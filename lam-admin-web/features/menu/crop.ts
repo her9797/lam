@@ -1,8 +1,11 @@
 /**
- * Pure geometry for the menu-image crop editor. No DOM/React here so the
- * boundary math (the part that actually has to be correct — "never show
- * empty space around the image, at any pan/zoom") can be unit-tested
- * directly without mounting a component.
+ * Geometry + rendering for the menu-image crop editor.
+ *
+ * Everything above `loadImageElement` is pure (no DOM/React), so the parts
+ * that actually have to be correct — the "never show empty space around the
+ * image, at any pan/zoom" boundary and the crop's source/destination
+ * rectangles — can be unit-tested directly without a canvas or a mounted
+ * component.
  *
  * Model: the image is rendered at `baseWidth`/`baseHeight` CSS pixels (the
  * size that makes the image's shorter side exactly fill a square viewport
@@ -15,18 +18,42 @@
  *     right/bottom edge can't move before the frame's right/bottom edge
  *     (offset >= frameSize - scaledSize).
  *
- * `focusX`/`focusY` (sent to `lam-api` as the image-upload multipart
- * fields of the same name — see `POST /api/v1/admin/menu-items/{id}/images`
- * in `lam-api/internal/httpapi/router.go`) are derived from the transform:
- * the percentage position, within the *original* image, of whatever point
- * currently sits at the frame's center. `lam-api` clamps these to [0, 100]
- * server-side (`clampImageFocus` in `lam-api/internal/store/postgres.go`),
- * so this module clamps to the same range before sending.
+ * How the crop reaches the server: `computeCropDrawRects` converts the
+ * transform into the source rectangle (in the original image's own pixels)
+ * that the frame is currently showing, and `cropImageFileToSquare` draws
+ * exactly that region onto a `CROP_OUTPUT_SIZE` square canvas and returns it
+ * as a new `File`. So the crop — pan *and* zoom — is baked into the uploaded
+ * pixels, mirroring `lam-web/components/screens/admin-screen.tsx`'s
+ * `cropImageFile`. Uploading the original file and describing the crop with
+ * `focusX`/`focusY` alone cannot work: those two values are consumed by
+ * `lam-web` as CSS `object-position` on the full image, which can express
+ * centering but has no way to express zoom.
+ *
+ * `focusX`/`focusY` remain in the multipart payload (`lam-api`'s
+ * `POST /api/v1/admin/menu-items/{id}/images` reads them with
+ * `strconv.Atoi(r.FormValue(...))`, so an omitted field would silently mean
+ * 0 — the image's top-left corner — rather than "unset"). Since the uploaded
+ * bitmap is already the intended square crop, both are sent as
+ * `UPLOAD_FOCUS_CENTER`, exactly what `lam-web`'s own admin screen sends
+ * (`services/admin-service.ts`: `String(payload.focusX ?? 50)`).
  */
 
 export const CROP_FRAME_SIZE = 280;
 export const MIN_SCALE = 1;
 export const MAX_SCALE = 3;
+
+/**
+ * Edge length, in pixels, of the square bitmap uploaded for a menu image.
+ * Same 560 as `lam-web`'s `cropImageFile`, so both admin UIs produce
+ * identically sized menu images.
+ */
+export const CROP_OUTPUT_SIZE = 560;
+
+/**
+ * The `focusX`/`focusY` value sent with every upload. A no-op (dead-centre)
+ * `object-position`, because the crop is already baked into the pixels.
+ */
+export const UPLOAD_FOCUS_CENTER = 50;
 
 export type CropTransform = {
   scale: number;
@@ -128,87 +155,149 @@ export type ImageNaturalSize = {
   naturalHeight: number;
 };
 
-/**
- * Loads `url` (an object URL created from the selected `File`) into an
- * offscreen `Image` purely to read its natural pixel dimensions, which
- * `createInitialCropTransform` needs. Kept as its own export (rather than
- * inlined where it's called) so component code can be tested without a
- * real image decode: tests mock this one function and keep every pure
- * geometry helper above real.
- */
-export function loadImageNaturalSize(url: string): Promise<ImageNaturalSize> {
-  return new Promise((resolve, reject) => {
-    const image = new Image();
-    image.onload = () => {
-      resolve({ naturalWidth: image.naturalWidth, naturalHeight: image.naturalHeight });
-    };
-    image.onerror = () => {
-      reject(new Error("이미지를 불러오지 못했습니다."));
-    };
-    image.src = url;
-  });
-}
-
-export type FocusPoint = {
-  focusX: number;
-  focusY: number;
+export type CropRect = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 };
 
-function clampPercent(value: number): number {
-  return Math.min(100, Math.max(0, value));
-}
+export type CropDrawRects = {
+  /** Region of the ORIGINAL image to read from, in its own pixels. */
+  source: CropRect;
+  /** Region of the output canvas to draw into, in canvas pixels. */
+  destination: CropRect;
+};
 
 /**
- * Derives the `focusX`/`focusY` percentages (0-100) to upload alongside the
- * image.
+ * Pure translation of a `CropTransform` (frame-space CSS pixels) into the
+ * `drawImage` source/destination rectangles needed to render the visible
+ * crop at `outputSize` × `outputSize`.
  *
- * These values are consumed by `lam-web` purely as CSS
- * `object-position: focusX% focusY%` on the full (uncropped) image — see
- * `lam-web/components/menu/menu-item-card.tsx` and
- * `lam-web/components/screens/admin-screen.tsx`. Per the CSS spec, a
- * percentage `P` for `object-position` resolves to
- * `offset = (P / 100) * (boxSize - imageSize)`, i.e. exactly the pan
- * `offsetX`/`offsetY` this editor already tracks (`boxSize` is the frame,
- * `imageSize` the scaled image). So `focusX`/`focusY` must be the inverse of
- * that formula — linear interpolation of `offsetX`/`offsetY` between `0` at
- * `0%` and `minX`/`minY` (the most-negative reachable offset, see
- * `clampCropTransform`) at `100%` — NOT the fraction of the scaled image
- * sitting at the frame's center (those two only agree when the crop is
- * exactly centered).
+ * The frame shows `CROP_FRAME_SIZE` CSS pixels of an image laid out at
+ * `baseWidth * scale` × `baseHeight * scale`, with its top-left corner at
+ * `offsetX`/`offsetY` (both <= 0, per `clampCropTransform`). Converting a
+ * frame-space length to original-image pixels is therefore a single ratio
+ * per axis: `naturalWidth / (baseWidth * scale)`. That ratio is what carries
+ * the zoom — at `scale` 3 the same 280px frame covers a third as many source
+ * pixels as at `scale` 1, which is exactly the crop the operator selected.
+ *
+ * `Math.max(0, ...)` / `Math.min(natural - start, ...)` clamp away the
+ * sub-pixel overshoot that floating-point rounding can produce at the pan
+ * extremes; `drawImage` rejects a source rectangle that reaches outside the
+ * image.
  */
-export function computeFocusPoint(transform: CropTransform): FocusPoint {
+export function computeCropDrawRects(
+  transform: CropTransform,
+  naturalSize: ImageNaturalSize,
+  outputSize: number = CROP_OUTPUT_SIZE,
+): CropDrawRects {
   const normalized = clampCropTransform(transform);
+  const { naturalWidth, naturalHeight } = naturalSize;
   const scaledWidth = normalized.baseWidth * normalized.scale;
   const scaledHeight = normalized.baseHeight * normalized.scale;
 
-  const minX = Math.min(0, CROP_FRAME_SIZE - scaledWidth);
-  const minY = Math.min(0, CROP_FRAME_SIZE - scaledHeight);
-
-  // When there's no pan range on an axis (the scaled image exactly fills
-  // the frame there), the offset is pinned at 0 and there is no "point at
-  // the center" to solve for — treat it as centered (50) rather than
-  // dividing by zero.
-  const focusX = minX === 0 ? 50 : clampPercent((100 * normalized.offsetX) / minX);
-  const focusY = minY === 0 ? 50 : clampPercent((100 * normalized.offsetY) / minY);
+  const sourceX = Math.max(0, (-normalized.offsetX / scaledWidth) * naturalWidth);
+  const sourceY = Math.max(0, (-normalized.offsetY / scaledHeight) * naturalHeight);
+  const sourceWidth = Math.min(
+    naturalWidth - sourceX,
+    (CROP_FRAME_SIZE / scaledWidth) * naturalWidth,
+  );
+  const sourceHeight = Math.min(
+    naturalHeight - sourceY,
+    (CROP_FRAME_SIZE / scaledHeight) * naturalHeight,
+  );
 
   return {
-    focusX: Math.round(focusX),
-    focusY: Math.round(focusY),
+    source: { x: sourceX, y: sourceY, width: sourceWidth, height: sourceHeight },
+    destination: { x: 0, y: 0, width: outputSize, height: outputSize },
   };
 }
 
 /**
- * Algebraic inverse of `computeFocusPoint`'s per-axis formula: given a
- * stored `focusX`/`focusY` percentage and the `minX`/`minY` pan bound for a
- * transform (see `clampCropTransform`), recovers the `offsetX`/`offsetY`
- * that produced it. Not currently wired to any UI (this app doesn't yet
- * re-open the crop editor on an existing image's stored focus point) but
- * kept alongside `computeFocusPoint` since the two must stay in exact
- * agreement, and covered by the round-trip test in `crop.test.ts`.
+ * Decodes `url` (an object URL created from the selected `File`) into an
+ * `HTMLImageElement`. Kept as its own export so component code can be tested
+ * without a real image decode.
  */
-export function offsetFromFocusPercent(focusPercent: number, min: number): number {
-  if (min === 0) {
-    return 0;
+export function loadImageElement(url: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    // Technical, never-displayed messages: every caller catches and shows its
+    // own translated copy (see `features/menu`'s `menu:imageLoadFailed` /
+    // `menu:cropFailed`).
+    image.onerror = () => reject(new Error("menu image decode failed"));
+    image.src = url;
+  });
+}
+
+/**
+ * Reads just the natural pixel dimensions of `url`, which
+ * `createInitialCropTransform` needs. Tests mock this one function and keep
+ * every pure geometry helper above real.
+ */
+export async function loadImageNaturalSize(url: string): Promise<ImageNaturalSize> {
+  const image = await loadImageElement(url);
+  return { naturalWidth: image.naturalWidth, naturalHeight: image.naturalHeight };
+}
+
+/**
+ * The one side-effecting step: renders the crop `transform` selects out of
+ * `file` onto a `CROP_OUTPUT_SIZE` square canvas and returns it as a new
+ * `File` ready to upload. All coordinate math lives in
+ * `computeCropDrawRects` above; this only performs the canvas I/O.
+ *
+ * The returned file keeps the original's name so the operator still
+ * recognises it in the upload list, and reuses its MIME type when the
+ * browser's encoder supports it (falling back to whatever `toBlob` actually
+ * produced).
+ */
+export async function cropImageFileToSquare(
+  file: File,
+  transform: CropTransform,
+  outputSize: number = CROP_OUTPUT_SIZE,
+): Promise<File> {
+  const imageUrl = URL.createObjectURL(file);
+
+  try {
+    const image = await loadImageElement(imageUrl);
+    const canvas = document.createElement("canvas");
+    canvas.width = outputSize;
+    canvas.height = outputSize;
+
+    const context = canvas.getContext("2d");
+    if (!context) {
+      throw new Error("menu image canvas context unavailable");
+    }
+
+    const { source, destination } = computeCropDrawRects(
+      transform,
+      { naturalWidth: image.naturalWidth, naturalHeight: image.naturalHeight },
+      outputSize,
+    );
+
+    context.drawImage(
+      image,
+      source.x,
+      source.y,
+      source.width,
+      source.height,
+      destination.x,
+      destination.y,
+      destination.width,
+      destination.height,
+    );
+
+    const blob = await new Promise<Blob | null>((resolve) => {
+      canvas.toBlob(resolve, file.type || "image/png", 0.92);
+    });
+
+    if (!blob) {
+      throw new Error("menu image encode failed");
+    }
+
+    return new File([blob], file.name, { type: blob.type || file.type || "image/png" });
+  } finally {
+    URL.revokeObjectURL(imageUrl);
   }
-  return (focusPercent / 100) * min;
 }
