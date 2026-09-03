@@ -5,6 +5,16 @@ lam-web/node_modules
 lam-web/.next
 lam-web/out
 
+# Admin Web
+lam-admin-web/node_modules
+lam-admin-web/.next
+lam-admin-web/out
+lam-admin-web/test-results
+lam-admin-web/playwright-report
+lam-admin-web/.env
+lam-admin-web/.env.local
+lam-admin-web/*.tsbuildinfo
+
 # API
 lam-api/bin
 lam-api/.env
