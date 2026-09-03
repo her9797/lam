@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "qr:urls": "node scripts/generate-qr-urls.mjs"
   },
   "dependencies": {
     "next": "16.3.0",

@@ -9,11 +9,17 @@ function formatTableLabel(tableNumber: string) {
     return "TABLE";
   }
 
-  if (/^\d{1,2}$/.test(tableNumber)) {
-    return `T-${tableNumber.padStart(2, "0")}`;
+  const normalized = tableNumber.toUpperCase();
+  if (/^[TB]-\d{1,2}$/.test(normalized)) {
+    const [area, number] = normalized.split("-");
+    return `${area}-${number.padStart(2, "0")}`;
   }
 
-  return `T-${tableNumber.toUpperCase()}`;
+  if (/^\d{1,2}$/.test(normalized)) {
+    return `T-${normalized.padStart(2, "0")}`;
+  }
+
+  return `T-${normalized}`;
 }
 
 export function TableSessionBadge({ canEdit = false }: { canEdit?: boolean }) {
@@ -23,6 +29,14 @@ export function TableSessionBadge({ canEdit = false }: { canEdit?: boolean }) {
   const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
+    const url = new URL(window.location.href);
+    const tableFromQr = normalizeTableNumber(url.searchParams.get("table") ?? "");
+    if (tableFromQr) {
+      setStoredTableNumber(tableFromQr);
+      url.searchParams.delete("table");
+      window.history.replaceState({}, "", url);
+    }
+
     const stored = getStoredTableNumber();
     setTableNumber(stored);
     setDraft(stored);

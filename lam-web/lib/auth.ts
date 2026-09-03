@@ -105,6 +105,36 @@ export function getQrAccessToken() {
   return process.env.QR_ACCESS_TOKEN ?? "lam-qr-entry";
 }
 
+function getQrSigningSecret() {
+  return process.env.QR_SIGNING_SECRET ?? "";
+}
+
+export function createQrTableSignature(table: string) {
+  const secret = getQrSigningSecret();
+  if (!secret) {
+    return "";
+  }
+
+  return createHmac("sha256", secret).update(table).digest("hex");
+}
+
+export function isQrTableSignatureValid(table: string, signature: string | null) {
+  if (!signature) {
+    return false;
+  }
+
+  const expectedSignature = createQrTableSignature(table);
+  if (!expectedSignature) {
+    return false;
+  }
+
+  try {
+    return timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSignature));
+  } catch {
+    return false;
+  }
+}
+
 export function getAdminCookieMaxAge() {
   return ADMIN_MAX_AGE_SECONDS;
 }
