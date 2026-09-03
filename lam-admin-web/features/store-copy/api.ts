@@ -9,11 +9,12 @@ const STORE_PROFILE_PATH = "/api/admin/store-profile";
 /**
  * Field names and the "always send all three" constraint are grounded in
  * `lam-api/internal/httpapi/menu.go`'s `updateStoreCopiesRequest` struct and
- * its handler in `router.go`: `PATCH /api/v1/admin/store-profile` decodes
- * exactly these three fields with no partial-update support — a field left
- * out of the JSON body decodes to `""` and overwrites the existing value on
- * the server. So every caller must submit the current value of all three
- * fields, not just the one the operator changed.
+ * its handler in `router.go`: `PATCH /api/v1/admin/store-profile` has no
+ * partial-update support. If any of the three fields is empty (after trimming),
+ * the server rejects the entire request with 400 Bad Request. Therefore, every
+ * caller must submit the current value of all three fields together — omitting
+ * one or sending it empty causes the whole request to be rejected, not a silent
+ * data loss.
  */
 export type StoreCopiesInput = {
   songRequestCopy: string;

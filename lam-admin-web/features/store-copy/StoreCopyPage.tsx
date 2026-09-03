@@ -71,10 +71,9 @@ export function StoreCopyPage() {
 
     // Always sends the full three-field payload, even for the two fields
     // the operator didn't touch — `lam-api`'s
-    // `PATCH /api/v1/admin/store-profile` (`updateStoreCopiesRequest` in
-    // `lam-api/internal/httpapi/menu.go`) has no partial-update support, so
-    // a field omitted from the JSON body decodes to `""` and would
-    // overwrite the existing value on the server.
+    // `PATCH /api/v1/admin/store-profile` has no partial-update support.
+    // If any field is empty, the server rejects the entire request with 400
+    // Bad Request, so all three must be sent together to avoid rejection.
     updateMutation.mutate(
       { songRequestCopy: form.songRequestCopy, requestCopy: form.requestCopy, eventCopy: form.eventCopy },
       {
