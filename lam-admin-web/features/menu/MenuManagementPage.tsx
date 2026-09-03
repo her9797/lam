@@ -153,7 +153,7 @@ export function MenuManagementPage() {
       <h1 className="text-lg font-semibold text-foreground">메뉴 관리</h1>
 
       <CategoryPanel categories={categories} />
-      <MenuItemForm categories={categories} />
+      <MenuItemForm categories={categories} items={items} />
 
       <Card>
         <CardHeader>

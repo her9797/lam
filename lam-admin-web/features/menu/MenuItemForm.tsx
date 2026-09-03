@@ -5,14 +5,23 @@ import type { FormEvent } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
-import type { MenuCategory } from "@/features/bootstrap/model";
+import type { AppData, MenuCategory } from "@/features/bootstrap/model";
 
-import { validateMenuItemForm, type MenuItemFormErrors } from "./model";
-import { useCreateMenuItemMutation } from "./queries";
+import { computeFocusPoint, createInitialCropTransform, loadImageNaturalSize, type CropTransform } from "./crop";
+import { ImageCropEditor } from "./ImageCropEditor";
+import { validateImageFile, validateMenuItemForm, type MenuItemFormErrors } from "./model";
+import { useCreateMenuItemMutation, useUploadMenuItemImageMutation } from "./queries";
+
+type PendingImage = {
+  file: File;
+  imageUrl: string;
+  transform: CropTransform;
+};
 
 type MenuItemFormState = {
   categoryId: string;
@@ -48,10 +57,31 @@ function emptyForm(categoryId: string): MenuItemFormState {
   };
 }
 
-export function MenuItemForm({ categories }: { categories: MenuCategory[] }) {
+type MenuItemFormProps = {
+  categories: MenuCategory[];
+  /**
+   * Current menu items, used solely to capture the "before" id set right
+   * before creating a new item. `lam-api` generates each item's id itself
+   * (`fmt.Sprintf("menu-%d", time.Now().UnixMilli())`,
+   * `lam-api/internal/store/postgres.go`) and the create response only
+   * returns the full refreshed bootstrap tree, not the new id directly —
+   * so the id of the item just created is recovered by diffing this set
+   * against the items in that response (same pattern as
+   * `lam-web/components/screens/admin-screen.tsx`'s `handleMenuSubmit`).
+   * This is what lets an image selected in this form be uploaded to the
+   * right item immediately after creation, in one submit.
+   */
+  items: { id: string }[];
+};
+
+export function MenuItemForm({ categories, items }: MenuItemFormProps) {
   const [form, setForm] = useState<MenuItemFormState>(() => emptyForm(categories[0]?.id ?? ""));
   const [errors, setErrors] = useState<MenuItemFormErrors>({});
+  const [pendingImage, setPendingImage] = useState<PendingImage | null>(null);
+  const [isCropDialogOpen, setIsCropDialogOpen] = useState(false);
+  const [imageError, setImageError] = useState<string | null>(null);
   const createMutation = useCreateMenuItemMutation();
+  const uploadMutation = useUploadMenuItemImageMutation();
 
   // Derived (not synced via an effect) so the selected category stays
   // valid as the category list changes — e.g. the first category is
@@ -61,6 +91,38 @@ export function MenuItemForm({ categories }: { categories: MenuCategory[] }) {
     : categories[0]?.id ?? "";
 
   const hasCategories = categories.length > 0;
+
+  function clearPendingImage() {
+    setPendingImage((current) => {
+      if (current) {
+        URL.revokeObjectURL(current.imageUrl);
+      }
+      return null;
+    });
+  }
+
+  async function handleImageSelected(file: File | undefined) {
+    setImageError(null);
+    if (!file) {
+      return;
+    }
+
+    const validationError = validateImageFile(file);
+    if (validationError) {
+      setImageError(validationError);
+      return;
+    }
+
+    const imageUrl = URL.createObjectURL(file);
+    try {
+      const { naturalWidth, naturalHeight } = await loadImageNaturalSize(imageUrl);
+      setPendingImage({ file, imageUrl, transform: createInitialCropTransform(naturalWidth, naturalHeight) });
+      setIsCropDialogOpen(true);
+    } catch {
+      URL.revokeObjectURL(imageUrl);
+      setImageError("이미지를 불러오지 못했습니다.");
+    }
+  }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -73,6 +135,11 @@ export function MenuItemForm({ categories }: { categories: MenuCategory[] }) {
       return;
     }
 
+    // Captured before the mutation fires so it reflects the item set that
+    // existed prior to this create — see the `items` prop doc above.
+    const previousItemIds = new Set(items.map((item) => item.id));
+    const imageToUpload = pendingImage;
+
     createMutation.mutate(
       {
         categoryId: effectiveCategoryId.trim(),
@@ -83,7 +150,29 @@ export function MenuItemForm({ categories }: { categories: MenuCategory[] }) {
         price: form.price.trim(),
         isVisible: form.isVisible,
       },
-      { onSuccess: () => setForm(emptyForm(effectiveCategoryId)) },
+      {
+        onSuccess: (appData: AppData) => {
+          setForm(emptyForm(effectiveCategoryId));
+          clearPendingImage();
+
+          if (!imageToUpload) {
+            return;
+          }
+          const createdItem = appData.items.find((item) => !previousItemIds.has(item.id));
+          if (!createdItem) {
+            return;
+          }
+          const { focusX, focusY } = computeFocusPoint(imageToUpload.transform);
+          uploadMutation.mutate({
+            menuItemId: createdItem.id,
+            image: imageToUpload.file,
+            isPrimary: true,
+            displayArea: "menu",
+            focusX,
+            focusY,
+          });
+        },
+      },
     );
   }
 
@@ -193,11 +282,53 @@ export function MenuItemForm({ categories }: { categories: MenuCategory[] }) {
               공개
             </label>
 
+            <div className="flex flex-col gap-1.5">
+              <Label>이미지 (선택)</Label>
+              <div className="flex items-center gap-3">
+                <label className="cursor-pointer text-sm text-primary underline-offset-4 hover:underline">
+                  {pendingImage ? "이미지 다시 선택" : "이미지 선택"}
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    className="sr-only"
+                    aria-label="새 메뉴 이미지 선택"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      void handleImageSelected(file);
+                      event.target.value = "";
+                    }}
+                  />
+                </label>
+                {pendingImage ? (
+                  <>
+                    <span className="text-sm text-muted-foreground">{pendingImage.file.name}</span>
+                    <Button type="button" size="sm" variant="outline" onClick={() => setIsCropDialogOpen(true)}>
+                      영역 조정
+                    </Button>
+                    <Button type="button" size="sm" variant="ghost" onClick={clearPendingImage}>
+                      제거
+                    </Button>
+                  </>
+                ) : null}
+              </div>
+              {imageError ? (
+                <p role="alert" className="text-sm text-destructive">
+                  {imageError}
+                </p>
+              ) : null}
+            </div>
+
             {createMutation.isError ? (
               <p role="alert" className="text-sm text-destructive">
                 {createMutation.error instanceof Error
                   ? createMutation.error.message
                   : "메뉴 추가에 실패했습니다."}
+              </p>
+            ) : null}
+
+            {uploadMutation.isError ? (
+              <p role="alert" className="text-sm text-destructive">
+                메뉴는 등록되었지만 이미지 업로드에 실패했습니다. 메뉴 목록에서 이미지를 다시 선택해주세요.
               </p>
             ) : null}
 
@@ -207,6 +338,43 @@ export function MenuItemForm({ categories }: { categories: MenuCategory[] }) {
           </form>
         )}
       </CardContent>
+
+      <Dialog
+        open={isCropDialogOpen}
+        onOpenChange={(open) => {
+          setIsCropDialogOpen(open);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>이미지 영역 선택</DialogTitle>
+          </DialogHeader>
+          {pendingImage ? (
+            <ImageCropEditor
+              imageUrl={pendingImage.imageUrl}
+              transform={pendingImage.transform}
+              onTransformChange={(transform) =>
+                setPendingImage((current) => (current ? { ...current, transform } : current))
+              }
+            />
+          ) : null}
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                clearPendingImage();
+                setIsCropDialogOpen(false);
+              }}
+            >
+              취소
+            </Button>
+            <Button type="button" onClick={() => setIsCropDialogOpen(false)}>
+              확인
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

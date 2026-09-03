@@ -8,6 +8,7 @@ import {
   clampScale,
   computeFocusPoint,
   createInitialCropTransform,
+  offsetFromFocusPercent,
   panCropTransform,
   zoomCropTransform,
   type CropTransform,
@@ -178,30 +179,71 @@ describe("computeFocusPoint", () => {
     expect(computeFocusPoint(transform)).toEqual({ focusX: 50, focusY: 50 });
   });
 
+  it("reports 50 (centered) on an axis with no pan range (minX/minY === 0), not a division by zero", () => {
+    // baseHeight matches the frame exactly at scale 1: no vertical pan
+    // range, so offsetY is pinned at 0 regardless of what's requested.
+    const wide: CropTransform = { baseWidth: CROP_FRAME_SIZE * 2, baseHeight: CROP_FRAME_SIZE, scale: 1, offsetX: 0, offsetY: 0 };
+    expect(computeFocusPoint(wide).focusY).toBe(50);
+  });
+
+  // Matches lam-web's actual CSS object-position formula:
+  // offset = (P / 100) * (boxSize - imageSize). For object-position, the
+  // reachable offset range is [minX, 0] (minX is negative), so the percentage
+  // that reproduces a given offsetX is `focusX = 100 * offsetX / minX` — NOT
+  // the fraction of the scaled image sitting at the frame's center (those
+  // only agree when centered).
+  it("computes the exact CSS-consistent focusX for a fully panned wide image (the review's worked example)", () => {
+    // 400x200 source scaled to baseWidth=560/baseHeight=280 for a
+    // frame=280 crop editor; minX = 280 - 560 = -280, so offsetX=-280 is
+    // the full pan to the right edge.
+    const transform: CropTransform = {
+      baseWidth: 560,
+      baseHeight: 280,
+      scale: 1,
+      offsetX: -280,
+      offsetY: 0,
+    };
+    expect(computeFocusPoint(transform)).toEqual({ focusX: 100, focusY: 50 });
+  });
+
+  it("computes the exact CSS-consistent focusX for a partial pan (not just centered or fully panned)", () => {
+    const start = createInitialCropTransform(400, 200);
+    // start.offsetX === -140 (centered), minX === -280; panning by -40
+    // lands at offsetX === -180, i.e. 180/280 === 64.28...% -> rounds to 64.
+    const panned = panCropTransform(start, -40, 0);
+    expect(panned.offsetX).toBe(-180);
+    expect(computeFocusPoint(panned)).toEqual({ focusX: 64, focusY: 50 });
+  });
+
   it("stays within [0, 100] even when panned to the leftmost/topmost extreme", () => {
     const start = createInitialCropTransform(400, 200);
     const pannedToEdge = panCropTransform(start, 99999, 99999);
-    const { focusX, focusY } = computeFocusPoint(pannedToEdge);
-    expect(focusX).toBeGreaterThanOrEqual(0);
-    expect(focusX).toBeLessThanOrEqual(100);
-    expect(focusY).toBeGreaterThanOrEqual(0);
-    expect(focusY).toBeLessThanOrEqual(100);
+    // Panned fully left: offsetX clamps to 0 -> focusX 0. No vertical pan
+    // range on this image, so focusY stays centered at 50.
+    expect(computeFocusPoint(pannedToEdge)).toEqual({ focusX: 0, focusY: 50 });
   });
 
   it("stays within [0, 100] even when panned to the rightmost/bottommost extreme", () => {
     const start = createInitialCropTransform(400, 200);
     const pannedToEdge = panCropTransform(start, -99999, -99999);
-    const { focusX, focusY } = computeFocusPoint(pannedToEdge);
-    expect(focusX).toBeGreaterThanOrEqual(0);
-    expect(focusX).toBeLessThanOrEqual(100);
-    expect(focusY).toBeGreaterThanOrEqual(0);
-    expect(focusY).toBeLessThanOrEqual(100);
+    // Panned fully right: offsetX clamps to minX (-280) -> focusX 100.
+    expect(computeFocusPoint(pannedToEdge)).toEqual({ focusX: 100, focusY: 50 });
   });
 
-  it("moves toward 0 as the image is panned so its right side approaches the frame center", () => {
+  it("round-trips through offsetFromFocusPercent for a non-trivial (off-center, zoomed) pan", () => {
     const start = createInitialCropTransform(400, 200);
-    const centered = computeFocusPoint(start);
-    const pannedRight = computeFocusPoint(panCropTransform(start, -40, 0));
-    expect(pannedRight.focusX).toBeGreaterThan(centered.focusX);
+    const zoomed = zoomCropTransform(start, 2);
+    const panned = panCropTransform(zoomed, -30, 0);
+
+    const scaledWidth = panned.baseWidth * panned.scale;
+    const minX = Math.min(0, CROP_FRAME_SIZE - scaledWidth);
+    const { focusX } = computeFocusPoint(panned);
+
+    // computeFocusPoint rounds focusX to the nearest integer percent, so
+    // the round trip can be off by at most half a percent of the pan
+    // range (|minX| / 200) — well short of the ~70px/25%-of-frame
+    // discrepancy the old (incorrect) formula produced.
+    const roundedOffset = offsetFromFocusPercent(focusX, minX);
+    expect(Math.abs(roundedOffset - panned.offsetX)).toBeLessThanOrEqual(Math.abs(minX) / 200 + 0.001);
   });
 });

@@ -311,6 +311,59 @@ describe("MenuManagementPage", () => {
       },
       expect.anything(),
     );
+    expect(uploadMenuItemImageMutate).not.toHaveBeenCalled();
+  });
+
+  it("uploads an image attached to the create form to the newly-created item, found by diffing item ids (id-diff chaining)", async () => {
+    render(<MenuManagementPage />);
+
+    fireEvent.change(screen.getByLabelText("이름"), { target: { value: "라떼" } });
+    fireEvent.change(screen.getByLabelText("가격"), { target: { value: "4500" } });
+
+    const file = new File([new Uint8Array(10)], "new-item.jpg", { type: "image/jpeg" });
+    const imageInput = screen.getByLabelText("새 메뉴 이미지 선택");
+    fireEvent.change(imageInput, { target: { files: [file] } });
+
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "확인" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "메뉴 추가" }));
+
+    expect(createMenuItemMutate).toHaveBeenCalledTimes(1);
+    expect(uploadMenuItemImageMutate).not.toHaveBeenCalled();
+
+    // Simulate the create mutation resolving with the refreshed bootstrap
+    // tree: the pre-existing "menu-1" plus one new item the server assigned
+    // its own id to. The new item's id isn't known ahead of time — it must
+    // be recovered by diffing against the item ids that existed before this
+    // create (the pattern from `lam-web`'s admin screen).
+    const onSuccess = createMenuItemMutate.mock.calls[0][1].onSuccess as (data: AppData) => void;
+    const nextData: AppData = {
+      ...FIXTURE,
+      items: [
+        ...FIXTURE.items,
+        {
+          id: "menu-999",
+          categoryId: "drinks",
+          name: "라떼",
+          description: "",
+          price: "4500",
+          isVisible: true,
+        },
+      ],
+    };
+    act(() => onSuccess(nextData));
+
+    const expectedFocus = computeFocusPoint(createInitialCropTransform(400, 200));
+    expect(uploadMenuItemImageMutate).toHaveBeenCalledTimes(1);
+    expect(uploadMenuItemImageMutate).toHaveBeenCalledWith({
+      menuItemId: "menu-999",
+      image: file,
+      isPrimary: true,
+      displayArea: "menu",
+      focusX: expectedFocus.focusX,
+      focusY: expectedFocus.focusY,
+    });
   });
 
   it("toggles menu item visibility", () => {

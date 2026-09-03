@@ -160,20 +160,55 @@ function clampPercent(value: number): number {
 
 /**
  * Derives the `focusX`/`focusY` percentages (0-100) to upload alongside the
- * image: the position, within the original image, of the point currently
- * at the frame's center.
+ * image.
+ *
+ * These values are consumed by `lam-web` purely as CSS
+ * `object-position: focusX% focusY%` on the full (uncropped) image — see
+ * `lam-web/components/menu/menu-item-card.tsx` and
+ * `lam-web/components/screens/admin-screen.tsx`. Per the CSS spec, a
+ * percentage `P` for `object-position` resolves to
+ * `offset = (P / 100) * (boxSize - imageSize)`, i.e. exactly the pan
+ * `offsetX`/`offsetY` this editor already tracks (`boxSize` is the frame,
+ * `imageSize` the scaled image). So `focusX`/`focusY` must be the inverse of
+ * that formula — linear interpolation of `offsetX`/`offsetY` between `0` at
+ * `0%` and `minX`/`minY` (the most-negative reachable offset, see
+ * `clampCropTransform`) at `100%` — NOT the fraction of the scaled image
+ * sitting at the frame's center (those two only agree when the crop is
+ * exactly centered).
  */
 export function computeFocusPoint(transform: CropTransform): FocusPoint {
   const normalized = clampCropTransform(transform);
   const scaledWidth = normalized.baseWidth * normalized.scale;
   const scaledHeight = normalized.baseHeight * normalized.scale;
-  const frameCenter = CROP_FRAME_SIZE / 2;
 
-  const fractionX = (frameCenter - normalized.offsetX) / scaledWidth;
-  const fractionY = (frameCenter - normalized.offsetY) / scaledHeight;
+  const minX = Math.min(0, CROP_FRAME_SIZE - scaledWidth);
+  const minY = Math.min(0, CROP_FRAME_SIZE - scaledHeight);
+
+  // When there's no pan range on an axis (the scaled image exactly fills
+  // the frame there), the offset is pinned at 0 and there is no "point at
+  // the center" to solve for — treat it as centered (50) rather than
+  // dividing by zero.
+  const focusX = minX === 0 ? 50 : clampPercent((100 * normalized.offsetX) / minX);
+  const focusY = minY === 0 ? 50 : clampPercent((100 * normalized.offsetY) / minY);
 
   return {
-    focusX: Math.round(clampPercent(fractionX * 100)),
-    focusY: Math.round(clampPercent(fractionY * 100)),
+    focusX: Math.round(focusX),
+    focusY: Math.round(focusY),
   };
+}
+
+/**
+ * Algebraic inverse of `computeFocusPoint`'s per-axis formula: given a
+ * stored `focusX`/`focusY` percentage and the `minX`/`minY` pan bound for a
+ * transform (see `clampCropTransform`), recovers the `offsetX`/`offsetY`
+ * that produced it. Not currently wired to any UI (this app doesn't yet
+ * re-open the crop editor on an existing image's stored focus point) but
+ * kept alongside `computeFocusPoint` since the two must stay in exact
+ * agreement, and covered by the round-trip test in `crop.test.ts`.
+ */
+export function offsetFromFocusPercent(focusPercent: number, min: number): number {
+  if (min === 0) {
+    return 0;
+  }
+  return (focusPercent / 100) * min;
 }
