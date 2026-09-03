@@ -144,7 +144,7 @@ export function RequestsScreen({ store, initialCategory }: RequestsScreenProps) 
       <ScrollTopButton />
       <div className="phone-frame">
         <header className="hero-card compact">
-          <p className="eyebrow">BAR LAM</p>
+          <p className="eyebrow">BAR LAAM</p>
           <h1>{activeCategory === "special" ? "특별한 요청" : "사장님께 한마디"}</h1>
           <p className="hero-copy">
             {activeCategory === "special"

@@ -15,7 +15,7 @@ export function EventsScreen({ store, notices }: EventsScreenProps) {
       <ScrollTopButton />
       <div className="phone-frame">
         <header className="hero-card compact">
-          <p className="eyebrow">BAR LAM</p>
+          <p className="eyebrow">BAR LAAM</p>
           <h1>이벤트</h1>
           <p className="hero-copy">{store.eventCopy}</p>
         </header>

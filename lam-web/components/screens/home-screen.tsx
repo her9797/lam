@@ -16,7 +16,7 @@ export function HomeScreen({ store, canEditTable }: HomeScreenProps) {
       <FloatingHomeBadge active />
       <div className="phone-frame">
         <header className="hero-card">
-          <p className="eyebrow">BAR LAM</p>
+          <p className="eyebrow">BAR LAAM</p>
           <h1>{store.name}</h1>
           <div className="hero-badge-row">
             <a
@@ -32,7 +32,7 @@ export function HomeScreen({ store, canEditTable }: HomeScreenProps) {
         </header>
         <PrimaryNav canEditTable={canEditTable} />
 
-        <section className="home-vinyl-card" aria-label="BAR LAM 음악 안내">
+        <section className="home-vinyl-card" aria-label="BAR LAAM 음악 안내">
           <div className="home-vinyl-copy">
             <p className="section-kicker">after dark</p>
             <h2>
@@ -44,7 +44,7 @@ export function HomeScreen({ store, canEditTable }: HomeScreenProps) {
           </div>
           <div className="home-vinyl-record" aria-hidden="true">
             <div className="home-vinyl-label">
-              <span>lam</span>
+              <span>laam</span>
             </div>
           </div>
           <nav className="home-feature-links" aria-label="손님 메뉴 안내">

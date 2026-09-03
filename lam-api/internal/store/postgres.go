@@ -151,6 +151,7 @@ ALTER TABLE special_requests ADD COLUMN IF NOT EXISTS table_number TEXT NOT NULL
 ALTER TABLE store_profile ADD COLUMN IF NOT EXISTS song_request_copy TEXT NOT NULL DEFAULT '';
 ALTER TABLE store_profile ADD COLUMN IF NOT EXISTS request_copy TEXT NOT NULL DEFAULT '';
 ALTER TABLE store_profile ADD COLUMN IF NOT EXISTS event_copy TEXT NOT NULL DEFAULT '';
+UPDATE store_profile SET name = 'laam' WHERE id = 1 AND name = 'lam';
 UPDATE store_profile
 SET address = '서울 마포구 망원동 57-23'
 WHERE id = 1 AND address = '서울 강남구';
@@ -209,7 +210,7 @@ func (r *Repository) SeedDefaults(ctx context.Context) error {
 	defer tx.Rollback(ctx)
 
 	if _, err := tx.Exec(ctx, `INSERT INTO store_profile (id, name, subtitle, address) VALUES (1, $1, $2, $3)`,
-		"lam", "혼술 바를 위한 QR 메뉴 초안", "서울 마포구 망원동 57-23"); err != nil {
+		"laam", "혼술 바를 위한 QR 메뉴 초안", "서울 마포구 망원동 57-23"); err != nil {
 		return err
 	}
 
@@ -227,7 +228,7 @@ func (r *Repository) SeedDefaults(ctx context.Context) error {
 	}
 
 	items := []lamdata.MenuItem{
-		{ID: "steak", CategoryID: "signature", Badge: "signature", Name: "lam 시그니처 스테이크", Description: "짙은 풍미의 스테이크와 구운 채소", Price: "29,000원", IsVisible: true},
+		{ID: "steak", CategoryID: "signature", Badge: "signature", Name: "laam 시그니처 스테이크", Description: "짙은 풍미의 스테이크와 구운 채소", Price: "29,000원", IsVisible: true},
 		{ID: "truffle-fries", CategoryID: "signature", Badge: "best", Name: "트러플 프라이", Description: "가볍게 시작하기 좋은 인기 메뉴", Price: "11,000원"},
 		{ID: "beef-tartare", CategoryID: "signature", Badge: "chef", Name: "비프 타르타르", Description: "고소한 노른자와 허브 오일을 곁들인 시그니처 플레이트", Price: "19,000원"},
 		{ID: "octopus-carpaccio", CategoryID: "signature", Name: "문어 카르파초", Description: "산뜻한 시트러스 드레싱과 후추의 밸런스", Price: "21,000원"},

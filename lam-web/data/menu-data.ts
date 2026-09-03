@@ -45,7 +45,7 @@ export type StoreInfo = {
 };
 
 export const store: StoreInfo = {
-  name: "lam",
+  name: "laam",
   subtitle: "혼술 바를 위한 QR 메뉴 초안",
   address: "서울 마포구 망원동 57-23",
   songRequestCopy: "듣고 싶은 곡을 남겨주세요.",
@@ -66,7 +66,7 @@ export const menuItems: MenuItem[] = [
     id: "steak",
     categoryId: "signature",
     badge: "signature",
-    name: "lam 시그니처 스테이크",
+    name: "laam 시그니처 스테이크",
     description: "짙은 풍미의 스테이크와 구운 채소",
     price: "29,000원",
   },

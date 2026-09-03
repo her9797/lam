@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "bar-lam",
-  description: "lam QR menu mobile web",
+  title: "bar-laam",
+  description: "laam QR menu mobile web",
 };
 
 export default function RootLayout({

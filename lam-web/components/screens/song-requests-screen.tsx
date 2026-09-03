@@ -58,7 +58,7 @@ export function SongRequestsScreen({ store }: SongRequestsScreenProps) {
       <ScrollTopButton />
       <div className="phone-frame">
         <header className="hero-card compact">
-          <p className="eyebrow">BAR LAM</p>
+          <p className="eyebrow">BAR LAAM</p>
           <h1>노래신청</h1>
           <p className="hero-copy">{store.songRequestCopy}</p>
         </header>
