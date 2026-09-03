@@ -1,5 +1,9 @@
 .DS_Store
 
+# Docker Compose가 읽는 루트 환경변수 파일(ADMIN_PASSWORD, SESSION_SECRET 등)
+.env
+.env.local
+
 # Web
 lam-web/node_modules
 lam-web/.next

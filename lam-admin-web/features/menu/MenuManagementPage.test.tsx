@@ -282,6 +282,48 @@ describe("MenuManagementPage", () => {
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
   });
 
+  it("surfaces a failed category delete inside the still-open confirm dialog", () => {
+    deleteCategoryMutationState.current = {
+      ...idleMutation(deleteCategoryMutate),
+      isError: true,
+      error: new Error("카테고리를 삭제할 수 없습니다. (409)"),
+    };
+
+    render(<MenuManagementPage />);
+
+    const categoryRow = screen.getByText("drinks").closest("tr");
+    if (!categoryRow) {
+      throw new Error("category row not found");
+    }
+    fireEvent.click(within(categoryRow).getByRole("button", { name: "삭제" }));
+
+    const confirmDialog = screen.getByRole("alertdialog");
+    expect(within(confirmDialog).getByRole("alert")).toHaveTextContent(
+      "카테고리를 삭제할 수 없습니다. (409)",
+    );
+  });
+
+  it("surfaces a failed menu item delete inside the still-open confirm dialog", () => {
+    deleteMenuItemMutationState.current = {
+      ...idleMutation(deleteMenuItemMutate),
+      isError: true,
+      error: new Error("메뉴를 삭제할 수 없습니다. (500)"),
+    };
+
+    render(<MenuManagementPage />);
+
+    const menuRow = screen.getByText("아메리카노").closest("tr");
+    if (!menuRow) {
+      throw new Error("menu row not found");
+    }
+    fireEvent.click(within(menuRow).getByRole("button", { name: "삭제" }));
+
+    const confirmDialog = screen.getByRole("alertdialog");
+    expect(within(confirmDialog).getByRole("alert")).toHaveTextContent(
+      "메뉴를 삭제할 수 없습니다. (500)",
+    );
+  });
+
   it("shows a field error and does not submit when the menu item form is left empty", () => {
     render(<MenuManagementPage />);
 

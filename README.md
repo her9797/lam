@@ -186,10 +186,20 @@ http://localhost:3000
 
 `docker-compose.yml`은 PostgreSQL, `lam-api`, `lam-web`, `lam-admin-web` 네 서비스를 함께 띄웁니다. 기존 PostgreSQL 설정과 `lam-postgres-data` volume은 그대로 유지됩니다.
 
+`lam-admin-web`의 `ADMIN_PASSWORD`와 `SESSION_SECRET`에는 **기본값이 없습니다.** 두 값이 설정되어 있지 않으면 `docker compose config`/`docker compose up`이 즉시 실패합니다(fail-loud). 실행 전에 저장소 루트에 `.env` 파일을 만들거나 셸 환경변수로 내보내세요.
+
 ```bash
+cat > .env <<'EOF'
+ADMIN_PASSWORD=로컬에서_사용할_비밀번호
+SESSION_SECRET=로컬에서_사용할_세션_서명키
+EOF
+# 또는: export ADMIN_PASSWORD=... SESSION_SECRET=...
+
 docker compose up -d --build
 docker compose ps
 ```
+
+`.env`는 커밋하지 않습니다(실제 secret을 저장소에 남기지 않는다).
 
 | 서비스 | 컨테이너 이름 | Host 포트 | 설명 |
 | --- | --- | --- | --- |
@@ -198,13 +208,12 @@ docker compose ps
 | `lam-web` | `lam-web` | `3000` | 손님용 웹(+ 기존 관리자 UI) |
 | `lam-admin-web` | `lam-admin-web` | `3001` | 신규 관리자 웹, 로그인: `http://localhost:3001/login` |
 
-필수 교체 secret(compose 기본값은 로컬 개발용 placeholder이며, 운영 배포 전 반드시 교체한다):
+환경변수 구분:
 
-- `ADMIN_API_TOKEN` (`lam-api`, `lam-admin-web` 공통, 두 값이 반드시 동일해야 한다)
-- `ADMIN_PASSWORD`, `SESSION_SECRET` (`lam-admin-web`)
-- `STAFF_ENTRY_TOKEN` (`lam-web`)
+- **필수(기본값 없음, 미설정 시 compose 실패)**: `ADMIN_PASSWORD`, `SESSION_SECRET` (`lam-admin-web` 로그인을 통과시키는 값)
+- **로컬 개발용 기본값 있음(운영 배포 전 반드시 교체)**: `ADMIN_API_TOKEN` (`lam-api`·`lam-admin-web` 공통 기본값 `lam-admin-api-token`, 두 값이 반드시 동일해야 한다), `STAFF_ENTRY_TOKEN` (`lam-web`, 기본값 빈 문자열)
 
-셸 환경변수로 덮어쓸 수 있습니다.
+필수 값을 포함해 셸 환경변수로 덮어쓸 수 있습니다.
 
 ```bash
 ADMIN_API_TOKEN=... ADMIN_PASSWORD=... SESSION_SECRET=... docker compose up -d --build

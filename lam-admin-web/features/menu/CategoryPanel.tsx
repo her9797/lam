@@ -209,6 +209,20 @@ export function CategoryPanel({ categories }: { categories: MenuCategory[] }) {
               삭제하면 되돌릴 수 없습니다.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {/*
+            A failed delete leaves this dialog open (it only closes in the
+            mutation's own `onSuccess`), so the failure has to be reported
+            here rather than in the page body behind the dialog — same
+            `isError` surfacing as `NoticeManagementPage`/`SpecialRequestPage`,
+            placed where it's actually visible.
+          */}
+          {deleteMutation.isError ? (
+            <p role="alert" className="text-sm text-destructive">
+              {deleteMutation.error instanceof Error
+                ? deleteMutation.error.message
+                : "카테고리 삭제에 실패했습니다."}
+            </p>
+          ) : null}
           <AlertDialogFooter>
             <AlertDialogCancel>취소</AlertDialogCancel>
             <AlertDialogAction disabled={deleteMutation.isPending} onClick={handleConfirmDelete}>
