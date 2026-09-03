@@ -5,7 +5,7 @@ import "@/i18n/client";
 import Link from "next/link";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ErrorState, LoadingState } from "@/components/states/PageStates";
+import { EmptyState, ErrorState, LoadingState } from "@/components/states/PageStates";
 import { useBootstrapQuery } from "@/features/bootstrap/queries";
 import { useCustomerRequestsQuery } from "@/features/requests/queries";
 import { useSpecialRequestsQuery } from "@/features/special-requests/queries";
@@ -109,26 +109,43 @@ export function DashboardPage() {
     requestsQuery.data,
     specialRequestsQuery.data,
   );
-  const cards = buildCards(summary);
+  // All 3 queries have already succeeded above (the loading/error branches
+  // returned first) — "empty" here means every aggregate count is genuinely
+  // zero: no pending general or song requests, no special requests, no menu
+  // items, no notices. That's the only state where a bare "0" on every card
+  // would otherwise look indistinguishable from a data-loading problem.
+  const isEmpty =
+    summary.pendingGeneralRequestCount === 0 &&
+    summary.pendingSongRequestCount === 0 &&
+    summary.specialRequestCount === 0 &&
+    summary.menuItemCount === 0 &&
+    summary.noticeCount === 0;
 
   return (
     <div className="flex flex-col gap-4">
       <h1 className="text-lg font-semibold text-foreground">대시보드</h1>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {cards.map((card) => (
-          <Link key={card.key} href={card.href} className="block">
-            <Card className="transition-shadow hover:shadow-lg">
-              <CardHeader>
-                <CardTitle>{card.title}</CardTitle>
-                <CardDescription>{card.description}</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-2xl font-semibold text-foreground">{card.value}</p>
-              </CardContent>
-            </Card>
-          </Link>
-        ))}
-      </div>
+      {isEmpty ? (
+        <EmptyState
+          title="표시할 데이터가 없습니다."
+          description="요청, 메뉴, 공지가 등록되면 이 대시보드에 표시됩니다."
+        />
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {buildCards(summary).map((card) => (
+            <Link key={card.key} href={card.href} className="block">
+              <Card className="transition-shadow hover:shadow-lg">
+                <CardHeader>
+                  <CardTitle>{card.title}</CardTitle>
+                  <CardDescription>{card.description}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-2xl font-semibold text-foreground">{card.value}</p>
+                </CardContent>
+              </Card>
+            </Link>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

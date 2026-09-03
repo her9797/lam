@@ -10,11 +10,16 @@ import { Button } from "@/components/ui/button"
 // radix) — this primitive did not exist after Task 1; it is added here
 // because Task 5's special-request delete confirmation needs a dedicated
 // "are you sure" dialog distinct from the plain `Dialog` used for the
-// detail view. Base-ui's alert-dialog module only exposes a single
-// `Close` part (no separate Action/Cancel primitives like radix), so
-// `AlertDialogAction`/`AlertDialogCancel` below both wrap `Close` and are
-// differentiated purely by button styling, matching how radix's own
-// `AlertDialogAction`/`Cancel` behave (either one closes the dialog).
+// detail view. Base-ui's alert-dialog module only exposes a single `Close`
+// part (no separate Action/Cancel primitives like radix). `AlertDialogCancel`
+// wraps `Close` so cancelling always closes the dialog immediately.
+// `AlertDialogAction`, however, is a plain `Button` (no `Close` wrapper) —
+// `Close` unconditionally calls `store.setOpen(false, ...)` on click,
+// merged with any consumer `onClick`, so wrapping it here would close the
+// dialog on every click regardless of whether the consumer's async action
+// (e.g. a delete mutation) is pending, succeeds, or fails. Rendering a plain
+// `Button` instead leaves the close decision entirely to the consumer, who
+// should close the dialog themselves (e.g. in the mutation's `onSuccess`).
 function AlertDialog({ ...props }: AlertDialogPrimitive.Root.Props) {
   return <AlertDialogPrimitive.Root data-slot="alert-dialog" {...props} />
 }
@@ -117,14 +122,14 @@ function AlertDialogDescription({
 
 function AlertDialogAction({
   className,
-  render = <Button variant="destructive" />,
+  variant = "destructive",
   ...props
-}: AlertDialogPrimitive.Close.Props) {
+}: React.ComponentProps<typeof Button>) {
   return (
-    <AlertDialogPrimitive.Close
+    <Button
       data-slot="alert-dialog-action"
-      render={render}
-      className={className}
+      variant={variant}
+      className={cn(className)}
       {...props}
     />
   )

@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { SpecialRequest } from "./model";
@@ -139,6 +139,28 @@ describe("SpecialRequestPage", () => {
     fireEvent.click(within(confirmDialog).getByRole("button", { name: "삭제" }));
 
     expect(mutateMock).toHaveBeenCalledWith("s1", expect.anything());
+  });
+
+  it("keeps the confirm dialog open while the delete mutation is pending, and closes it only after onSuccess fires", () => {
+    render(<SpecialRequestPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "삭제" }));
+
+    const confirmDialog = screen.getByRole("alertdialog");
+    fireEvent.click(within(confirmDialog).getByRole("button", { name: "삭제" }));
+
+    // The mutation was invoked, but `mutateMock` never resolved it — the
+    // dialog must not auto-close just because the action button was
+    // clicked; only the mutation's own `onSuccess` should close it.
+    expect(mutateMock).toHaveBeenCalledWith("s1", expect.anything());
+    expect(screen.getByRole("alertdialog")).toBeInTheDocument();
+
+    const onSuccess = mutateMock.mock.calls[0][1].onSuccess as () => void;
+    act(() => {
+      onSuccess();
+    });
+
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
   });
 
   it("disables the delete action while its own mutation is in flight, preventing duplicate submission", () => {
