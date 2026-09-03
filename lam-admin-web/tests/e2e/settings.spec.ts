@@ -37,6 +37,10 @@ test.describe("설정과 모바일 내비게이션 회귀", () => {
     // the reloaded page renders in English again without re-selecting it.
     await expect(navDashboardLink).toHaveText("Dashboard");
     await expect(page.getByRole("button", { name: /Language:/ })).toBeVisible();
+    // Accessibility: screen readers rely on `<html lang>`, not just the
+    // visible text, so the restored-from-storage locale must also update it
+    // (per the design spec's "언어 변경 시 문서의 lang 속성도 갱신한다").
+    await expect(page.locator("html")).toHaveAttribute("lang", "en");
   });
 
   test("다크 테마를 선택하면 새로고침 후에도 유지된다", async ({ page }) => {
