@@ -64,7 +64,7 @@ services:
       # (http://lam-api:8080)은 컨테이너 사이에서만 풀리고 호스트의 브라우저에서는
       # 풀리지 않아 메뉴 이미지가 깨진다 — 알려진 제약이며 자세한 내용과 회피 방법은
       # 루트 README.md의 "Docker Compose 실행" 항목을 참고한다.
-      API_BASE_URL: "http://lam-api:8080"
+      API_BASE_URL: "${API_BASE_URL:-http://lam-api:8080}"
       ADMIN_API_TOKEN: "${ADMIN_API_TOKEN:-lam-admin-api-token}"
       ADMIN_PASSWORD: "${ADMIN_PASSWORD:-lam-admin-dev-password}"
       SESSION_SECRET: "${SESSION_SECRET:-lam-admin-dev-session-secret-change-me}"

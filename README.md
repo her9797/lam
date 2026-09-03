@@ -216,11 +216,13 @@ ADMIN_API_TOKEN=... ADMIN_PASSWORD=... SESSION_SECRET=... docker compose up -d -
 
 기본값(`http://lam-api:8080`)은 Compose 내부 DNS 이름이라 컨테이너 사이에서만 풀리고, 호스트 브라우저에서는 풀리지 않습니다. 그 결과 관리자 웹을 호스트 브라우저(`http://localhost:3001`)로 열면 다른 데이터는 정상 로드되지만 메뉴 이미지만 깨져 보입니다.
 
-호스트 브라우저에서 이미지까지 정상적으로 보려면, `lam-admin-web` 서비스의 `API_BASE_URL`만 호스트에서 접근 가능한 주소(`lam-api`가 호스트에 게시된 포트 `9090`)로 덮어써서 실행하세요.
+호스트 브라우저에서 이미지까지 정상적으로 보려면, `lam-admin-web` 서비스의 `API_BASE_URL`만 호스트에서 접근 가능한 주소(`lam-api`가 호스트에 게시된 포트 `9090`)로 덮어써서 실행하세요. `docker-compose.yml`의 `lam-admin-web.environment.API_BASE_URL`은 `${API_BASE_URL:-http://lam-api:8080}` 형태로 셸 변수를 참조하므로, 아래처럼 실행 전에 셸 변수를 설정하면 실제로 반영됩니다.
 
 ```bash
 API_BASE_URL=http://localhost:9090 docker compose up -d --build lam-admin-web
 ```
+
+이 override는 `lam-admin-web` 서비스에만 적용됩니다. `lam-api`는 `API_BASE_URL`이라는 이름의 환경변수를 아예 사용하지 않고(`APP_ADDR`으로 자신의 리슨 주소를 설정), `lam-web`의 `API_BASE_URL`은 compose 파일에 `http://lam-api:8080`이 고정 문자열로 적혀 있어 셸 변수를 참조하지 않습니다. 따라서 이 override는 `lam-api`나 `lam-web`의 동작을 바꾸지 않습니다.
 
 이 경우 `lam-admin-web` 컨테이너 내부의 서버 사이드 fetch도 호스트로 나갔다가 다시 호스트의 게시된 포트로 들어오므로 정상 동작합니다. 위 override 없이 기본값 그대로 사용하는 경우, 메뉴 이미지가 깨지는 것은 알려진 제약으로 간주하고 다른 화면 확인에는 영향이 없습니다.
 
