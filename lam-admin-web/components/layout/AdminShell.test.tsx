@@ -87,18 +87,21 @@ describe("AdminShell", () => {
     expect(screen.getByText("page content")).toBeInTheDocument();
   });
 
-  it("provides a keyboard-reachable skip link targeting the main content", () => {
+  it("renders main content with the id the root layout's skip link targets", () => {
+    // The root layout (`app/layout.tsx`) renders the single global skip
+    // link, targeting `#main-content`. AdminShell must not render its own
+    // second skip link — it only needs to give `<main>` this matching id.
     render(
       <AdminShell>
         <p>page content</p>
       </AdminShell>,
     );
 
-    const skipLink = screen.getByRole("link", { name: "본문으로 바로가기" });
-    expect(skipLink.tagName).toBe("A");
-    expect(skipLink).toHaveAttribute("href", "#admin-main-content");
+    expect(
+      screen.queryByRole("link", { name: "본문으로 바로가기" }),
+    ).not.toBeInTheDocument();
 
-    const main = document.getElementById("admin-main-content");
+    const main = document.getElementById("main-content");
     expect(main).not.toBeNull();
     expect(main?.tagName).toBe("MAIN");
   });
@@ -125,34 +128,34 @@ describe("AdminShell", () => {
     expect(within(dialog).getByRole("link", { name: "대시보드" })).toBeInTheDocument();
   });
 
-  it("exposes a keyboard-operable language menu that switches locale", () => {
+  it("exposes a keyboard-operable language menu trigger", () => {
+    // Opening the menu (base-ui `DropdownMenu`, floating-ui anchor
+    // positioning) is not exercised here — see ThemeMenu.test.tsx /
+    // LanguageMenu.test.tsx for the documented reason it can't run under
+    // jsdom, and the wiring coverage for each option. This asserts the
+    // shell composes a real, enabled, keyboard-reachable native button for
+    // it (Enter/Space activation is native browser behavior).
     render(
       <AdminShell>
         <p>page content</p>
       </AdminShell>,
     );
 
-    const languageSelect = screen.getByLabelText("언어") as HTMLSelectElement;
-    expect(languageSelect.tagName).toBe("SELECT");
-
-    fireEvent.change(languageSelect, { target: { value: "en" } });
-
-    expect(screen.getByRole("link", { name: "Dashboard" })).toBeInTheDocument();
+    const languageTrigger = screen.getByRole("button", { name: /언어:/ });
+    expect(languageTrigger.tagName).toBe("BUTTON");
+    expect(languageTrigger).not.toBeDisabled();
   });
 
-  it("exposes a keyboard-operable theme menu that switches theme", () => {
+  it("exposes a keyboard-operable theme menu trigger", () => {
     render(
       <AdminShell>
         <p>page content</p>
       </AdminShell>,
     );
 
-    const themeSelect = screen.getByLabelText("테마") as HTMLSelectElement;
-    expect(themeSelect.tagName).toBe("SELECT");
-
-    fireEvent.change(themeSelect, { target: { value: "dark" } });
-
-    expect(document.documentElement.classList.contains("dark")).toBe(true);
+    const themeTrigger = screen.getByRole("button", { name: /테마:/ });
+    expect(themeTrigger.tagName).toBe("BUTTON");
+    expect(themeTrigger).not.toBeDisabled();
   });
 
   it("logs out via a keyboard-operable button and redirects to the login page", async () => {

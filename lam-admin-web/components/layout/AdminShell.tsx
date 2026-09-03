@@ -35,7 +35,10 @@ import { LanguageMenu } from "@/features/settings/LanguageMenu";
 import { ThemeMenu } from "@/features/settings/ThemeMenu";
 import { ThemeProvider } from "@/features/settings/ThemeProvider";
 
-const MAIN_CONTENT_ID = "admin-main-content";
+// Must match the root layout's skip link target (`app/layout.tsx`) so the
+// single global skip link works on admin pages too — this shell must not
+// render a second, duplicate skip link.
+const MAIN_CONTENT_ID = "main-content";
 
 type NavItem = {
   href: string;
@@ -81,9 +84,6 @@ function AdminShellContent({ children }: { children: ReactNode }) {
 
   return (
     <SidebarProvider>
-      <a href={`#${MAIN_CONTENT_ID}`} className="skip-link">
-        {t("skipToContent")}
-      </a>
       <Sidebar collapsible="icon">
         <SidebarHeader>
           <span className="px-2 py-1 text-sm font-semibold text-sidebar-foreground">

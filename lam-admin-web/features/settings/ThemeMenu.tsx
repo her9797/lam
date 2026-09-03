@@ -1,7 +1,16 @@
 "use client";
 
-import { useId } from "react";
+import { RiCheckLine } from "@remixicon/react";
 import { useTranslation } from "react-i18next";
+
+import { buttonVariants } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { cn } from "@/lib/utils";
 
 import type { Theme } from "./theme";
 import { useTheme } from "./ThemeProvider";
@@ -17,25 +26,26 @@ const THEME_LABEL_KEYS: Record<Theme, string> = {
 export function ThemeMenu() {
   const { t } = useTranslation();
   const { theme, setTheme } = useTheme();
-  const selectId = useId();
 
   return (
-    <div className="flex items-center gap-2">
-      <label htmlFor={selectId} className="sr-only">
-        {t("theme")}
-      </label>
-      <select
-        id={selectId}
-        className="select-control h-9 w-auto min-h-0"
-        value={theme}
-        onChange={(event) => setTheme(event.target.value as Theme)}
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+        aria-label={`${t("theme")}: ${t(THEME_LABEL_KEYS[theme])}`}
       >
+        {t(THEME_LABEL_KEYS[theme])}
+      </DropdownMenuTrigger>
+      <DropdownMenuContent>
         {THEME_OPTIONS.map((option) => (
-          <option key={option} value={option}>
+          <DropdownMenuItem key={option} onClick={() => setTheme(option)}>
+            <RiCheckLine
+              className={cn("size-4", theme !== option && "invisible")}
+              aria-hidden="true"
+            />
             {t(THEME_LABEL_KEYS[option])}
-          </option>
+          </DropdownMenuItem>
         ))}
-      </select>
-    </div>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

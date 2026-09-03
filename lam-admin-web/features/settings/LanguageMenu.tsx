@@ -1,7 +1,16 @@
 "use client";
 
-import { useId } from "react";
+import { RiCheckLine } from "@remixicon/react";
 import { useTranslation } from "react-i18next";
+
+import { buttonVariants } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { cn } from "@/lib/utils";
 
 const LANGUAGE_OPTIONS = [
   { value: "ko", labelKey: "languageKorean" },
@@ -10,28 +19,38 @@ const LANGUAGE_OPTIONS = [
 
 export function LanguageMenu() {
   const { t, i18n } = useTranslation();
-  const selectId = useId();
   const currentLanguage = i18n.resolvedLanguage ?? i18n.language ?? "ko";
+  const currentOption =
+    LANGUAGE_OPTIONS.find((option) => option.value === currentLanguage) ??
+    LANGUAGE_OPTIONS[0];
 
   return (
-    <div className="flex items-center gap-2">
-      <label htmlFor={selectId} className="sr-only">
-        {t("language")}
-      </label>
-      <select
-        id={selectId}
-        className="select-control h-9 w-auto min-h-0"
-        value={currentLanguage}
-        onChange={(event) => {
-          void i18n.changeLanguage(event.target.value);
-        }}
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+        aria-label={`${t("language")}: ${t(currentOption.labelKey)}`}
       >
+        {t(currentOption.labelKey)}
+      </DropdownMenuTrigger>
+      <DropdownMenuContent>
         {LANGUAGE_OPTIONS.map((option) => (
-          <option key={option.value} value={option.value}>
+          <DropdownMenuItem
+            key={option.value}
+            onClick={() => {
+              void i18n.changeLanguage(option.value);
+            }}
+          >
+            <RiCheckLine
+              className={cn(
+                "size-4",
+                currentLanguage !== option.value && "invisible",
+              )}
+              aria-hidden="true"
+            />
             {t(option.labelKey)}
-          </option>
+          </DropdownMenuItem>
         ))}
-      </select>
-    </div>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
