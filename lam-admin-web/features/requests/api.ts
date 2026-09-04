@@ -9,16 +9,17 @@ export function fetchCustomerRequests(): Promise<CustomerRequest[]> {
 }
 
 /**
- * `lam-api`'s `PATCH /api/v1/admin/customer-requests/{id}` (proxied here as
- * `/api/admin/customer-requests/{id}`) returns the full, refreshed request
- * list in the same response — so callers can write that straight into the
- * `requestsKeys.all` cache entry instead of triggering a second round trip.
+ * `lam-api`'s `PATCH /api/v1/admin/customer-requests/{id}/status` (proxied
+ * here as `/api/admin/customer-requests/{id}/status`) returns the full,
+ * refreshed request list in the same response — so callers can write that
+ * straight into the `requestsKeys.all` cache entry instead of triggering a
+ * second round trip.
  */
 export function updateCustomerRequestStatus(
   id: string,
   status: CustomerRequestStatus,
 ): Promise<CustomerRequest[]> {
-  return fetchJson<CustomerRequest[]>(`${CUSTOMER_REQUESTS_PATH}/${id}`, {
+  return fetchJson<CustomerRequest[]>(`${CUSTOMER_REQUESTS_PATH}/${id}/status`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ status }),

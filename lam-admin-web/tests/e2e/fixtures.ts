@@ -112,14 +112,14 @@ export async function mockCustomerRequestsList(
 }
 
 /**
- * Mocks a status-change PATCH (`PATCH /api/admin/customer-requests/{id}`),
+ * Mocks a status-change PATCH (`PATCH /api/admin/customer-requests/{id}/status`),
  * which per `features/requests/api.ts` returns the full refreshed list.
  */
 export async function mockCustomerRequestStatusUpdate(
   page: Page,
   refreshedRequests: CustomerRequest[],
 ): Promise<void> {
-  await page.route("**/api/admin/customer-requests/*", async (route) => {
+  await page.route("**/api/admin/customer-requests/*/status", async (route) => {
     await route.fulfill({ json: refreshedRequests });
   });
 }

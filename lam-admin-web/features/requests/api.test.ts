@@ -49,7 +49,7 @@ describe("requests api", () => {
     const requests = await updateCustomerRequestStatus("req-1", "checked");
 
     const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
-    expect(url).toBe("/api/admin/customer-requests/req-1");
+    expect(url).toBe("/api/admin/customer-requests/req-1/status");
     expect(init.method).toBe("PATCH");
     expect(init.headers).toMatchObject({ "Content-Type": "application/json" });
     expect(JSON.parse(init.body as string)).toEqual({ status: "checked" });
