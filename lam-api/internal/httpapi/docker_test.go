@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"net/http"
@@ -74,9 +75,11 @@ func startPostgresContainer(ctx context.Context) (containerID string, hostPort s
 		"-p", "127.0.0.1::5432",
 		"postgres:16-alpine",
 	)
-	out, err := runCmd.CombinedOutput()
+	var stderr bytes.Buffer
+	runCmd.Stderr = &stderr
+	out, err := runCmd.Output()
 	if err != nil {
-		return "", "", fmt.Errorf("docker run failed: %w: %s", err, string(out))
+		return "", "", fmt.Errorf("docker run failed: %w: %s", err, stderr.String())
 	}
 	containerID = strings.TrimSpace(string(out))
 
