@@ -17,7 +17,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states/PageStates";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -58,6 +59,7 @@ export function NoticeManagementPage() {
   const deleteMutation = useDeleteNoticeMutation();
 
   const [form, setForm] = useState<NoticeFormState>(EMPTY_FORM);
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
   // Validation state holds translation KEYS (see `validateNoticeText` in
   // `./api`), not rendered text, so a language switch re-renders the message
   // too.
@@ -97,6 +99,12 @@ export function NoticeManagementPage() {
     return deleteMutation.isPending && deleteMutation.variables === id;
   }
 
+  function openCreateDialog() {
+    setForm(EMPTY_FORM);
+    setFormErrorKey(undefined);
+    setIsCreateOpen(true);
+  }
+
   function handleCreateSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const error = validateNoticeText(form.text);
@@ -110,6 +118,7 @@ export function NoticeManagementPage() {
       {
         onSuccess: () => {
           setForm(EMPTY_FORM);
+          setIsCreateOpen(false);
           setStatusMessage(t("created"));
         },
       },
@@ -182,10 +191,99 @@ export function NoticeManagementPage() {
       ) : null}
 
       <Card>
-        <CardHeader>
-          <CardTitle>{t("createCardTitle")}</CardTitle>
+        <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
+          <CardTitle>{t("listCardTitle")}</CardTitle>
+          <CardAction>
+            <Button type="button" size="sm" onClick={openCreateDialog}>
+              {t("addTrigger")}
+            </Button>
+          </CardAction>
         </CardHeader>
-        <CardContent>
+        <CardContent className="flex flex-col gap-3">
+          {deleteMutation.isError ? (
+            <p role="alert" className="text-sm text-destructive">
+              {deleteMutation.error instanceof Error
+                ? deleteMutation.error.message
+                : t("deleteFailed")}
+            </p>
+          ) : null}
+          {visibilityMutation.isError ? (
+            <p role="alert" className="text-sm text-destructive">
+              {visibilityMutation.error instanceof Error
+                ? visibilityMutation.error.message
+                : t("visibilityFailed")}
+            </p>
+          ) : null}
+
+          {notices.length === 0 ? (
+            <EmptyState title={t("emptyTitle")} description={t("emptyDescription")} />
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{t("columnText")}</TableHead>
+                  <TableHead>{t("common:columnVisibility")}</TableHead>
+                  <TableHead>{t("common:columnActions")}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {notices.map((notice) => {
+                  return (
+                    <TableRow key={notice.id}>
+                      <TableCell className="whitespace-normal">{notice.text}</TableCell>
+                      <TableCell>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={isVisibilityPending(notice.id)}
+                          onClick={() => handleToggleVisibility(notice)}
+                        >
+                          {notice.isVisible ? t("common:visible") : t("common:hidden")}
+                        </Button>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => beginEdit(notice)}
+                          >
+                            {t("common:edit")}
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="destructive"
+                            disabled={isDeletePending(notice.id)}
+                            onClick={() => setPendingDeleteId(notice.id)}
+                          >
+                            {t("common:delete")}
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      <Dialog
+        open={isCreateOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setIsCreateOpen(false);
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("createCardTitle")}</DialogTitle>
+          </DialogHeader>
           <form className="flex flex-col gap-3" onSubmit={handleCreateSubmit} noValidate>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="notice-text">{t("textLabel")}</Label>
@@ -220,125 +318,56 @@ export function NoticeManagementPage() {
               </p>
             ) : null}
 
-            <Button type="submit" disabled={createMutation.isPending}>
-              {t("submit")}
-            </Button>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsCreateOpen(false)}>
+                {t("common:cancel")}
+              </Button>
+              <Button type="submit" disabled={createMutation.isPending}>
+                {t("submit")}
+              </Button>
+            </DialogFooter>
           </form>
-        </CardContent>
-      </Card>
+        </DialogContent>
+      </Dialog>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{t("listCardTitle")}</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-3">
-          {deleteMutation.isError ? (
-            <p role="alert" className="text-sm text-destructive">
-              {deleteMutation.error instanceof Error
-                ? deleteMutation.error.message
-                : t("deleteFailed")}
-            </p>
-          ) : null}
-          {visibilityMutation.isError ? (
-            <p role="alert" className="text-sm text-destructive">
-              {visibilityMutation.error instanceof Error
-                ? visibilityMutation.error.message
-                : t("visibilityFailed")}
-            </p>
-          ) : null}
-
-          {notices.length === 0 ? (
-            <EmptyState title={t("emptyTitle")} description={t("emptyDescription")} />
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t("columnText")}</TableHead>
-                  <TableHead>{t("common:columnVisibility")}</TableHead>
-                  <TableHead>{t("common:columnActions")}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {notices.map((notice) => {
-                  const isEditing = editingId === notice.id;
-                  return (
-                    <TableRow key={notice.id}>
-                      <TableCell className="whitespace-normal">
-                        {isEditing ? (
-                          <div className="flex flex-col gap-1.5">
-                            <Textarea
-                              aria-label={t("editTextAria")}
-                              value={editingText}
-                              onChange={(event) => setEditingText(event.target.value)}
-                            />
-                            {editingErrorKey ? (
-                              <p role="alert" className="text-sm text-destructive">
-                                {t(editingErrorKey)}
-                              </p>
-                            ) : null}
-                          </div>
-                        ) : (
-                          notice.text
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          disabled={isVisibilityPending(notice.id)}
-                          onClick={() => handleToggleVisibility(notice)}
-                        >
-                          {notice.isVisible ? t("common:visible") : t("common:hidden")}
-                        </Button>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-2">
-                          {isEditing ? (
-                            <>
-                              <Button
-                                type="button"
-                                size="sm"
-                                disabled={isUpdatePending(notice.id)}
-                                onClick={() => saveEdit(notice.id)}
-                              >
-                                {t("common:save")}
-                              </Button>
-                              <Button type="button" size="sm" variant="ghost" onClick={cancelEdit}>
-                                {t("common:cancel")}
-                              </Button>
-                            </>
-                          ) : (
-                            <>
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                onClick={() => beginEdit(notice)}
-                              >
-                                {t("common:edit")}
-                              </Button>
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="destructive"
-                                disabled={isDeletePending(notice.id)}
-                                onClick={() => setPendingDeleteId(notice.id)}
-                              >
-                                {t("common:delete")}
-                              </Button>
-                            </>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+      <Dialog
+        open={editingId !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            cancelEdit();
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("editDialogTitle")}</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-1.5">
+            <Textarea
+              aria-label={t("editTextAria")}
+              value={editingText}
+              onChange={(event) => setEditingText(event.target.value)}
+            />
+            {editingErrorKey ? (
+              <p role="alert" className="text-sm text-destructive">
+                {t(editingErrorKey)}
+              </p>
+            ) : null}
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={cancelEdit}>
+              {t("common:cancel")}
+            </Button>
+            <Button
+              type="button"
+              disabled={editingId !== null && isUpdatePending(editingId)}
+              onClick={() => editingId && saveEdit(editingId)}
+            >
+              {t("common:save")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog
         open={deleteTarget !== null}

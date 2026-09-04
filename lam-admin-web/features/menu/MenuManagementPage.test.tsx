@@ -228,36 +228,59 @@ describe("MenuManagementPage", () => {
     expect(screen.getByText("먼저 카테고리를 추가하세요.")).toBeInTheDocument();
   });
 
+  it("opens the category dialog from the trigger button, and closes it on cancel", () => {
+    render(<MenuManagementPage />);
+
+    expect(screen.queryByRole("dialog", { name: "카테고리 추가" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "카테고리 추가" }));
+    const dialog = screen.getByRole("dialog", { name: "카테고리 추가" });
+    expect(dialog).toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "취소" }));
+    expect(screen.queryByRole("dialog", { name: "카테고리 추가" })).not.toBeInTheDocument();
+  });
+
   it("shows a field error and does not submit when the category form is left empty", () => {
     render(<MenuManagementPage />);
 
     fireEvent.click(screen.getByRole("button", { name: "카테고리 추가" }));
+    const dialog = screen.getByRole("dialog", { name: "카테고리 추가" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "저장" }));
 
-    expect(screen.getAllByRole("alert").length).toBeGreaterThan(0);
+    expect(within(dialog).getAllByRole("alert").length).toBeGreaterThan(0);
     expect(createCategoryMutate).not.toHaveBeenCalled();
   });
 
-  it("creates a category with the entered fields", () => {
+  it("creates a category with the entered fields and closes the dialog", () => {
     render(<MenuManagementPage />);
 
-    fireEvent.change(screen.getByLabelText("카테고리 ID"), { target: { value: "food" } });
-    fireEvent.change(screen.getByLabelText("카테고리 이름"), { target: { value: "음식" } });
     fireEvent.click(screen.getByRole("button", { name: "카테고리 추가" }));
+    const dialog = screen.getByRole("dialog", { name: "카테고리 추가" });
+    fireEvent.change(within(dialog).getByLabelText("카테고리 ID"), { target: { value: "food" } });
+    fireEvent.change(within(dialog).getByLabelText("카테고리 이름"), { target: { value: "음식" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "저장" }));
 
     expect(createCategoryMutate).toHaveBeenCalledWith(
       { id: "food", label: "음식", isVisible: true },
       expect.anything(),
     );
+
+    const onSuccess = createCategoryMutate.mock.calls[0][1].onSuccess as () => void;
+    act(() => onSuccess());
+    expect(screen.queryByRole("dialog", { name: "카테고리 추가" })).not.toBeInTheDocument();
   });
 
   it("rejects a category id that already exists", () => {
     render(<MenuManagementPage />);
 
-    fireEvent.change(screen.getByLabelText("카테고리 ID"), { target: { value: "drinks" } });
-    fireEvent.change(screen.getByLabelText("카테고리 이름"), { target: { value: "음료 2" } });
     fireEvent.click(screen.getByRole("button", { name: "카테고리 추가" }));
+    const dialog = screen.getByRole("dialog", { name: "카테고리 추가" });
+    fireEvent.change(within(dialog).getByLabelText("카테고리 ID"), { target: { value: "drinks" } });
+    fireEvent.change(within(dialog).getByLabelText("카테고리 이름"), { target: { value: "음료 2" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "저장" }));
 
-    expect(screen.getByText("이미 존재하는 카테고리 ID입니다.")).toBeInTheDocument();
+    expect(within(dialog).getByText("이미 존재하는 카테고리 ID입니다.")).toBeInTheDocument();
     expect(createCategoryMutate).not.toHaveBeenCalled();
   });
 
@@ -341,22 +364,39 @@ describe("MenuManagementPage", () => {
     );
   });
 
+  it("opens the menu item dialog from the trigger button, and closes it on cancel", () => {
+    render(<MenuManagementPage />);
+
+    expect(screen.queryByRole("dialog", { name: "메뉴 등록" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "메뉴 추가" }));
+    const dialog = screen.getByRole("dialog", { name: "메뉴 등록" });
+    expect(dialog).toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "취소" }));
+    expect(screen.queryByRole("dialog", { name: "메뉴 등록" })).not.toBeInTheDocument();
+  });
+
   it("shows a field error and does not submit when the menu item form is left empty", () => {
     render(<MenuManagementPage />);
 
     fireEvent.click(screen.getByRole("button", { name: "메뉴 추가" }));
+    const dialog = screen.getByRole("dialog", { name: "메뉴 등록" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "저장" }));
 
     expect(createMenuItemMutate).not.toHaveBeenCalled();
-    expect(screen.getByText("메뉴 이름을 입력하세요.")).toBeInTheDocument();
-    expect(screen.getByText("가격을 입력하세요.")).toBeInTheDocument();
+    expect(within(dialog).getByText("메뉴 이름을 입력하세요.")).toBeInTheDocument();
+    expect(within(dialog).getByText("가격을 입력하세요.")).toBeInTheDocument();
   });
 
-  it("creates a menu item with the entered fields", () => {
+  it("creates a menu item with the entered fields and closes the dialog", () => {
     render(<MenuManagementPage />);
 
-    fireEvent.change(screen.getByLabelText("이름"), { target: { value: "라떼" } });
-    fireEvent.change(screen.getByLabelText("가격"), { target: { value: "4500" } });
     fireEvent.click(screen.getByRole("button", { name: "메뉴 추가" }));
+    const dialog = screen.getByRole("dialog", { name: "메뉴 등록" });
+    fireEvent.change(within(dialog).getByLabelText("이름"), { target: { value: "라떼" } });
+    fireEvent.change(within(dialog).getByLabelText("가격"), { target: { value: "4500" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "저장" }));
 
     expect(createMenuItemMutate).toHaveBeenCalledWith(
       {
@@ -371,22 +411,28 @@ describe("MenuManagementPage", () => {
       expect.anything(),
     );
     expect(uploadMenuItemImageMutate).not.toHaveBeenCalled();
+
+    const onSuccess = createMenuItemMutate.mock.calls[0][1].onSuccess as (data: AppData) => void;
+    act(() => onSuccess(FIXTURE));
+    expect(screen.queryByRole("dialog", { name: "메뉴 등록" })).not.toBeInTheDocument();
   });
 
   it("uploads an image attached to the create form to the newly-created item, found by diffing item ids (id-diff chaining)", async () => {
     render(<MenuManagementPage />);
 
-    fireEvent.change(screen.getByLabelText("이름"), { target: { value: "라떼" } });
-    fireEvent.change(screen.getByLabelText("가격"), { target: { value: "4500" } });
+    fireEvent.click(screen.getByRole("button", { name: "메뉴 추가" }));
+    const createDialog = screen.getByRole("dialog", { name: "메뉴 등록" });
+    fireEvent.change(within(createDialog).getByLabelText("이름"), { target: { value: "라떼" } });
+    fireEvent.change(within(createDialog).getByLabelText("가격"), { target: { value: "4500" } });
 
     const file = new File([new Uint8Array(10)], "new-item.jpg", { type: "image/jpeg" });
-    const imageInput = screen.getByLabelText("새 메뉴 이미지 선택");
+    const imageInput = within(createDialog).getByLabelText("새 메뉴 이미지 선택");
     fireEvent.change(imageInput, { target: { files: [file] } });
 
-    const dialog = await screen.findByRole("dialog");
-    fireEvent.click(within(dialog).getByRole("button", { name: "확인" }));
+    const cropDialog = await screen.findByRole("dialog", { name: "이미지 영역 선택" });
+    fireEvent.click(within(cropDialog).getByRole("button", { name: "확인" }));
 
-    fireEvent.click(screen.getByRole("button", { name: "메뉴 추가" }));
+    fireEvent.click(within(createDialog).getByRole("button", { name: "저장" }));
 
     // The crop is rendered before the item is created, so the create call is
     // one microtask behind the click.
@@ -434,19 +480,23 @@ describe("MenuManagementPage", () => {
 
     render(<MenuManagementPage />);
 
-    fireEvent.change(screen.getByLabelText("이름"), { target: { value: "라떼" } });
-    fireEvent.change(screen.getByLabelText("가격"), { target: { value: "4500" } });
+    fireEvent.click(screen.getByRole("button", { name: "메뉴 추가" }));
+    const createDialog = screen.getByRole("dialog", { name: "메뉴 등록" });
+    fireEvent.change(within(createDialog).getByLabelText("이름"), { target: { value: "라떼" } });
+    fireEvent.change(within(createDialog).getByLabelText("가격"), { target: { value: "4500" } });
 
     const file = new File([new Uint8Array(10)], "new-item.jpg", { type: "image/jpeg" });
-    fireEvent.change(screen.getByLabelText("새 메뉴 이미지 선택"), { target: { files: [file] } });
+    fireEvent.change(within(createDialog).getByLabelText("새 메뉴 이미지 선택"), {
+      target: { files: [file] },
+    });
 
-    const dialog = await screen.findByRole("dialog");
-    fireEvent.click(within(dialog).getByRole("button", { name: "확인" }));
+    const cropDialog = await screen.findByRole("dialog", { name: "이미지 영역 선택" });
+    fireEvent.click(within(cropDialog).getByRole("button", { name: "확인" }));
 
-    fireEvent.click(screen.getByRole("button", { name: "메뉴 추가" }));
+    fireEvent.click(within(createDialog).getByRole("button", { name: "저장" }));
 
     await waitFor(() =>
-      expect(screen.getByText("이미지를 잘라내는 데 실패했습니다.")).toBeInTheDocument(),
+      expect(within(createDialog).getByText("이미지를 잘라내는 데 실패했습니다.")).toBeInTheDocument(),
     );
     expect(createMenuItemMutate).not.toHaveBeenCalled();
     expect(uploadMenuItemImageMutate).not.toHaveBeenCalled();

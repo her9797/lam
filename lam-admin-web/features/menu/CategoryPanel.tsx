@@ -17,7 +17,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/states/PageStates";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -52,6 +53,7 @@ export function CategoryPanel({ categories }: { categories: MenuCategory[] }) {
   const [form, setForm] = useState<CategoryFormState>(EMPTY_FORM);
   const [errors, setErrors] = useState<CategoryFormErrors>({});
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
 
   const createMutation = useCreateCategoryMutation();
   const visibilityMutation = useUpdateCategoryVisibilityMutation();
@@ -67,6 +69,12 @@ export function CategoryPanel({ categories }: { categories: MenuCategory[] }) {
     return deleteMutation.isPending && deleteMutation.variables === id;
   }
 
+  function openCreateDialog() {
+    setForm(EMPTY_FORM);
+    setErrors({});
+    setIsCreateOpen(true);
+  }
+
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const nextErrors = validateCategoryForm(
@@ -80,7 +88,12 @@ export function CategoryPanel({ categories }: { categories: MenuCategory[] }) {
 
     createMutation.mutate(
       { id: form.id.trim(), label: form.label.trim(), isVisible: form.isVisible },
-      { onSuccess: () => setForm(EMPTY_FORM) },
+      {
+        onSuccess: () => {
+          setForm(EMPTY_FORM);
+          setIsCreateOpen(false);
+        },
+      },
     );
   }
 
@@ -95,60 +108,15 @@ export function CategoryPanel({ categories }: { categories: MenuCategory[] }) {
 
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
         <CardTitle>{t("categoryCardTitle")}</CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4">
-        <form className="flex flex-col gap-3 sm:flex-row sm:items-end" onSubmit={handleSubmit} noValidate>
-          <div className="flex flex-1 flex-col gap-1.5">
-            <Label htmlFor="category-id">{t("categoryIdLabel")}</Label>
-            <Input
-              id="category-id"
-              value={form.id}
-              onChange={(event) => setForm((current) => ({ ...current, id: event.target.value }))}
-              aria-invalid={Boolean(errors.id)}
-            />
-            {errors.id ? (
-              <p role="alert" className="text-sm text-destructive">
-                {t(errors.id)}
-              </p>
-            ) : null}
-          </div>
-          <div className="flex flex-1 flex-col gap-1.5">
-            <Label htmlFor="category-label">{t("categoryNameLabel")}</Label>
-            <Input
-              id="category-label"
-              value={form.label}
-              onChange={(event) => setForm((current) => ({ ...current, label: event.target.value }))}
-              aria-invalid={Boolean(errors.label)}
-            />
-            {errors.label ? (
-              <p role="alert" className="text-sm text-destructive">
-                {t(errors.label)}
-              </p>
-            ) : null}
-          </div>
-          <label className="flex items-center gap-2 pb-2 text-sm text-foreground">
-            <input
-              type="checkbox"
-              checked={form.isVisible}
-              onChange={(event) => setForm((current) => ({ ...current, isVisible: event.target.checked }))}
-            />
-            {t("common:isPublic")}
-          </label>
-          <Button type="submit" disabled={createMutation.isPending}>
+        <CardAction>
+          <Button type="button" size="sm" onClick={openCreateDialog}>
             {t("categoryAdd")}
           </Button>
-        </form>
-
-        {createMutation.isError ? (
-          <p role="alert" className="text-sm text-destructive">
-            {createMutation.error instanceof Error
-              ? createMutation.error.message
-              : t("categoryCreateFailed")}
-          </p>
-        ) : null}
-
+        </CardAction>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
         {categories.length === 0 ? (
           <EmptyState
             title={t("categoryEmptyTitle")}
@@ -199,6 +167,69 @@ export function CategoryPanel({ categories }: { categories: MenuCategory[] }) {
           </Table>
         )}
       </CardContent>
+
+      <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("categoryAdd")}</DialogTitle>
+          </DialogHeader>
+          <form className="flex flex-col gap-3" onSubmit={handleSubmit} noValidate>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="category-id">{t("categoryIdLabel")}</Label>
+              <Input
+                id="category-id"
+                value={form.id}
+                onChange={(event) => setForm((current) => ({ ...current, id: event.target.value }))}
+                aria-invalid={Boolean(errors.id)}
+              />
+              {errors.id ? (
+                <p role="alert" className="text-sm text-destructive">
+                  {t(errors.id)}
+                </p>
+              ) : null}
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="category-label">{t("categoryNameLabel")}</Label>
+              <Input
+                id="category-label"
+                value={form.label}
+                onChange={(event) => setForm((current) => ({ ...current, label: event.target.value }))}
+                aria-invalid={Boolean(errors.label)}
+              />
+              {errors.label ? (
+                <p role="alert" className="text-sm text-destructive">
+                  {t(errors.label)}
+                </p>
+              ) : null}
+            </div>
+            <label className="flex items-center gap-2 text-sm text-foreground">
+              <input
+                type="checkbox"
+                checked={form.isVisible}
+                onChange={(event) => setForm((current) => ({ ...current, isVisible: event.target.checked }))}
+              />
+              {t("common:isPublic")}
+            </label>
+
+            {createMutation.isError ? (
+              <p role="alert" className="text-sm text-destructive">
+                {createMutation.error instanceof Error
+                  ? createMutation.error.message
+                  : t("categoryCreateFailed")}
+              </p>
+            ) : null}
+
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsCreateOpen(false)}>
+                {t("common:cancel")}
+              </Button>
+              <Button type="submit" disabled={createMutation.isPending}>
+                {t("common:save")}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog
         open={deleteTarget !== null}

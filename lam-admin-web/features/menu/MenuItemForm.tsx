@@ -7,7 +7,7 @@ import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -88,6 +88,7 @@ export function MenuItemForm({ categories, items }: MenuItemFormProps) {
   const [form, setForm] = useState<MenuItemFormState>(() => emptyForm(categories[0]?.id ?? ""));
   const [errors, setErrors] = useState<MenuItemFormErrors>({});
   const [pendingImage, setPendingImage] = useState<PendingImage | null>(null);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isCropDialogOpen, setIsCropDialogOpen] = useState(false);
   // Holds a translation key (from `validateImageFile`, or one raised here),
   // not rendered text, so the message follows a language switch.
@@ -111,6 +112,19 @@ export function MenuItemForm({ categories, items }: MenuItemFormProps) {
       }
       return null;
     });
+  }
+
+  function openCreateDialog() {
+    setForm(emptyForm(effectiveCategoryId));
+    setErrors({});
+    setImageErrorKey(null);
+    clearPendingImage();
+    setIsCreateDialogOpen(true);
+  }
+
+  function closeCreateDialog() {
+    setIsCreateDialogOpen(false);
+    clearPendingImage();
   }
 
   async function handleImageSelected(file: File | undefined) {
@@ -182,6 +196,7 @@ export function MenuItemForm({ categories, items }: MenuItemFormProps) {
         onSuccess: (appData: AppData) => {
           setForm(emptyForm(effectiveCategoryId));
           clearPendingImage();
+          setIsCreateDialogOpen(false);
 
           if (!croppedImage) {
             return;
@@ -205,13 +220,34 @@ export function MenuItemForm({ categories, items }: MenuItemFormProps) {
 
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
         <CardTitle>{t("itemFormTitle")}</CardTitle>
+        <CardAction>
+          <Button type="button" size="sm" disabled={!hasCategories} onClick={openCreateDialog}>
+            {t("itemAdd")}
+          </Button>
+        </CardAction>
       </CardHeader>
-      <CardContent>
-        {!hasCategories ? (
+      {!hasCategories ? (
+        <CardContent>
           <p className="text-sm text-muted-foreground">{t("noCategoriesHint")}</p>
-        ) : (
+        </CardContent>
+      ) : null}
+
+      <Dialog
+        open={isCreateDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            closeCreateDialog();
+          } else {
+            setIsCreateDialogOpen(true);
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("itemFormTitle")}</DialogTitle>
+          </DialogHeader>
           <form
             className="flex flex-col gap-3"
             onSubmit={(event) => void handleSubmit(event)}
@@ -363,12 +399,17 @@ export function MenuItemForm({ categories, items }: MenuItemFormProps) {
               </p>
             ) : null}
 
-            <Button type="submit" disabled={createMutation.isPending}>
-              {t("itemAdd")}
-            </Button>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={closeCreateDialog}>
+                {t("common:cancel")}
+              </Button>
+              <Button type="submit" disabled={createMutation.isPending}>
+                {t("common:save")}
+              </Button>
+            </DialogFooter>
           </form>
-        )}
-      </CardContent>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={isCropDialogOpen}
