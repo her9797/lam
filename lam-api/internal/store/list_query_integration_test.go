@@ -3,19 +3,23 @@ package store
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/her9797/lam/lam-api/internal/lamdata"
 )
 
+// idSpacingDelay separates same-millisecond CreateCustomerRequest/
+// CreateSpecialRequest calls: both derive their row id from
+// time.Now().UnixMilli(), so two calls landing in the same millisecond
+// collide on the primary key and the second INSERT fails with
+// ErrAlreadyExists. This reliably reproduced on GitHub Actions' faster
+// runners (though not locally) for every test below that creates more than
+// one row in a tight loop.
+const idSpacingDelay = 2 * time.Millisecond
+
 func createCustomerRequestsForListing(t *testing.T, repo *Repository, ctx context.Context) {
 	t.Helper()
 
-	// CreateCustomerRequest derives its id from time.Now().UnixMilli(), so
-	// creating several in a tight loop risks colliding on the same
-	// millisecond and, in turn, on the (created_at DESC, id DESC) tiebreak
-	// that createdAt-sort assertions below depend on. Space them out with
-	// distinct, known statuses/table numbers instead of relying on wall-clock
-	// separation.
 	seed := []struct {
 		table  string
 		text   string
@@ -32,6 +36,7 @@ func createCustomerRequestsForListing(t *testing.T, repo *Repository, ctx contex
 		if err := repo.CreateCustomerRequest(ctx, s.table, s.text); err != nil {
 			t.Fatalf("CreateCustomerRequest(%q) error = %v", s.table, err)
 		}
+		time.Sleep(idSpacingDelay)
 	}
 
 	all, err := repo.ListCustomerRequests(ctx)
@@ -147,6 +152,7 @@ func TestRepository_ListCustomerRequestsPage_SearchEscapesLikeWildcards(t *testi
 	if err := repo.CreateCustomerRequest(ctx, "T-99", "50% off please"); err != nil {
 		t.Fatalf("CreateCustomerRequest() error = %v", err)
 	}
+	time.Sleep(idSpacingDelay)
 	if err := repo.CreateCustomerRequest(ctx, "T-98", "50 percent unrelated"); err != nil {
 		t.Fatalf("CreateCustomerRequest() error = %v", err)
 	}
@@ -204,6 +210,7 @@ func TestRepository_ListSpecialRequestsPage_FiltersSearchesSortsAndPages(t *test
 		if err := repo.CreateSpecialRequest(ctx, s); err != nil {
 			t.Fatalf("CreateSpecialRequest(%q) error = %v", s.Name, err)
 		}
+		time.Sleep(idSpacingDelay)
 	}
 
 	t.Run("filters by gender", func(t *testing.T) {
