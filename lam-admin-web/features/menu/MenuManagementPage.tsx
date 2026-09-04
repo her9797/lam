@@ -30,7 +30,6 @@ import {
 
 import { useBootstrapQuery } from "@/features/bootstrap/queries";
 
-import { CategoryPanel } from "./CategoryPanel";
 import {
   UPLOAD_FOCUS_CENTER,
   createInitialCropTransform,
@@ -174,7 +173,6 @@ export function MenuManagementPage() {
     <div className="flex flex-col gap-4">
       <h1 className="text-lg font-semibold text-foreground">{t("title")}</h1>
 
-      <CategoryPanel categories={categories} />
       <MenuItemForm categories={categories} items={items} />
 
       <Card>

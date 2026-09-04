@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AppData } from "@/features/bootstrap/model";
 
 import { UPLOAD_FOCUS_CENTER, createInitialCropTransform, type CropTransform } from "./crop";
-import { validateCategoryForm, validateImageFile, validateMenuItemForm } from "./model";
+import { validateImageFile, validateMenuItemForm } from "./model";
 
 const useBootstrapQueryMock = vi.fn();
 
@@ -12,9 +12,6 @@ vi.mock("@/features/bootstrap/queries", () => ({
   useBootstrapQuery: () => useBootstrapQueryMock(),
 }));
 
-const createCategoryMutate = vi.fn();
-const updateCategoryVisibilityMutate = vi.fn();
-const deleteCategoryMutate = vi.fn();
 const createMenuItemMutate = vi.fn();
 const updateMenuItemVisibilityMutate = vi.fn();
 const deleteMenuItemMutate = vi.fn();
@@ -24,18 +21,12 @@ function idleMutation(mutate: ReturnType<typeof vi.fn>) {
   return { mutate, isPending: false, isError: false, error: null as unknown, variables: undefined as unknown };
 }
 
-const createCategoryMutationState = { current: idleMutation(createCategoryMutate) };
-const updateCategoryVisibilityMutationState = { current: idleMutation(updateCategoryVisibilityMutate) };
-const deleteCategoryMutationState = { current: idleMutation(deleteCategoryMutate) };
 const createMenuItemMutationState = { current: idleMutation(createMenuItemMutate) };
 const updateMenuItemVisibilityMutationState = { current: idleMutation(updateMenuItemVisibilityMutate) };
 const deleteMenuItemMutationState = { current: idleMutation(deleteMenuItemMutate) };
 const uploadMenuItemImageMutationState = { current: idleMutation(uploadMenuItemImageMutate) };
 
 vi.mock("./queries", () => ({
-  useCreateCategoryMutation: () => createCategoryMutationState.current,
-  useUpdateCategoryVisibilityMutation: () => updateCategoryVisibilityMutationState.current,
-  useDeleteCategoryMutation: () => deleteCategoryMutationState.current,
   useCreateMenuItemMutation: () => createMenuItemMutationState.current,
   useUpdateMenuItemVisibilityMutation: () => updateMenuItemVisibilityMutationState.current,
   useDeleteMenuItemMutation: () => deleteMenuItemMutationState.current,
@@ -110,9 +101,6 @@ function mockBootstrap(overrides: Partial<ReturnType<typeof defaultBootstrapResu
 }
 
 beforeEach(() => {
-  createCategoryMutate.mockClear();
-  updateCategoryVisibilityMutate.mockClear();
-  deleteCategoryMutate.mockClear();
   createMenuItemMutate.mockClear();
   updateMenuItemVisibilityMutate.mockClear();
   deleteMenuItemMutate.mockClear();
@@ -123,9 +111,6 @@ beforeEach(() => {
   cropImageFileToSquareMock.mockReset();
   cropImageFileToSquareMock.mockResolvedValue(CROPPED_FILE);
 
-  createCategoryMutationState.current = idleMutation(createCategoryMutate);
-  updateCategoryVisibilityMutationState.current = idleMutation(updateCategoryVisibilityMutate);
-  deleteCategoryMutationState.current = idleMutation(deleteCategoryMutate);
   createMenuItemMutationState.current = idleMutation(createMenuItemMutate);
   updateMenuItemVisibilityMutationState.current = idleMutation(updateMenuItemVisibilityMutate);
   deleteMenuItemMutationState.current = idleMutation(deleteMenuItemMutate);
@@ -143,17 +128,6 @@ afterEach(() => {
 });
 
 describe("pure validators", () => {
-  it("rejects an empty category id and label", () => {
-    const errors = validateCategoryForm({ id: "", label: "" }, []);
-    expect(errors.id).toBeTruthy();
-    expect(errors.label).toBeTruthy();
-  });
-
-  it("rejects a category id that already exists", () => {
-    const errors = validateCategoryForm({ id: "drinks", label: "새 이름" }, ["drinks"]);
-    expect(errors.id).toBeTruthy();
-  });
-
   it("rejects an empty menu item name and price", () => {
     const errors = validateMenuItemForm({ categoryId: "drinks", name: "", price: "" }, ["drinks"]);
     expect(errors.name).toBeTruthy();
@@ -223,124 +197,8 @@ describe("MenuManagementPage", () => {
 
     render(<MenuManagementPage />);
 
-    expect(screen.getByText("등록된 카테고리가 없습니다.")).toBeInTheDocument();
     expect(screen.getByText("등록된 메뉴가 없습니다.")).toBeInTheDocument();
     expect(screen.getByText("먼저 카테고리를 추가하세요.")).toBeInTheDocument();
-  });
-
-  it("opens the category dialog from the trigger button, and closes it on cancel", () => {
-    render(<MenuManagementPage />);
-
-    expect(screen.queryByRole("dialog", { name: "카테고리 추가" })).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "카테고리 추가" }));
-    const dialog = screen.getByRole("dialog", { name: "카테고리 추가" });
-    expect(dialog).toBeInTheDocument();
-
-    fireEvent.click(within(dialog).getByRole("button", { name: "취소" }));
-    expect(screen.queryByRole("dialog", { name: "카테고리 추가" })).not.toBeInTheDocument();
-  });
-
-  it("shows a field error and does not submit when the category form is left empty", () => {
-    render(<MenuManagementPage />);
-
-    fireEvent.click(screen.getByRole("button", { name: "카테고리 추가" }));
-    const dialog = screen.getByRole("dialog", { name: "카테고리 추가" });
-    fireEvent.click(within(dialog).getByRole("button", { name: "저장" }));
-
-    expect(within(dialog).getAllByRole("alert").length).toBeGreaterThan(0);
-    expect(createCategoryMutate).not.toHaveBeenCalled();
-  });
-
-  it("creates a category with the entered fields and closes the dialog", () => {
-    render(<MenuManagementPage />);
-
-    fireEvent.click(screen.getByRole("button", { name: "카테고리 추가" }));
-    const dialog = screen.getByRole("dialog", { name: "카테고리 추가" });
-    fireEvent.change(within(dialog).getByLabelText("카테고리 ID"), { target: { value: "food" } });
-    fireEvent.change(within(dialog).getByLabelText("카테고리 이름"), { target: { value: "음식" } });
-    fireEvent.click(within(dialog).getByRole("button", { name: "저장" }));
-
-    expect(createCategoryMutate).toHaveBeenCalledWith(
-      { id: "food", label: "음식", isVisible: true },
-      expect.anything(),
-    );
-
-    const onSuccess = createCategoryMutate.mock.calls[0][1].onSuccess as () => void;
-    act(() => onSuccess());
-    expect(screen.queryByRole("dialog", { name: "카테고리 추가" })).not.toBeInTheDocument();
-  });
-
-  it("rejects a category id that already exists", () => {
-    render(<MenuManagementPage />);
-
-    fireEvent.click(screen.getByRole("button", { name: "카테고리 추가" }));
-    const dialog = screen.getByRole("dialog", { name: "카테고리 추가" });
-    fireEvent.change(within(dialog).getByLabelText("카테고리 ID"), { target: { value: "drinks" } });
-    fireEvent.change(within(dialog).getByLabelText("카테고리 이름"), { target: { value: "음료 2" } });
-    fireEvent.click(within(dialog).getByRole("button", { name: "저장" }));
-
-    expect(within(dialog).getByText("이미 존재하는 카테고리 ID입니다.")).toBeInTheDocument();
-    expect(createCategoryMutate).not.toHaveBeenCalled();
-  });
-
-  it("toggles category visibility", () => {
-    render(<MenuManagementPage />);
-
-    const categoryRow = screen.getByText("drinks").closest("tr");
-    if (!categoryRow) {
-      throw new Error("category row not found");
-    }
-    fireEvent.click(within(categoryRow).getByRole("button", { name: "공개" }));
-
-    expect(updateCategoryVisibilityMutate).toHaveBeenCalledWith({ id: "drinks", isVisible: false });
-  });
-
-  it("asks for confirmation before deleting a category, and only mutates after confirming", () => {
-    render(<MenuManagementPage />);
-
-    const categoryRow = screen.getByText("drinks").closest("tr");
-    if (!categoryRow) {
-      throw new Error("category row not found");
-    }
-
-    fireEvent.click(within(categoryRow).getByRole("button", { name: "삭제" }));
-    const confirmDialog = screen.getByRole("alertdialog");
-    fireEvent.click(within(confirmDialog).getByRole("button", { name: "취소" }));
-    expect(deleteCategoryMutate).not.toHaveBeenCalled();
-
-    fireEvent.click(within(categoryRow).getByRole("button", { name: "삭제" }));
-    const reopenedDialog = screen.getByRole("alertdialog");
-    fireEvent.click(within(reopenedDialog).getByRole("button", { name: "삭제" }));
-
-    expect(deleteCategoryMutate).toHaveBeenCalledWith("drinks", expect.anything());
-    // Stays open until the mutation's own onSuccess fires.
-    expect(screen.getByRole("alertdialog")).toBeInTheDocument();
-
-    const onSuccess = deleteCategoryMutate.mock.calls[0][1].onSuccess as () => void;
-    act(() => onSuccess());
-    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
-  });
-
-  it("surfaces a failed category delete inside the still-open confirm dialog", () => {
-    deleteCategoryMutationState.current = {
-      ...idleMutation(deleteCategoryMutate),
-      isError: true,
-      error: new Error("카테고리를 삭제할 수 없습니다. (409)"),
-    };
-
-    render(<MenuManagementPage />);
-
-    const categoryRow = screen.getByText("drinks").closest("tr");
-    if (!categoryRow) {
-      throw new Error("category row not found");
-    }
-    fireEvent.click(within(categoryRow).getByRole("button", { name: "삭제" }));
-
-    const confirmDialog = screen.getByRole("alertdialog");
-    expect(within(confirmDialog).getByRole("alert")).toHaveTextContent(
-      "카테고리를 삭제할 수 없습니다. (409)",
-    );
   });
 
   it("surfaces a failed menu item delete inside the still-open confirm dialog", () => {

@@ -108,6 +108,9 @@ test.describe("설정과 모바일 내비게이션 회귀", () => {
     );
     expect(activeElementInDialog).toBe(true);
 
+    // "메뉴 관리" sits behind the "상품 관리" dropdown, collapsed by default
+    // since the dashboard isn't one of its routes.
+    await dialog.getByRole("button", { name: "상품 관리" }).click();
     await dialog.getByRole("link", { name: "메뉴 관리" }).click();
     await expect(page).toHaveURL(/\/menu$/);
 

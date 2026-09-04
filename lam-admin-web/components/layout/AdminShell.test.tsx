@@ -34,6 +34,7 @@ const NAV_LABELS = [
   "노래 신청",
   "특별 요청",
   "메뉴 관리",
+  "카테고리 관리",
   "이벤트·공지",
   "안내 문구",
 ];
@@ -70,11 +71,35 @@ describe("AdminShell", () => {
       </AdminShell>,
     );
 
+    // "메뉴 관리"/"카테고리 관리" sit behind the "상품 관리" dropdown, closed
+    // by default here since the mocked pathname ("/dashboard") isn't one of
+    // its routes — open it first so every item in NAV_LABELS is reachable.
+    fireEvent.click(screen.getByRole("button", { name: "상품 관리" }));
+
     for (const label of NAV_LABELS) {
       const link = screen.getByRole("link", { name: label });
       expect(link).toBeInTheDocument();
       expect(link).not.toHaveAttribute("tabindex", "-1");
     }
+  });
+
+  it("exposes 상품 관리 as a collapsed dropdown that reveals its sub-links on click", () => {
+    render(
+      <AdminShell>
+        <p>page content</p>
+      </AdminShell>,
+    );
+
+    const toggle = screen.getByRole("button", { name: "상품 관리" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("link", { name: "메뉴 관리" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "카테고리 관리" })).not.toBeInTheDocument();
+
+    fireEvent.click(toggle);
+
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("link", { name: "메뉴 관리" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "카테고리 관리" })).toBeInTheDocument();
   });
 
   it("renders the page content passed as children", () => {
