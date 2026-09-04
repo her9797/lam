@@ -1,9 +1,23 @@
 .DS_Store
 
+# Docker Compose가 읽는 루트 환경변수 파일(ADMIN_PASSWORD, SESSION_SECRET 등)
+.env
+.env.local
+
 # Web
 lam-web/node_modules
 lam-web/.next
 lam-web/out
+
+# Admin Web
+lam-admin-web/node_modules
+lam-admin-web/.next
+lam-admin-web/out
+lam-admin-web/test-results
+lam-admin-web/playwright-report
+lam-admin-web/.env
+lam-admin-web/.env.local
+lam-admin-web/*.tsbuildinfo
 
 # API
 lam-api/bin

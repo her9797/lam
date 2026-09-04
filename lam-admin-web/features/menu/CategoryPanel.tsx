@@ -1,0 +1,274 @@
+"use client";
+
+import "@/i18n/client";
+
+import { useState } from "react";
+import type { FormEvent } from "react";
+import { useTranslation } from "react-i18next";
+
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { EmptyState } from "@/components/states/PageStates";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+
+import type { MenuCategory } from "@/features/bootstrap/model";
+
+import { validateCategoryForm, type CategoryFormErrors } from "./model";
+import {
+  useCreateCategoryMutation,
+  useDeleteCategoryMutation,
+  useUpdateCategoryVisibilityMutation,
+} from "./queries";
+
+type CategoryFormState = {
+  id: string;
+  label: string;
+  isVisible: boolean;
+};
+
+const EMPTY_FORM: CategoryFormState = { id: "", label: "", isVisible: true };
+
+export function CategoryPanel({ categories }: { categories: MenuCategory[] }) {
+  const { t } = useTranslation("menu");
+  const [form, setForm] = useState<CategoryFormState>(EMPTY_FORM);
+  const [errors, setErrors] = useState<CategoryFormErrors>({});
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+
+  const createMutation = useCreateCategoryMutation();
+  const visibilityMutation = useUpdateCategoryVisibilityMutation();
+  const deleteMutation = useDeleteCategoryMutation();
+
+  const deleteTarget = categories.find((category) => category.id === pendingDeleteId) ?? null;
+
+  function isVisibilityPending(id: string): boolean {
+    return visibilityMutation.isPending && visibilityMutation.variables?.id === id;
+  }
+
+  function isDeletePending(id: string): boolean {
+    return deleteMutation.isPending && deleteMutation.variables === id;
+  }
+
+  function openCreateDialog() {
+    setForm(EMPTY_FORM);
+    setErrors({});
+    setIsCreateOpen(true);
+  }
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const nextErrors = validateCategoryForm(
+      form,
+      categories.map((category) => category.id),
+    );
+    setErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) {
+      return;
+    }
+
+    createMutation.mutate(
+      { id: form.id.trim(), label: form.label.trim(), isVisible: form.isVisible },
+      {
+        onSuccess: () => {
+          setForm(EMPTY_FORM);
+          setIsCreateOpen(false);
+        },
+      },
+    );
+  }
+
+  function handleConfirmDelete() {
+    if (!pendingDeleteId) {
+      return;
+    }
+    deleteMutation.mutate(pendingDeleteId, {
+      onSuccess: () => setPendingDeleteId(null),
+    });
+  }
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
+        <CardTitle>{t("categoryCardTitle")}</CardTitle>
+        <CardAction>
+          <Button type="button" size="sm" onClick={openCreateDialog}>
+            {t("categoryAdd")}
+          </Button>
+        </CardAction>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        {categories.length === 0 ? (
+          <EmptyState
+            title={t("categoryEmptyTitle")}
+            description={t("categoryEmptyDescription")}
+          />
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>{t("columnId")}</TableHead>
+                <TableHead>{t("common:columnName")}</TableHead>
+                <TableHead>{t("common:columnVisibility")}</TableHead>
+                <TableHead>{t("common:columnActions")}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {categories.map((category) => (
+                <TableRow key={category.id}>
+                  <TableCell>{category.id}</TableCell>
+                  <TableCell>{category.label}</TableCell>
+                  <TableCell>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={isVisibilityPending(category.id)}
+                      onClick={() =>
+                        visibilityMutation.mutate({ id: category.id, isVisible: !category.isVisible })
+                      }
+                    >
+                      {category.isVisible ? t("common:visible") : t("common:hidden")}
+                    </Button>
+                  </TableCell>
+                  <TableCell>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="destructive"
+                      disabled={isDeletePending(category.id)}
+                      onClick={() => setPendingDeleteId(category.id)}
+                    >
+                      {t("common:delete")}
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+
+      <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("categoryAdd")}</DialogTitle>
+          </DialogHeader>
+          <form className="flex flex-col gap-3" onSubmit={handleSubmit} noValidate>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="category-id">{t("categoryIdLabel")}</Label>
+              <Input
+                id="category-id"
+                value={form.id}
+                onChange={(event) => setForm((current) => ({ ...current, id: event.target.value }))}
+                aria-invalid={Boolean(errors.id)}
+              />
+              {errors.id ? (
+                <p role="alert" className="text-sm text-destructive">
+                  {t(errors.id)}
+                </p>
+              ) : null}
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="category-label">{t("categoryNameLabel")}</Label>
+              <Input
+                id="category-label"
+                value={form.label}
+                onChange={(event) => setForm((current) => ({ ...current, label: event.target.value }))}
+                aria-invalid={Boolean(errors.label)}
+              />
+              {errors.label ? (
+                <p role="alert" className="text-sm text-destructive">
+                  {t(errors.label)}
+                </p>
+              ) : null}
+            </div>
+            <label className="flex items-center gap-2 text-sm text-foreground">
+              <input
+                type="checkbox"
+                checked={form.isVisible}
+                onChange={(event) => setForm((current) => ({ ...current, isVisible: event.target.checked }))}
+              />
+              {t("common:isPublic")}
+            </label>
+
+            {createMutation.isError ? (
+              <p role="alert" className="text-sm text-destructive">
+                {createMutation.error instanceof Error
+                  ? createMutation.error.message
+                  : t("categoryCreateFailed")}
+              </p>
+            ) : null}
+
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsCreateOpen(false)}>
+                {t("common:cancel")}
+              </Button>
+              <Button type="submit" disabled={createMutation.isPending}>
+                {t("common:save")}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPendingDeleteId(null);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("categoryDeleteTitle")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteTarget ? t("categoryDeleteTarget", { label: deleteTarget.label }) : ""}
+              {t("common:deleteIrreversible")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {/*
+            A failed delete leaves this dialog open (it only closes in the
+            mutation's own `onSuccess`), so the failure has to be reported
+            here rather than in the page body behind the dialog — same
+            `isError` surfacing as `NoticeManagementPage`/`SpecialRequestPage`,
+            placed where it's actually visible.
+          */}
+          {deleteMutation.isError ? (
+            <p role="alert" className="text-sm text-destructive">
+              {deleteMutation.error instanceof Error
+                ? deleteMutation.error.message
+                : t("categoryDeleteFailed")}
+            </p>
+          ) : null}
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("common:cancel")}</AlertDialogCancel>
+            <AlertDialogAction disabled={deleteMutation.isPending} onClick={handleConfirmDelete}>
+              {t("common:delete")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </Card>
+  );
+}

@@ -17,5 +17,62 @@ services:
       timeout: 5s
       retries: 20
 
+  lam-api:
+    build:
+      context: ./lam-api
+    container_name: lam-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      APP_ADDR: ":8080"
+      DATABASE_URL: "postgres://lam:lam@postgres:5432/lam?sslmode=disable"
+      ALLOWED_ORIGIN: "*"
+      ADMIN_API_TOKEN: "${ADMIN_API_TOKEN:-lam-admin-api-token}"
+    ports:
+      - "9090:8080"
+    # lam-api의 런타임 이미지(gcr.io/distroless/base-debian12)에는 셸/curl/wget이 없어
+    # CMD-SHELL 기반 healthcheck를 구성할 수 없다. lam-web/lam-admin-web은 시작 순서만
+    # 보장받고(service_started), 준비 완료는 보장하지 않는다.
+
+  lam-web:
+    build:
+      context: ./lam-web
+    container_name: lam-web
+    restart: unless-stopped
+    depends_on:
+      - lam-api
+    environment:
+      # 컨테이너 간 통신(서버 사이드 fetch)용 주소. Compose 내부 DNS 이름을 사용한다.
+      API_BASE_URL: "http://lam-api:8080"
+      STAFF_ENTRY_TOKEN: "${STAFF_ENTRY_TOKEN:-}"
+    ports:
+      - "3000:8080"
+
+  lam-admin-web:
+    build:
+      context: ./lam-admin-web
+    container_name: lam-admin-web
+    restart: unless-stopped
+    depends_on:
+      - lam-api
+    environment:
+      # 컨테이너 간 통신(서버 사이드 fetch, /api/bootstrap·/api/admin/* BFF)용 주소.
+      # 주의: 메뉴 이미지 contentUrl도 이 값을 그대로 사용해 절대경로로 만들어지므로,
+      # 브라우저가 직접 이 주소로 이미지를 요청한다. Compose 내부 DNS 이름
+      # (http://lam-api:8080)은 컨테이너 사이에서만 풀리고 호스트의 브라우저에서는
+      # 풀리지 않아 메뉴 이미지가 깨진다 — 알려진 제약이며 자세한 내용과 회피 방법은
+      # 루트 README.md의 "Docker Compose 실행" 항목을 참고한다.
+      API_BASE_URL: "${API_BASE_URL:-http://lam-api:8080}"
+      ADMIN_API_TOKEN: "${ADMIN_API_TOKEN:-lam-admin-api-token}"
+      # 로그인을 실제로 통과시키는 두 값에는 기본값을 두지 않는다. 기본값이 있으면
+      # 환경변수를 설정하지 않은 배포가 커밋된 비밀번호로 조용히 로그인되므로,
+      # Compose의 required-variable 문법으로 미설정 시 즉시 실패하게 한다.
+      ADMIN_PASSWORD: "${ADMIN_PASSWORD:?ADMIN_PASSWORD must be set (no default; see README)}"
+      SESSION_SECRET: "${SESSION_SECRET:?SESSION_SECRET must be set (no default; see README)}"
+    ports:
+      - "3001:8080"
+
 volumes:
   lam-postgres-data:

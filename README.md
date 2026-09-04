@@ -18,8 +18,10 @@
 
 ```text
 lam
-├─ lam-web   # 손님용 모바일 웹 + 관리자 웹
-├─ lam-api   # 메뉴/운영 데이터 API
+├─ lam-web         # 손님용 모바일 웹 + 관리자 웹
+├─ lam-admin-web   # 운영자용 관리자 웹(신규)
+├─ lam-api         # 메뉴/운영 데이터 API
+├─ docker-compose.yml
 ├─ .gitignore
 └─ README.md
 ```
@@ -100,6 +102,14 @@ lam
 - 관리자/손님 화면을 같은 프로젝트 안에서 운영
 - API 실패 시 로컬 목 데이터 fallback 지원
 
+### `lam-admin-web`
+
+운영자용 관리자 웹입니다. 기존 `lam-web` 내부의 관리자 UI는 이 프로젝트와 별개로 그대로 유지되며, 별도의 Next.js 프로젝트로 운영됩니다.
+
+- Next.js App Router 기반 구조
+- 카테고리/메뉴/이벤트 관리, 손님 요청(`바로 전달하기`/`특별한`) 확인 화면 제공
+- 세부 실행 방법은 `lam-admin-web/README.md` 참고
+
 ### `lam-api`
 
 메뉴, 공지, 요청, 관리자 기능을 위한 백엔드입니다.
@@ -147,6 +157,84 @@ http://localhost:3000
 
 프론트는 별도 설정이 없으면 기본적으로 `http://localhost:9090` API를 바라봅니다.
 
+### 3. 관리자 웹 실행
+
+기존 `lam-web`의 관리자 UI는 그대로 유지되며, 아래 `lam-admin-web`은 별도로 선택 실행할 수 있는 신규 관리자 웹입니다.
+
+```bash
+cd lam-admin-web
+cp .env.example .env.local   # ADMIN_PASSWORD, SESSION_SECRET, ADMIN_API_TOKEN, API_BASE_URL 값을 채운다
+npm install
+npm run dev
+```
+
+기본 주소:
+
+```text
+http://localhost:3000
+```
+
+필수 교체 secret(`.env.example` 참고, 실제 값은 커밋하지 않는다):
+
+- `ADMIN_PASSWORD`: 관리자 로그인 비밀번호
+- `SESSION_SECRET`: 로그인 세션 서명용 비밀키
+- `ADMIN_API_TOKEN`: `lam-api`의 `ADMIN_API_TOKEN`과 동일해야 하는 관리자 API 토큰
+
+`lam-web`을 로컬에서 함께 실행하는 경우 포트가 겹치므로(둘 다 기본 3000), 두 웹을 동시에 띄우려면 한쪽의 포트를 변경하거나 Docker Compose 실행(아래)을 사용하세요.
+
+## Docker Compose 실행
+
+`docker-compose.yml`은 PostgreSQL, `lam-api`, `lam-web`, `lam-admin-web` 네 서비스를 함께 띄웁니다. 기존 PostgreSQL 설정과 `lam-postgres-data` volume은 그대로 유지됩니다.
+
+`lam-admin-web`의 `ADMIN_PASSWORD`와 `SESSION_SECRET`에는 **기본값이 없습니다.** 두 값이 설정되어 있지 않으면 `docker compose config`/`docker compose up`이 즉시 실패합니다(fail-loud). 실행 전에 저장소 루트에 `.env` 파일을 만들거나 셸 환경변수로 내보내세요.
+
+```bash
+cat > .env <<'EOF'
+ADMIN_PASSWORD=로컬에서_사용할_비밀번호
+SESSION_SECRET=로컬에서_사용할_세션_서명키
+EOF
+# 또는: export ADMIN_PASSWORD=... SESSION_SECRET=...
+
+docker compose up -d --build
+docker compose ps
+```
+
+`.env`는 커밋하지 않습니다(실제 secret을 저장소에 남기지 않는다).
+
+| 서비스 | 컨테이너 이름 | Host 포트 | 설명 |
+| --- | --- | --- | --- |
+| `postgres` | `lam-postgres` | `5432` | PostgreSQL |
+| `lam-api` | `lam-api` | `9090` | API 서버 |
+| `lam-web` | `lam-web` | `3000` | 손님용 웹(+ 기존 관리자 UI) |
+| `lam-admin-web` | `lam-admin-web` | `3001` | 신규 관리자 웹, 로그인: `http://localhost:3001/login` |
+
+환경변수 구분:
+
+- **필수(기본값 없음, 미설정 시 compose 실패)**: `ADMIN_PASSWORD`, `SESSION_SECRET` (`lam-admin-web` 로그인을 통과시키는 값)
+- **로컬 개발용 기본값 있음(운영 배포 전 반드시 교체)**: `ADMIN_API_TOKEN` (`lam-api`·`lam-admin-web` 공통 기본값 `lam-admin-api-token`, 두 값이 반드시 동일해야 한다), `STAFF_ENTRY_TOKEN` (`lam-web`, 기본값 빈 문자열)
+
+필수 값을 포함해 셸 환경변수로 덮어쓸 수 있습니다.
+
+```bash
+ADMIN_API_TOKEN=... ADMIN_PASSWORD=... SESSION_SECRET=... docker compose up -d --build
+```
+
+### 알려진 제약: 관리자 웹에서 메뉴 이미지가 깨지는 경우
+
+`lam-admin-web`의 `API_BASE_URL`은 컨테이너 간 통신(서버 사이드 fetch, `/api/bootstrap`·`/api/admin/*` BFF)뿐 아니라 메뉴 이미지 `contentUrl`을 절대경로로 만드는 데도 그대로 쓰입니다. 이미지는 브라우저가 이 주소로 직접 요청합니다.
+
+기본값(`http://lam-api:8080`)은 Compose 내부 DNS 이름이라 컨테이너 사이에서만 풀리고, 호스트 브라우저에서는 풀리지 않습니다. 그 결과 관리자 웹을 호스트 브라우저(`http://localhost:3001`)로 열면 다른 데이터는 정상 로드되지만 메뉴 이미지만 깨져 보입니다.
+
+호스트 브라우저에서 이미지까지 정상적으로 보려면, `lam-admin-web` 서비스의 `API_BASE_URL`만 호스트에서 접근 가능한 주소(`lam-api`가 호스트에 게시된 포트 `9090`)로 덮어써서 실행하세요. `docker-compose.yml`의 `lam-admin-web.environment.API_BASE_URL`은 `${API_BASE_URL:-http://lam-api:8080}` 형태로 셸 변수를 참조하므로, 아래처럼 실행 전에 셸 변수를 설정하면 실제로 반영됩니다.
+
+```bash
+API_BASE_URL=http://localhost:9090 docker compose up -d --build lam-admin-web
+```
+
+이 override는 `lam-admin-web` 서비스에만 적용됩니다. `lam-api`는 `API_BASE_URL`이라는 이름의 환경변수를 아예 사용하지 않고(`APP_ADDR`으로 자신의 리슨 주소를 설정), `lam-web`의 `API_BASE_URL`은 compose 파일에 `http://lam-api:8080`이 고정 문자열로 적혀 있어 셸 변수를 참조하지 않습니다. 따라서 이 override는 `lam-api`나 `lam-web`의 동작을 바꾸지 않습니다.
+
+이 경우 `lam-admin-web` 컨테이너 내부의 서버 사이드 fetch도 호스트로 나갔다가 다시 호스트의 게시된 포트로 들어오므로 정상 동작합니다. 위 override 없이 기본값 그대로 사용하는 경우, 메뉴 이미지가 깨지는 것은 알려진 제약으로 간주하고 다른 화면 확인에는 영향이 없습니다.
+
 ## 개발 메모
 
 - 프론트는 API 연결 실패 시 로컬 데이터로 자동 fallback 됩니다.
@@ -159,6 +247,14 @@ http://localhost:3000
 
 ```bash
 cd lam-web
+npm run lint
+npm run build
+```
+
+### 관리자 웹
+
+```bash
+cd lam-admin-web
 npm run lint
 npm run build
 ```

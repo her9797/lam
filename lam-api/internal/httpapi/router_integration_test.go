@@ -1,0 +1,359 @@
+package httpapi
+
+import (
+	"bytes"
+	"encoding/json"
+	"mime/multipart"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+)
+
+func doRequest(t *testing.T, handler http.Handler, method, path string, body []byte, headers map[string]string) *httptest.ResponseRecorder {
+	t.Helper()
+
+	var reader *bytes.Reader
+	if body != nil {
+		reader = bytes.NewReader(body)
+	} else {
+		reader = bytes.NewReader(nil)
+	}
+
+	req := httptest.NewRequest(method, path, reader)
+	for key, value := range headers {
+		req.Header.Set(key, value)
+	}
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	return rec
+}
+
+func adminHeaders() map[string]string {
+	return map[string]string{"Authorization": "Bearer " + testCfg.AdminAPIToken}
+}
+
+func TestRouter_Health(t *testing.T) {
+	handler := resetServer(t)
+
+	rec := doRequest(t, handler, http.MethodGet, "/health", nil, nil)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	var body map[string]string
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if body["status"] != "ok" {
+		t.Errorf("status field = %q, want %q", body["status"], "ok")
+	}
+}
+
+func TestRouter_Bootstrap(t *testing.T) {
+	handler := resetServer(t)
+
+	t.Run("GET returns 200", func(t *testing.T) {
+		rec := doRequest(t, handler, http.MethodGet, "/api/v1/bootstrap", nil, nil)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+		}
+	})
+
+	t.Run("POST is not allowed", func(t *testing.T) {
+		rec := doRequest(t, handler, http.MethodPost, "/api/v1/bootstrap", nil, nil)
+		if rec.Code != http.StatusMethodNotAllowed {
+			t.Errorf("status = %d, want %d", rec.Code, http.StatusMethodNotAllowed)
+		}
+	})
+
+	t.Run("OPTIONS preflight returns 204 with CORS headers", func(t *testing.T) {
+		rec := doRequest(t, handler, http.MethodOptions, "/api/v1/bootstrap", nil, nil)
+		if rec.Code != http.StatusNoContent {
+			t.Errorf("status = %d, want %d", rec.Code, http.StatusNoContent)
+		}
+		if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "*" {
+			t.Errorf("Access-Control-Allow-Origin = %q, want %q", got, "*")
+		}
+	})
+}
+
+func TestRouter_CustomerRequests_CreateAndAdminFlow(t *testing.T) {
+	handler := resetServer(t)
+
+	t.Run("public create requires valid payload", func(t *testing.T) {
+		body, _ := json.Marshal(map[string]string{"tableNumber": "", "text": "help"})
+		rec := doRequest(t, handler, http.MethodPost, "/api/v1/customer-requests", body, nil)
+		if rec.Code != http.StatusBadRequest {
+			t.Errorf("status = %d, want %d", rec.Code, http.StatusBadRequest)
+		}
+	})
+
+	body, _ := json.Marshal(map[string]string{"tableNumber": "T-01", "text": "napkins please"})
+	rec := doRequest(t, handler, http.MethodPost, "/api/v1/customer-requests", body, nil)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want %d, body = %s", rec.Code, http.StatusCreated, rec.Body.String())
+	}
+
+	t.Run("admin list requires auth", func(t *testing.T) {
+		rec := doRequest(t, handler, http.MethodGet, "/api/v1/admin/customer-requests", nil, nil)
+		if rec.Code != http.StatusUnauthorized {
+			t.Errorf("status = %d, want %d", rec.Code, http.StatusUnauthorized)
+		}
+	})
+
+	rec = doRequest(t, handler, http.MethodGet, "/api/v1/admin/customer-requests", nil, adminHeaders())
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d, body = %s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	var requests []struct {
+		ID     string `json:"id"`
+		Status string `json:"status"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &requests); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if len(requests) != 1 || requests[0].Status != "pending" {
+		t.Fatalf("requests = %+v, want a single pending request", requests)
+	}
+	requestID := requests[0].ID
+
+	t.Run("status update via /status suffix", func(t *testing.T) {
+		statusBody, _ := json.Marshal(map[string]string{"status": "completed"})
+		rec := doRequest(t, handler, http.MethodPatch, "/api/v1/admin/customer-requests/"+requestID+"/status", statusBody, adminHeaders())
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d, body = %s", rec.Code, http.StatusOK, rec.Body.String())
+		}
+
+		var updated []struct {
+			ID     string `json:"id"`
+			Status string `json:"status"`
+		}
+		if err := json.Unmarshal(rec.Body.Bytes(), &updated); err != nil {
+			t.Fatalf("decode body: %v", err)
+		}
+		if len(updated) != 1 || updated[0].Status != "completed" {
+			t.Errorf("updated requests = %+v, want status=completed", updated)
+		}
+	})
+
+	t.Run("PATCH without /status suffix is not found", func(t *testing.T) {
+		statusBody, _ := json.Marshal(map[string]string{"status": "completed"})
+		rec := doRequest(t, handler, http.MethodPatch, "/api/v1/admin/customer-requests/"+requestID, statusBody, adminHeaders())
+		if rec.Code != http.StatusNotFound {
+			t.Errorf("status = %d, want %d", rec.Code, http.StatusNotFound)
+		}
+	})
+
+	t.Run("delete", func(t *testing.T) {
+		rec := doRequest(t, handler, http.MethodDelete, "/api/v1/admin/customer-requests/"+requestID, nil, adminHeaders())
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d, body = %s", rec.Code, http.StatusOK, rec.Body.String())
+		}
+	})
+}
+
+func TestRouter_SpecialRequests_Create(t *testing.T) {
+	handler := resetServer(t)
+
+	valid := map[string]string{
+		"tableNumber": "T-01",
+		"gender":      "female",
+		"name":        "Lee",
+		"age":         "30s",
+		"residence":   "Seoul",
+		"instagram":   "@lee",
+		"idealType":   "kind",
+		"text":        "hi",
+	}
+	body, _ := json.Marshal(valid)
+	rec := doRequest(t, handler, http.MethodPost, "/api/v1/special-requests", body, nil)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want %d, body = %s", rec.Code, http.StatusCreated, rec.Body.String())
+	}
+
+	t.Run("invalid gender is rejected", func(t *testing.T) {
+		invalid := map[string]string{}
+		for k, v := range valid {
+			invalid[k] = v
+		}
+		invalid["gender"] = "unspecified"
+		body, _ := json.Marshal(invalid)
+		rec := doRequest(t, handler, http.MethodPost, "/api/v1/special-requests", body, nil)
+		if rec.Code != http.StatusBadRequest {
+			t.Errorf("status = %d, want %d", rec.Code, http.StatusBadRequest)
+		}
+	})
+
+	rec = doRequest(t, handler, http.MethodGet, "/api/v1/admin/special-requests", nil, adminHeaders())
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d, body = %s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+}
+
+func TestRouter_AdminCategories_CreateRequiresAuth(t *testing.T) {
+	handler := resetServer(t)
+
+	body, _ := json.Marshal(map[string]any{"id": "drinks", "label": "Drinks", "isVisible": true})
+
+	t.Run("without auth is rejected", func(t *testing.T) {
+		rec := doRequest(t, handler, http.MethodPost, "/api/v1/admin/categories", body, nil)
+		if rec.Code != http.StatusUnauthorized {
+			t.Errorf("status = %d, want %d", rec.Code, http.StatusUnauthorized)
+		}
+	})
+
+	rec := doRequest(t, handler, http.MethodPost, "/api/v1/admin/categories", body, adminHeaders())
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want %d, body = %s", rec.Code, http.StatusCreated, rec.Body.String())
+	}
+}
+
+func TestRouter_AdminMenuItems_CreateUpdateDelete(t *testing.T) {
+	handler := resetServer(t)
+
+	catBody, _ := json.Marshal(map[string]any{"id": "food", "label": "Food", "isVisible": true})
+	rec := doRequest(t, handler, http.MethodPost, "/api/v1/admin/categories", catBody, adminHeaders())
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create category status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+
+	itemBody, _ := json.Marshal(map[string]any{
+		"categoryId": "food", "name": "Fries", "description": "crispy", "price": "5000", "isVisible": true,
+	})
+	rec = doRequest(t, handler, http.MethodPost, "/api/v1/admin/menu-items", itemBody, adminHeaders())
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create menu item status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+
+	var bootstrap struct {
+		Items []struct {
+			ID        string `json:"id"`
+			IsVisible bool   `json:"isVisible"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &bootstrap); err != nil {
+		t.Fatalf("decode bootstrap: %v", err)
+	}
+	if len(bootstrap.Items) != 1 {
+		t.Fatalf("items = %+v, want a single item", bootstrap.Items)
+	}
+	itemID := bootstrap.Items[0].ID
+
+	t.Run("visibility PATCH", func(t *testing.T) {
+		visBody, _ := json.Marshal(map[string]bool{"isVisible": false})
+		rec := doRequest(t, handler, http.MethodPatch, "/api/v1/admin/menu-items/"+itemID+"/visibility", visBody, adminHeaders())
+		if rec.Code != http.StatusCreated {
+			t.Fatalf("status = %d, want %d, body = %s", rec.Code, http.StatusCreated, rec.Body.String())
+		}
+	})
+
+	t.Run("DELETE", func(t *testing.T) {
+		rec := doRequest(t, handler, http.MethodDelete, "/api/v1/admin/menu-items/"+itemID, nil, adminHeaders())
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d, body = %s", rec.Code, http.StatusOK, rec.Body.String())
+		}
+	})
+}
+
+func TestRouter_MenuImageUploadAndPublicContent(t *testing.T) {
+	handler := resetServer(t)
+
+	catBody, _ := json.Marshal(map[string]any{"id": "food", "label": "Food", "isVisible": true})
+	doRequest(t, handler, http.MethodPost, "/api/v1/admin/categories", catBody, adminHeaders())
+
+	itemBody, _ := json.Marshal(map[string]any{
+		"categoryId": "food", "name": "Fries", "description": "crispy", "price": "5000", "isVisible": true,
+	})
+	rec := doRequest(t, handler, http.MethodPost, "/api/v1/admin/menu-items", itemBody, adminHeaders())
+	var bootstrap struct {
+		Items []struct {
+			ID string `json:"id"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &bootstrap); err != nil {
+		t.Fatalf("decode bootstrap: %v", err)
+	}
+	itemID := bootstrap.Items[0].ID
+
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+	part, err := writer.CreateFormFile("image", "fries.png")
+	if err != nil {
+		t.Fatalf("create form file: %v", err)
+	}
+	if _, err := part.Write([]byte("fake-png-bytes")); err != nil {
+		t.Fatalf("write form file: %v", err)
+	}
+	_ = writer.WriteField("isPrimary", "true")
+	if err := writer.Close(); err != nil {
+		t.Fatalf("close writer: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/menu-items/"+itemID+"/images", &buf)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("Authorization", "Bearer "+testCfg.AdminAPIToken)
+	uploadRec := httptest.NewRecorder()
+	handler.ServeHTTP(uploadRec, req)
+
+	if uploadRec.Code != http.StatusCreated {
+		t.Fatalf("upload status = %d, want %d, body = %s", uploadRec.Code, http.StatusCreated, uploadRec.Body.String())
+	}
+
+	var uploaded struct {
+		Items []struct {
+			Images []struct {
+				ID         string `json:"id"`
+				ContentURL string `json:"contentUrl"`
+				IsPrimary  bool   `json:"isPrimary"`
+			} `json:"images"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(uploadRec.Body.Bytes(), &uploaded); err != nil {
+		t.Fatalf("decode upload response: %v", err)
+	}
+	if len(uploaded.Items) != 1 || len(uploaded.Items[0].Images) != 1 {
+		t.Fatalf("uploaded = %+v, want a single image", uploaded)
+	}
+	image := uploaded.Items[0].Images[0]
+	if !image.IsPrimary {
+		t.Errorf("uploaded image IsPrimary = false, want true")
+	}
+
+	contentRec := doRequest(t, handler, http.MethodGet, "/api/v1/menu-images/"+image.ID+"/content", nil, nil)
+	if contentRec.Code != http.StatusOK {
+		t.Fatalf("content status = %d, want %d", contentRec.Code, http.StatusOK)
+	}
+	if contentRec.Body.String() != "fake-png-bytes" {
+		t.Errorf("content body = %q, want %q", contentRec.Body.String(), "fake-png-bytes")
+	}
+	if got := contentRec.Header().Get("Content-Type"); got == "" {
+		t.Errorf("Content-Type header is empty")
+	}
+
+	t.Run("unknown image id is not found", func(t *testing.T) {
+		rec := doRequest(t, handler, http.MethodGet, "/api/v1/menu-images/missing/content", nil, nil)
+		if rec.Code != http.StatusNotFound {
+			t.Errorf("status = %d, want %d", rec.Code, http.StatusNotFound)
+		}
+	})
+}
+
+func TestRouter_AdminStoreProfile_Update(t *testing.T) {
+	handler := resetServer(t)
+
+	body, _ := json.Marshal(map[string]string{
+		"songRequestCopy": "song", "requestCopy": "request", "eventCopy": "event",
+	})
+
+	t.Run("without auth is rejected", func(t *testing.T) {
+		rec := doRequest(t, handler, http.MethodPatch, "/api/v1/admin/store-profile", body, nil)
+		if rec.Code != http.StatusUnauthorized {
+			t.Errorf("status = %d, want %d", rec.Code, http.StatusUnauthorized)
+		}
+	})
+
+	rec := doRequest(t, handler, http.MethodPatch, "/api/v1/admin/store-profile", body, adminHeaders())
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d, body = %s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+}
