@@ -10,12 +10,22 @@ import i18n from "./client";
  * including a validation-style message and a locale-formatted timestamp.
  */
 
-const useCustomerRequestsQueryMock = vi.fn();
+const useCustomerRequestsPageQueryMock = vi.fn();
 const useUpdateCustomerRequestStatusMutationMock = vi.fn();
 
 vi.mock("@/features/requests/queries", () => ({
-  useCustomerRequestsQuery: () => useCustomerRequestsQueryMock(),
+  useCustomerRequestsPageQuery: () => useCustomerRequestsPageQueryMock(),
   useUpdateCustomerRequestStatusMutation: () => useUpdateCustomerRequestStatusMutationMock(),
+}));
+
+// RequestListPage reads/writes the URL for its search/filter/sort/page
+// state (see `features/requests/list-query-url.ts`) — this file is about
+// rendered copy, not URL sync, so the router is stubbed to a fixed,
+// empty-query state.
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/requests",
+  useRouter: () => ({ replace: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 const useBootstrapQueryMock = vi.fn();
@@ -51,16 +61,21 @@ afterEach(() => {
 
 describe("feature pages in English", () => {
   it("renders the guest-request list entirely in English", () => {
-    useCustomerRequestsQueryMock.mockReturnValue({
-      data: [
-        {
-          id: "r1",
-          tableNumber: "4",
-          text: "More water please",
-          status: "pending",
-          createdAt: "2026-09-03T10:00:00Z",
-        },
-      ],
+    useCustomerRequestsPageQueryMock.mockReturnValue({
+      data: {
+        items: [
+          {
+            id: "r1",
+            tableNumber: "4",
+            text: "More water please",
+            status: "pending",
+            createdAt: "2026-09-03T10:00:00Z",
+          },
+        ],
+        page: 1,
+        pageSize: 20,
+        total: 1,
+      },
       isLoading: false,
       isError: false,
       error: null,
@@ -91,16 +106,21 @@ describe("feature pages in English", () => {
   });
 
   it("formats timestamps with the English locale, not ko-KR", () => {
-    useCustomerRequestsQueryMock.mockReturnValue({
-      data: [
-        {
-          id: "r1",
-          tableNumber: "4",
-          text: "More water please",
-          status: "completed",
-          createdAt: "2026-09-03T10:00:00Z",
-        },
-      ],
+    useCustomerRequestsPageQueryMock.mockReturnValue({
+      data: {
+        items: [
+          {
+            id: "r1",
+            tableNumber: "4",
+            text: "More water please",
+            status: "completed",
+            createdAt: "2026-09-03T10:00:00Z",
+          },
+        ],
+        page: 1,
+        pageSize: 20,
+        total: 1,
+      },
       isLoading: false,
       isError: false,
       error: null,

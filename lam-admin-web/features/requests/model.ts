@@ -19,3 +19,31 @@ export type CustomerRequest = {
   createdAt: string;
   handledAt?: string;
 };
+
+/** "all" delegates the general/song split to the server's `[노래 신청]` prefix
+ * check (`lam-api/internal/store/postgres.go`'s `songRequestPrefix`), rather
+ * than reimplementing it here — see `features/dashboard/summary.ts`'s doc
+ * comment for why that rule must stay in exactly one place per app. */
+export type CustomerRequestKind = "all" | "general" | "song";
+
+export type CustomerRequestSort = "status" | "createdAt" | "tableNumber";
+
+export type SortOrder = "asc" | "desc";
+
+export type CustomerRequestListQuery = {
+  page: number;
+  pageSize: number;
+  status?: CustomerRequestStatus;
+  kind: CustomerRequestKind;
+  search: string;
+  sort: CustomerRequestSort;
+  order: SortOrder;
+};
+
+/** Mirrors `lam-api/internal/lamdata.CustomerRequestPage`. */
+export type CustomerRequestPageResult = {
+  items: CustomerRequest[];
+  page: number;
+  pageSize: number;
+  total: number;
+};
