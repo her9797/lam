@@ -136,6 +136,20 @@ export function RequestListPage({ kind }: { kind: RequestListPageKind }) {
   const total = requestsQuery.data?.total ?? 0;
   const hasActiveFilter = Boolean(query.status) || query.search.trim().length > 0;
 
+  // Label lookups for the two <Select>s below — see the render-prop comment
+  // at their `SelectValue` for why these exist.
+  const STATUS_FILTER_LABELS: Record<string, string> = {
+    all: t("common:filterAll"),
+    pending: t("statusPending"),
+    checked: t("statusChecked"),
+    completed: t("statusCompleted"),
+  };
+  const SORT_LABELS: Record<string, string> = {
+    status: t("sortByStatus"),
+    createdAt: t("sortByCreatedAt"),
+    tableNumber: t("sortByTableNumber"),
+  };
+
   function isRowMutating(id: string): boolean {
     return statusMutation.isPending && statusMutation.variables?.id === id;
   }
@@ -167,7 +181,14 @@ export function RequestListPage({ kind }: { kind: RequestListPageKind }) {
           }
         >
           <SelectTrigger size="sm" aria-label={t("statusFilterLabel")}>
-            <SelectValue placeholder={t("statusFilterLabel")} />
+            {/* Base UI's <Select.Value> shows the raw string value unless
+                told how to render a label for it — see its own doc comment
+                ("When the item values are objects ... {value, label}").
+                Since these items are plain strings, this render-prop is
+                required or the trigger displays "all"/"pending" literally. */}
+            <SelectValue placeholder={t("statusFilterLabel")}>
+              {(value: string) => STATUS_FILTER_LABELS[value] ?? value}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">{t("common:filterAll")}</SelectItem>
@@ -182,7 +203,9 @@ export function RequestListPage({ kind }: { kind: RequestListPageKind }) {
           onValueChange={(value) => updateQuery({ sort: value as CustomerRequestSort, page: 1 })}
         >
           <SelectTrigger size="sm" aria-label={t("common:sortLabel")}>
-            <SelectValue placeholder={t("common:sortLabel")} />
+            <SelectValue placeholder={t("common:sortLabel")}>
+              {(value: string) => SORT_LABELS[value] ?? value}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="status">{t("sortByStatus")}</SelectItem>

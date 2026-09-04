@@ -111,6 +111,12 @@ export function MenuManagementPage() {
     sortValue: (item, key) => (key === "price" ? Number(item.price) || 0 : item.name),
   });
 
+  const ITEM_SORT_LABELS: Record<string, string> = {
+    none: t("common:filterAll"),
+    name: t("itemSortByName"),
+    price: t("itemSortByPrice"),
+  };
+
   function isVisibilityPending(id: string): boolean {
     return visibilityMutation.isPending && visibilityMutation.variables?.id === id;
   }
@@ -237,7 +243,12 @@ export function MenuManagementPage() {
                 }
               >
                 <SelectTrigger size="sm" aria-label={t("common:sortLabel")}>
-                  <SelectValue placeholder={t("common:sortLabel")} />
+                  {/* Base UI's <Select.Value> shows the raw string value
+                      unless told how to render a label for it — required
+                      here since these items are plain strings. */}
+                  <SelectValue placeholder={t("common:sortLabel")}>
+                    {(value: string) => ITEM_SORT_LABELS[value] ?? value}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">{t("common:filterAll")}</SelectItem>

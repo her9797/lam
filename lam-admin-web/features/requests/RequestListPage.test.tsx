@@ -124,6 +124,18 @@ describe("RequestListPage", () => {
     expect(refetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it("shows translated labels (not the raw value) in the status and sort selects", () => {
+    render(<RequestListPage kind="general" />);
+
+    // Base UI's <Select.Value> renders the raw string value unless given a
+    // label mapping — a prior version of this page showed literal "all"/
+    // "status" here instead of "전체"/"상태순". Locks the fix in place.
+    expect(screen.getByText("전체")).toBeInTheDocument();
+    expect(screen.getByText("상태순")).toBeInTheDocument();
+    expect(screen.queryByText("all", { selector: "span" })).not.toBeInTheDocument();
+    expect(screen.queryByText("status", { selector: "span" })).not.toBeInTheDocument();
+  });
+
   it("requests kind=general for the general screen and kind=song for the song screen", () => {
     render(<RequestListPage kind="general" />);
     expect(useCustomerRequestsPageQueryMock).toHaveBeenCalledWith(

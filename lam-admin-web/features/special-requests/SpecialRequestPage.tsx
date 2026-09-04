@@ -135,6 +135,20 @@ export function SpecialRequestPage() {
     });
   }
 
+  // Label lookups for the two <Select>s below — Base UI's <Select.Value>
+  // shows the raw string value unless told how to render a label for it
+  // (its own doc comment: "When the item values are objects ... {value,
+  // label}"). These items are plain strings, so the render-prop is required.
+  const GENDER_FILTER_LABELS: Record<string, string> = {
+    all: t("common:filterAll"),
+    male: t("genderMale"),
+    female: t("genderFemale"),
+  };
+  const SORT_LABELS: Record<string, string> = {
+    createdAt: t("sortByCreatedAt"),
+    name: t("sortByName"),
+  };
+
   return (
     <div className="flex flex-col gap-4">
       <h1 className="text-lg font-semibold text-foreground">{t("title")}</h1>
@@ -155,7 +169,9 @@ export function SpecialRequestPage() {
           }
         >
           <SelectTrigger size="sm" aria-label={t("genderFilterLabel")}>
-            <SelectValue placeholder={t("genderFilterLabel")} />
+            <SelectValue placeholder={t("genderFilterLabel")}>
+              {(value: string) => GENDER_FILTER_LABELS[value] ?? value}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">{t("common:filterAll")}</SelectItem>
@@ -171,7 +187,9 @@ export function SpecialRequestPage() {
           }
         >
           <SelectTrigger size="sm" aria-label={t("common:sortLabel")}>
-            <SelectValue placeholder={t("common:sortLabel")} />
+            <SelectValue placeholder={t("common:sortLabel")}>
+              {(value: string) => SORT_LABELS[value] ?? value}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="createdAt">{t("sortByCreatedAt")}</SelectItem>
