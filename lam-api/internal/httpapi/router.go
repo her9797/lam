@@ -394,13 +394,42 @@ func NewMux(repository *store.Repository, cfg config.Config) http.Handler {
 			return
 		}
 
-		requests, err := repository.ListCustomerRequests(r.Context())
+		query, hasParams, err := parseCustomerRequestListQuery(r.URL.Query())
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+
+		if !hasParams {
+			requests, err := repository.ListCustomerRequests(r.Context())
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, err)
+				return
+			}
+			writeJSON(w, http.StatusOK, requests)
+			return
+		}
+
+		items, total, err := repository.ListCustomerRequestsPage(r.Context(), store.CustomerRequestFilter{
+			Status:   query.Status,
+			Kind:     query.Kind,
+			Search:   query.Search,
+			Sort:     query.Sort,
+			Order:    query.Order,
+			Page:     query.Page,
+			PageSize: query.PageSize,
+		})
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err)
 			return
 		}
 
-		writeJSON(w, http.StatusOK, requests)
+		writeJSON(w, http.StatusOK, lamdata.CustomerRequestPage{
+			Items:    items,
+			Page:     query.Page,
+			PageSize: query.PageSize,
+			Total:    total,
+		})
 	}))
 
 	mux.HandleFunc("/api/v1/admin/special-requests", withCORS(cfg.AllowedOrigin, func(w http.ResponseWriter, r *http.Request) {
@@ -413,13 +442,41 @@ func NewMux(repository *store.Repository, cfg config.Config) http.Handler {
 			return
 		}
 
-		requests, err := repository.ListSpecialRequests(r.Context())
+		query, hasParams, err := parseSpecialRequestListQuery(r.URL.Query())
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+
+		if !hasParams {
+			requests, err := repository.ListSpecialRequests(r.Context())
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, err)
+				return
+			}
+			writeJSON(w, http.StatusOK, requests)
+			return
+		}
+
+		items, total, err := repository.ListSpecialRequestsPage(r.Context(), store.SpecialRequestFilter{
+			Gender:   query.Gender,
+			Search:   query.Search,
+			Sort:     query.Sort,
+			Order:    query.Order,
+			Page:     query.Page,
+			PageSize: query.PageSize,
+		})
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err)
 			return
 		}
 
-		writeJSON(w, http.StatusOK, requests)
+		writeJSON(w, http.StatusOK, lamdata.SpecialRequestPage{
+			Items:    items,
+			Page:     query.Page,
+			PageSize: query.PageSize,
+			Total:    total,
+		})
 	}))
 
 	mux.HandleFunc("/api/v1/admin/customer-requests/", withCORS(cfg.AllowedOrigin, func(w http.ResponseWriter, r *http.Request) {

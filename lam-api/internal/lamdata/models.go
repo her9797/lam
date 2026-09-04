@@ -68,6 +68,20 @@ type SpecialRequest struct {
 	CreatedAt   string `json:"createdAt"`
 }
 
+type CustomerRequestPage struct {
+	Items    []CustomerRequest `json:"items"`
+	Page     int               `json:"page"`
+	PageSize int               `json:"pageSize"`
+	Total    int               `json:"total"`
+}
+
+type SpecialRequestPage struct {
+	Items    []SpecialRequest `json:"items"`
+	Page     int              `json:"page"`
+	PageSize int              `json:"pageSize"`
+	Total    int              `json:"total"`
+}
+
 type BootstrapData struct {
 	Store         StoreInfo      `json:"store"`
 	Categories    []MenuCategory `json:"categories"`
