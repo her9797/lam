@@ -63,7 +63,7 @@ async function forward(request: NextRequest, slug: string[]) {
   }
 
   const upstreamResponse = await fetch(
-    `${getApiBaseUrl()}/api/v1/admin/${targetPath}`,
+    `${getApiBaseUrl()}/api/v1/admin/${targetPath}${request.nextUrl.search}`,
     {
       method: request.method,
       headers,
