@@ -555,4 +555,71 @@ describe("MenuManagementPage", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(uploadMenuItemImageMutate).not.toHaveBeenCalled();
   });
+
+  describe("search, sort and pagination", () => {
+    const TWO_ITEM_FIXTURE: AppData = {
+      ...FIXTURE,
+      items: [
+        FIXTURE.items[0],
+        {
+          id: "menu-2",
+          categoryId: "drinks",
+          name: "카페라떼",
+          description: "부드러운 라떼",
+          price: "4500",
+          isVisible: true,
+        },
+      ],
+    };
+
+    it("filters the item table by name/description without touching the create form's category list", () => {
+      mockBootstrap({ data: TWO_ITEM_FIXTURE });
+
+      render(<MenuManagementPage />);
+
+      fireEvent.change(screen.getByPlaceholderText("메뉴 이름, 설명으로 검색"), {
+        target: { value: "라떼" },
+      });
+
+      expect(screen.getByText("카페라떼")).toBeInTheDocument();
+      expect(screen.queryByText("아메리카노")).not.toBeInTheDocument();
+      // The create form's category <select> must still offer every
+      // category regardless of the table's own search filter.
+      expect(screen.getByText("음료")).toBeInTheDocument();
+    });
+
+    it("shows every item, on one page, when there is no active search", () => {
+      mockBootstrap({ data: TWO_ITEM_FIXTURE });
+
+      render(<MenuManagementPage />);
+
+      expect(screen.getByText("아메리카노")).toBeInTheDocument();
+      expect(screen.getByText("카페라떼")).toBeInTheDocument();
+      expect(screen.getByText("총 2건")).toBeInTheDocument();
+    });
+
+    it("paginates when there are more items than one page", () => {
+      const manyItems = Array.from({ length: 21 }, (_, index) => ({
+        id: `menu-${index}`,
+        categoryId: "drinks",
+        name: `메뉴 ${String(index).padStart(2, "0")}`,
+        description: "",
+        price: "1000",
+        isVisible: true,
+      }));
+      mockBootstrap({ data: { ...FIXTURE, items: manyItems } });
+
+      render(<MenuManagementPage />);
+
+      expect(screen.getByText("총 21건")).toBeInTheDocument();
+      expect(screen.getByText("1 / 2")).toBeInTheDocument();
+      expect(screen.getByText("메뉴 00")).toBeInTheDocument();
+      expect(screen.queryByText("메뉴 20")).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: "다음" }));
+
+      expect(screen.getByText("메뉴 20")).toBeInTheDocument();
+      expect(screen.queryByText("메뉴 00")).not.toBeInTheDocument();
+    });
+  });
 });

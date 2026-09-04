@@ -19,6 +19,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ListToolbar } from "@/components/list/ListToolbar";
+import { Pagination } from "@/components/list/Pagination";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states/PageStates";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -33,6 +35,7 @@ import {
 
 import { useBootstrapQuery } from "@/features/bootstrap/queries";
 import type { NoticeItem } from "@/features/bootstrap/model";
+import { applyListQuery, type ListQueryState } from "@/lib/list/apply-list-query";
 
 import {
   useCreateNoticeMutation,
@@ -69,6 +72,15 @@ export function NoticeManagementPage() {
   const [editingErrorKey, setEditingErrorKey] = useState<string | undefined>(undefined);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  // Search + pagination only: `NoticeItem` has no field a sort control would
+  // meaningfully order by beyond the server's own list order.
+  const [listQuery, setListQuery] = useState<ListQueryState>({
+    search: "",
+    sort: "",
+    order: "asc",
+    page: 1,
+    pageSize: 20,
+  });
 
   if (bootstrapQuery.isLoading) {
     return <LoadingState label={t("loading")} />;
@@ -86,6 +98,11 @@ export function NoticeManagementPage() {
 
   const notices = bootstrapQuery.data?.notices ?? [];
   const deleteTarget = notices.find((notice) => notice.id === pendingDeleteId) ?? null;
+  const { items: visibleNotices, total: visibleTotal } = applyListQuery<NoticeItem>(
+    notices,
+    listQuery,
+    { searchText: (notice) => notice.text },
+  );
 
   function isVisibilityPending(id: string): boolean {
     return visibilityMutation.isPending && visibilityMutation.variables?.id === id;
@@ -215,8 +232,21 @@ export function NoticeManagementPage() {
             </p>
           ) : null}
 
+          {notices.length > 0 ? (
+            <ListToolbar
+              searchValue={listQuery.search}
+              onSearchChange={(search) => setListQuery((prev) => ({ ...prev, search, page: 1 }))}
+              searchPlaceholder={t("searchPlaceholder")}
+            />
+          ) : null}
+
           {notices.length === 0 ? (
             <EmptyState title={t("emptyTitle")} description={t("emptyDescription")} />
+          ) : visibleNotices.length === 0 ? (
+            <EmptyState
+              title={t("common:listNoResultsTitle")}
+              description={t("common:listNoResultsDescription")}
+            />
           ) : (
             <Table>
               <TableHeader>
@@ -227,7 +257,7 @@ export function NoticeManagementPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {notices.map((notice) => {
+                {visibleNotices.map((notice) => {
                   return (
                     <TableRow key={notice.id}>
                       <TableCell className="whitespace-normal">{notice.text}</TableCell>
@@ -269,6 +299,15 @@ export function NoticeManagementPage() {
               </TableBody>
             </Table>
           )}
+
+          {notices.length > 0 ? (
+            <Pagination
+              page={listQuery.page}
+              pageSize={listQuery.pageSize}
+              total={visibleTotal}
+              onPageChange={(page) => setListQuery((prev) => ({ ...prev, page }))}
+            />
+          ) : null}
         </CardContent>
       </Card>
 

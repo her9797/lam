@@ -236,4 +236,34 @@ describe("CategoryManagementPage", () => {
       "카테고리를 삭제할 수 없습니다. (409)",
     );
   });
+
+  it("filters the category table by label/id, without affecting the create form's duplicate-id check", () => {
+    mockBootstrap({
+      data: {
+        ...FIXTURE,
+        categories: [
+          { id: "drinks", label: "음료", isVisible: true },
+          { id: "snacks", label: "안주", isVisible: true },
+        ],
+      },
+    });
+
+    render(<CategoryManagementPage />);
+
+    fireEvent.change(screen.getByPlaceholderText("카테고리 이름으로 검색"), {
+      target: { value: "안주" },
+    });
+
+    expect(screen.getByText("안주")).toBeInTheDocument();
+    expect(screen.queryByText("음료")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "카테고리 추가" }));
+    fireEvent.change(screen.getByLabelText("카테고리 ID"), { target: { value: "drinks" } });
+    fireEvent.change(screen.getByLabelText("카테고리 이름"), { target: { value: "새 이름" } });
+    fireEvent.click(screen.getByRole("button", { name: "저장" }));
+
+    // Duplicate-id validation must still see "drinks", even though the
+    // table's own search filter currently hides that row.
+    expect(screen.getByText("이미 존재하는 카테고리 ID입니다.")).toBeInTheDocument();
+  });
 });
