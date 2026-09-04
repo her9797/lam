@@ -1,13 +1,15 @@
 "use client";
 
-import { RiCheckLine } from "@remixicon/react";
+import { RiCheckLine, RiTranslate2 } from "@remixicon/react";
 import { useTranslation } from "react-i18next";
 
 import { buttonVariants } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
@@ -27,29 +29,32 @@ export function LanguageMenu() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+        className={cn(buttonVariants({ variant: "outline", size: "icon-sm" }))}
         aria-label={`${t("language")}: ${t(currentOption.labelKey)}`}
       >
-        {t(currentOption.labelKey)}
+        <RiTranslate2 className="size-4" aria-hidden="true" />
       </DropdownMenuTrigger>
       <DropdownMenuContent>
-        {LANGUAGE_OPTIONS.map((option) => (
-          <DropdownMenuItem
-            key={option.value}
-            onClick={() => {
-              void i18n.changeLanguage(option.value);
-            }}
-          >
-            <RiCheckLine
-              className={cn(
-                "size-4",
-                currentLanguage !== option.value && "invisible",
-              )}
-              aria-hidden="true"
-            />
-            {t(option.labelKey)}
-          </DropdownMenuItem>
-        ))}
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>{t("language")}</DropdownMenuLabel>
+          {LANGUAGE_OPTIONS.map((option) => (
+            <DropdownMenuItem
+              key={option.value}
+              onClick={() => {
+                void i18n.changeLanguage(option.value);
+              }}
+            >
+              <span className="flex-1">{t(option.labelKey)}</span>
+              <RiCheckLine
+                className={cn(
+                  "size-4",
+                  currentLanguage !== option.value && "invisible",
+                )}
+                aria-hidden="true"
+              />
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>
   );

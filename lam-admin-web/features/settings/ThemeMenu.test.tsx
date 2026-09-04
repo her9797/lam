@@ -29,6 +29,12 @@ vi.mock("@/components/ui/dropdown-menu", () => ({
   DropdownMenuContent: ({ children }: { children?: React.ReactNode }) => (
     <div>{children}</div>
   ),
+  DropdownMenuGroup: ({ children }: { children?: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  DropdownMenuLabel: ({ children, ...props }: React.ComponentProps<"div">) => (
+    <div {...props}>{children}</div>
+  ),
   DropdownMenuItem: ({
     children,
     ...props
@@ -56,16 +62,28 @@ describe("ThemeMenu", () => {
     cleanup();
   });
 
-  it("shows the current theme on the trigger", () => {
+  it("exposes the current theme via an icon-only trigger's accessible name", () => {
     render(
       <ThemeProvider>
         <ThemeMenu />
       </ThemeProvider>,
     );
 
-    expect(screen.getByRole("button", { name: /테마: 시스템/ })).toHaveTextContent(
-      "시스템",
+    const trigger = screen.getByRole("button", { name: /테마: 시스템/ });
+    // Icon-only trigger: the theme is conveyed via aria-label and the icon,
+    // not visible text (matches the reference design's icon-based header).
+    expect(trigger).toHaveTextContent("");
+    expect(trigger.querySelector("svg")).not.toBeNull();
+  });
+
+  it("labels the dropdown content with a '테마' heading", () => {
+    render(
+      <ThemeProvider>
+        <ThemeMenu />
+      </ThemeProvider>,
     );
+
+    expect(screen.getByText("테마")).toBeInTheDocument();
   });
 
   it("wires the 라이트 (light) menu item to setTheme(\"light\")", () => {

@@ -23,6 +23,12 @@ vi.mock("@/components/ui/dropdown-menu", () => ({
   DropdownMenuContent: ({ children }: { children?: React.ReactNode }) => (
     <div>{children}</div>
   ),
+  DropdownMenuGroup: ({ children }: { children?: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  DropdownMenuLabel: ({ children, ...props }: React.ComponentProps<"div">) => (
+    <div {...props}>{children}</div>
+  ),
   DropdownMenuItem: ({
     children,
     ...props
@@ -48,12 +54,21 @@ describe("LanguageMenu", () => {
     cleanup();
   });
 
-  it("shows the current language on the trigger", () => {
+  it("exposes the current language via an icon-only trigger's accessible name", () => {
     render(<LanguageMenu />);
 
-    expect(
-      screen.getByRole("button", { name: /언어: 한국어/ }),
-    ).toHaveTextContent("한국어");
+    const trigger = screen.getByRole("button", { name: /언어: 한국어/ });
+    // Icon-only trigger: the language is conveyed via aria-label and the
+    // icon, not visible text (matches the reference design's icon-based
+    // header).
+    expect(trigger).toHaveTextContent("");
+    expect(trigger.querySelector("svg")).not.toBeNull();
+  });
+
+  it("labels the dropdown content with a '언어' heading", () => {
+    render(<LanguageMenu />);
+
+    expect(screen.getByText("언어")).toBeInTheDocument();
   });
 
   it("wires the English menu item to i18n.changeLanguage(\"en\")", async () => {
