@@ -35,13 +35,12 @@
 
 ## 브랜치
 
-- `ms/dev`는 MS 작업의 기준(base/root)이자 장기 통합 브랜치다. 실험적이거나 아직 정리되지 않은 커밋이 섞일 수 있다.
-- 작은 격리 변경은 `ms/dev`에서 수행할 수 있다.
-- 장기, 병렬, 고위험, 공개 API, DB migration, 인증·인가 변경은 최신 `ms/dev`에서 작업용 branch를 분기하고 완료 후 `ms/dev`로 병합한다. 이 작업용 branch는 `main`으로 직접 전달하지 않는다.
-- `main`으로 전달할 때는 `ms/dev`를 그대로 merge하지 않는다. PR에 필요한 커밋만 골라 `ms/dev`에서 새 `ms/feature/<기능명>` 브랜치로 cherry-pick하고, 그 브랜치에서 `main`으로 Pull Request를 연다. `ms/feature/<기능명>`은 PR 전용이며 추가 개발을 이어가지 않는다. 전달 작업에는 `lam-deliver-change` Skill을 사용한다.
-- PR 병합 후 `ms/dev`를 `main`과 별도로 동기화하지 않는다. cherry-pick으로 커밋 SHA가 달라지므로 fast-forward를 시도하지 않는다. `main`에만 있고 `ms/dev`에 없는 변경(hotfix 등)이 생기면 그때만 `main`을 `ms/dev`로 merge한다.
-- `ms/feature/<기능명>`은 병합 후 삭제해도 된다.
-- 다른 개발자의 브랜치와 담당 영역은 확인된 정보만 사용한다.
+- 개발자는 2명이며 각자 자신의 dev 브랜치(`ino/dev`, `ms/dev`)를 갖는다. 각 dev 브랜치는 해당 개발자 작업의 기준(base/root)이자 장기 통합 브랜치다. 실험적이거나 아직 정리되지 않은 커밋이 섞일 수 있다.
+- 작은 격리 변경은 본인 dev 브랜치에서 수행할 수 있다.
+- 장기, 병렬, 고위험, 공개 API, DB migration, 인증·인가 변경은 최신 본인 dev 브랜치에서 작업용 branch를 분기하고 완료 후 본인 dev 브랜치로 병합한다. 이 작업용 branch는 `main`으로 직접 전달하지 않는다.
+- `main`으로 전달할 때는 본인 dev 브랜치에서 `main`으로 직접 Pull Request를 연다. cherry-pick이나 전달 전용 별도 브랜치를 만들지 않는다. 전달 작업에는 `lam-deliver-change` Skill을 사용한다.
+- PR 병합 후 본인 dev 브랜치를 최신 `main` 기준으로 동기화한다.
+- 다른 개발자의 dev·feature 브랜치와 담당 영역은 확인된 정보만 사용한다. 다른 개발자 소유 브랜치에 커밋·push하기 전에는 사용자의 명시적 지시를 확인한다.
 - 사용자 승인 없이 force push, history rewrite, destructive migration, 자동 merge를 수행하지 않는다.
 
 ## TDD와 검증
@@ -71,7 +70,7 @@
 ## 프로젝트 Skill
 
 - Issue 또는 코드 변경 작업: `.agents/skills/lam-work-on-issue/SKILL.md`
-- `ms/dev`에서 `main`으로 변경 전달: `.agents/skills/lam-deliver-change/SKILL.md`
+- 본인 dev 브랜치에서 `main`으로 변경 전달: `.agents/skills/lam-deliver-change/SKILL.md`
 
 RBAC 전용 Skill은 두지 않는다. 권한 변경도 `lam-work-on-issue`와 이 문서의 보안 규칙을 따른다.
 

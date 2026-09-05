@@ -16,13 +16,13 @@ description: Use when implementing a lam feature, bug fix, refactoring, behavior
 
 | 변경 | 작업 위치 |
 | --- | --- |
-| 작은 격리 변경 | `ms/dev` |
-| 장기·병렬·고위험 작업 | 최신 `ms/dev`에서 분기한 feature branch |
-| 공개 API, DB migration, 인증·인가 변경 | 최신 `ms/dev`에서 분기한 feature branch |
+| 작은 격리 변경 | 본인 dev 브랜치 (`ino/dev` 또는 `ms/dev`) |
+| 장기·병렬·고위험 작업 | 최신 본인 dev 브랜치에서 분기한 feature branch |
+| 공개 API, DB migration, 인증·인가 변경 | 최신 본인 dev 브랜치에서 분기한 feature branch |
 
 feature branch가 필요하면 작업 전에 이유와 영향 범위를 알린다. branch 생성·전환은 사용자 요청 범위에서만 수행한다.
 
-이 feature branch는 `ms/dev`로 병합하기 위한 작업용 branch이며, `main`으로 보낼 PR 전용인 `ms/feature/<기능명>`(`lam-deliver-change` Skill 참고)과는 다른 것이다. `main`으로의 전달은 이 작업용 branch를 직접 사용하지 않고, `ms/dev`에서 필요한 커밋만 cherry-pick해 별도로 만든다.
+이 feature branch는 본인 dev 브랜치로 병합하기 위한 작업용 branch다. `main`으로의 전달은 이 작업용 branch를 직접 사용하지 않고, 병합이 끝난 본인 dev 브랜치에서 `main`으로 Pull Request를 열어 진행한다(`lam-deliver-change` Skill 참고).
 
 ## TDD
 
@@ -69,7 +69,7 @@ CSS, 라우팅, 환경변수, 설정, 타입, 의존성 변경은 단순 변경�
 - commit, push, merge는 사용자가 요청한 경우에만 수행한다.
 - 한 논리 변경을 한 커밋으로 묶고 `type: 한글 변경사항` 형식을 사용한다.
 - Issue 번호가 확인되면 커밋 본문에 `Refs: #번호`를 사용한다.
-- feature branch는 `ms/dev`에서 시작해 `ms/dev`로만 전달한다. `main`으로 직접 PR하지 않는다.
+- feature branch는 본인 dev 브랜치에서 시작해 본인 dev 브랜치로만 전달한다. `main`으로 직접 PR하지 않는다.
 - 충돌은 feature branch에서 해결하고 검증한 뒤 전달한다.
 
 ## 중단 조건
