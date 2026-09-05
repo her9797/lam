@@ -498,6 +498,7 @@ a {
   background: rgba(255, 255, 255, 0.05);
   color: var(--muted-strong);
   font-size: 0.92rem;
+  white-space: nowrap;
 }
 
 .floating-subnav-shell {
@@ -632,6 +633,22 @@ a {
   padding: 16px 0;
 }
 
+.menu-item-button {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.menu-item-button:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.72);
+  outline-offset: 4px;
+  border-radius: 12px;
+}
+
 .menu-item + .menu-item,
 .notice-item + .notice-item {
   border-top: 1px solid var(--border);
@@ -675,6 +692,41 @@ a {
   font-size: 0.98rem;
   font-weight: 700;
   white-space: nowrap;
+}
+
+.menu-detail-modal h2 {
+  margin: 4px 0 0;
+  font-size: 1.55rem;
+}
+
+.menu-detail-price {
+  margin: 14px 0 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.menu-detail-description {
+  margin: 12px 0 0;
+  color: var(--muted-strong);
+  line-height: 1.65;
+}
+
+.menu-detail-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 24px;
+}
+
+.menu-detail-order-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.menu-detail-close-button {
+  min-height: 52px;
+  border-radius: 16px;
+  font-weight: 700;
 }
 
 .notice-list {

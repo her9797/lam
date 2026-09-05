@@ -1,6 +1,7 @@
 import { FloatingHomeBadge } from "@/components/navigation/floating-home-badge";
 import { PrimaryNav } from "@/components/navigation/primary-nav";
 import type { MenuCategory, MenuItem, StoreInfo } from "@/data/menu-data";
+import { customerNavigationItems } from "@/lib/customer-navigation";
 import Link from "next/link";
 
 type HomeScreenProps = {
@@ -48,26 +49,13 @@ export function HomeScreen({ store, canEditTable }: HomeScreenProps) {
             </div>
           </div>
           <nav className="home-feature-links" aria-label="손님 메뉴 안내">
-            <Link href="/song-requests">
-              <strong>노래신청</strong>
-              <span>듣고 싶은 곡을 남겨주세요.</span>
-              <b aria-hidden="true">→</b>
-            </Link>
-            <Link href="/requests">
-              <strong>사장님께 한마디</strong>
-              <span>편하게 전하고 싶은 말을 남겨주세요.</span>
-              <b aria-hidden="true">→</b>
-            </Link>
-            <Link href="/special-requests">
-              <strong>특별한 요청</strong>
-              <span>신청하면 특별한 일이 생길지도..?</span>
-              <b aria-hidden="true">→</b>
-            </Link>
-            <Link href="/events">
-              <strong>공지 및 이벤트</strong>
-              <span>오늘의 소식과 이벤트를 확인하세요.</span>
-              <b aria-hidden="true">→</b>
-            </Link>
+            {customerNavigationItems.map((item) => (
+              <Link key={item.key} href={item.href}>
+                <strong>{item.label}</strong>
+                <span>{item.description}</span>
+                <b aria-hidden="true">→</b>
+              </Link>
+            ))}
           </nav>
         </section>
       </div>
