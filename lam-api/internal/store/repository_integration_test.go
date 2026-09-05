@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/her9797/lam/lam-api/internal/lamdata"
@@ -400,6 +401,84 @@ func TestRepository_CustomerRequestLifecycle(t *testing.T) {
 		}
 		if err := repo.DeleteCustomerRequest(ctx, requestID); !errors.Is(err, ErrNotFound) {
 			t.Errorf("DeleteCustomerRequest(already deleted) error = %v, want ErrNotFound", err)
+		}
+	})
+}
+
+func TestRepository_UpdateCustomerRequestStatuses(t *testing.T) {
+	repo := resetDB(t)
+	ctx := context.Background()
+
+	t.Run("empty ids is invalid", func(t *testing.T) {
+		if err := repo.UpdateCustomerRequestStatuses(ctx, nil, "checked"); !errors.Is(err, ErrInvalidInput) {
+			t.Errorf("UpdateCustomerRequestStatuses(nil ids) error = %v, want ErrInvalidInput", err)
+		}
+	})
+
+	t.Run("invalid status is invalid", func(t *testing.T) {
+		if err := repo.UpdateCustomerRequestStatuses(ctx, []string{"any"}, "bogus"); !errors.Is(err, ErrInvalidInput) {
+			t.Errorf("UpdateCustomerRequestStatuses(bogus status) error = %v, want ErrInvalidInput", err)
+		}
+	})
+
+	t.Run("too many ids is invalid", func(t *testing.T) {
+		ids := make([]string, 201)
+		for i := range ids {
+			ids[i] = fmt.Sprintf("id-%d", i)
+		}
+		if err := repo.UpdateCustomerRequestStatuses(ctx, ids, "checked"); !errors.Is(err, ErrInvalidInput) {
+			t.Errorf("UpdateCustomerRequestStatuses(201 ids) error = %v, want ErrInvalidInput", err)
+		}
+	})
+
+	if err := repo.CreateCustomerRequest(ctx, "T-01", "first"); err != nil {
+		t.Fatalf("CreateCustomerRequest() error = %v", err)
+	}
+	if err := repo.CreateCustomerRequest(ctx, "T-02", "second"); err != nil {
+		t.Fatalf("CreateCustomerRequest() error = %v", err)
+	}
+
+	requests, err := repo.ListCustomerRequests(ctx)
+	if err != nil {
+		t.Fatalf("ListCustomerRequests() error = %v", err)
+	}
+	if len(requests) != 2 {
+		t.Fatalf("len(requests) = %d, want 2", len(requests))
+	}
+	firstID, secondID := requests[0].ID, requests[1].ID
+
+	t.Run("updates every matching id and ignores an unknown id without erroring", func(t *testing.T) {
+		if err := repo.UpdateCustomerRequestStatuses(ctx, []string{firstID, secondID, "missing"}, "checked"); err != nil {
+			t.Fatalf("UpdateCustomerRequestStatuses() error = %v", err)
+		}
+
+		updated, err := repo.ListCustomerRequests(ctx)
+		if err != nil {
+			t.Fatalf("ListCustomerRequests() error = %v", err)
+		}
+		if len(updated) != 2 {
+			t.Fatalf("len(updated) = %d, want 2", len(updated))
+		}
+		for _, item := range updated {
+			if item.Status != "checked" {
+				t.Errorf("item %+v, want status=checked", item)
+			}
+		}
+	})
+
+	t.Run("bulk completing sets handledAt for every id", func(t *testing.T) {
+		if err := repo.UpdateCustomerRequestStatuses(ctx, []string{firstID, secondID}, "completed"); err != nil {
+			t.Fatalf("UpdateCustomerRequestStatuses() error = %v", err)
+		}
+
+		updated, err := repo.ListCustomerRequests(ctx)
+		if err != nil {
+			t.Fatalf("ListCustomerRequests() error = %v", err)
+		}
+		for _, item := range updated {
+			if item.Status != "completed" || item.HandledAt == "" {
+				t.Errorf("item %+v, want status=completed with a non-empty handledAt", item)
+			}
 		}
 	})
 }

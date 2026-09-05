@@ -895,6 +895,30 @@ func (r *Repository) UpdateCustomerRequestStatus(ctx context.Context, id string,
 	return nil
 }
 
+// maxBulkCustomerRequestIDs bounds a single bulk status update so one
+// request can't force an unbounded IN-list onto the database.
+const maxBulkCustomerRequestIDs = 200
+
+// UpdateCustomerRequestStatuses applies status to every id in one statement.
+// Unlike UpdateCustomerRequestStatus, an id with no matching row is silently
+// ignored rather than reported as ErrNotFound: callers pass ids gathered
+// from a list they already fetched, and one request deleted in the
+// meantime must not fail the update for the rest.
+func (r *Repository) UpdateCustomerRequestStatuses(ctx context.Context, ids []string, status string) error {
+	if len(ids) == 0 || len(ids) > maxBulkCustomerRequestIDs || !isValidCustomerRequestStatus(status) {
+		return ErrInvalidInput
+	}
+
+	_, err := r.pool.Exec(ctx, `
+		UPDATE customer_requests
+		SET status = $2,
+			updated_at = NOW(),
+			handled_at = CASE WHEN $2 = 'completed' THEN NOW() ELSE NULL END
+		WHERE id = ANY($1)
+	`, ids, status)
+	return classifyError(err)
+}
+
 func (r *Repository) DeleteCustomerRequest(ctx context.Context, id string) error {
 	if strings.TrimSpace(id) == "" {
 		return ErrInvalidInput

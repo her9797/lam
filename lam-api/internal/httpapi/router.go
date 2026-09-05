@@ -389,6 +389,28 @@ func NewMux(repository *store.Repository, cfg config.Config) http.Handler {
 			return
 		}
 
+		if r.Method == http.MethodPatch {
+			var payload bulkUpdateCustomerRequestStatusRequest
+			if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+				writeError(w, http.StatusBadRequest, err)
+				return
+			}
+
+			if err := repository.UpdateCustomerRequestStatuses(r.Context(), payload.IDs, strings.TrimSpace(payload.Status)); err != nil {
+				writeStoreError(w, err)
+				return
+			}
+
+			requests, err := repository.ListCustomerRequests(r.Context())
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, err)
+				return
+			}
+
+			writeJSON(w, http.StatusOK, requests)
+			return
+		}
+
 		if r.Method != http.MethodGet {
 			writeMethodNotAllowed(w)
 			return
