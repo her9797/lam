@@ -35,6 +35,14 @@ vi.mock("./useRequestNotifications", () => ({
   useRequestNotifications: () => useRequestNotificationsMock(),
 }));
 
+// Covered on its own in useRequestBroadcast.test.tsx (Supabase client
+// subscription, cache invalidation, cleanup) — mocked here as a no-op so
+// this file doesn't need a real QueryClientProvider just to satisfy its
+// internal useQueryClient() call.
+vi.mock("./useRequestBroadcast", () => ({
+  useRequestBroadcast: () => {},
+}));
+
 const toastAddMock = vi.fn();
 vi.mock("@/components/ui/toast", () => ({
   toast: { add: (...args: unknown[]) => toastAddMock(...args) },

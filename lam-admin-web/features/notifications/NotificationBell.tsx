@@ -34,6 +34,7 @@ import type { RequestNotification, RequestNotificationKind } from "./model";
 import { NotificationPanel } from "./NotificationPanel";
 import { useNewRequestArrivals } from "./useNewRequestArrivals";
 import { useNotificationSound } from "./useNotificationSound";
+import { useRequestBroadcast } from "./useRequestBroadcast";
 import { useRequestNotifications } from "./useRequestNotifications";
 
 const KIND_HREF: Record<RequestNotificationKind, string> = {
@@ -44,6 +45,7 @@ const KIND_HREF: Record<RequestNotificationKind, string> = {
 export function NotificationBell() {
   const { t } = useTranslation("notifications");
   const router = useRouter();
+  useRequestBroadcast();
   const { notifications, count, isLoading, isError } = useRequestNotifications();
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const arrivals = useNewRequestArrivals(notifications, isLoading);
