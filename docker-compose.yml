@@ -47,6 +47,7 @@ services:
       # 컨테이너 간 통신(서버 사이드 fetch)용 주소. Compose 내부 DNS 이름을 사용한다.
       API_BASE_URL: "http://lam-api:8080"
       STAFF_ENTRY_TOKEN: "${STAFF_ENTRY_TOKEN:-}"
+      CUSTOMER_TEST_ENTRY_TOKEN: "${CUSTOMER_TEST_ENTRY_TOKEN:-}"
     ports:
       - "3000:8080"
 

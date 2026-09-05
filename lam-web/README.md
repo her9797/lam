@@ -24,6 +24,7 @@ npm run dev
 npm run build
 npm run start
 npm run lint
+npm test
 ```
 
 ## 주요 라우트
@@ -33,6 +34,7 @@ npm run lint
 - `/menu/[category]`: 카테고리별 메뉴 상세
 - `/requests`: 요청사항 안내 화면
 - `/events`: 공지 및 이벤트 화면
+- `/test/enter`: 테스트 환경용 고객 세션 진입점
 
 ## 디렉토리 구조
 
@@ -70,6 +72,28 @@ npm run dev
 ```text
 http://localhost:3000
 ```
+
+고객 화면은 QR 세션이 필요합니다. 로컬 또는 테스트 환경에서 QR 없이 확인하려면 `.env.local`에 임의의 긴 토큰을 설정합니다.
+
+```bash
+CUSTOMER_TEST_ENTRY_TOKEN=로컬에서만_사용할_긴_임의값
+```
+
+서버를 다시 실행한 뒤 아래 주소로 접속하면 기본 테이블 `T-01` 고객 세션이 발급됩니다.
+
+`/access-required` 화면에도 테스트 입장 폼이 표시되므로, 토큰과 테이블을 직접 입력해 입장할 수 있습니다.
+
+```text
+http://localhost:3000/test/enter?key=로컬에서만_사용할_긴_임의값
+```
+
+다른 테이블로 확인하려면 `table`을 추가합니다. 허용 범위는 `T-01`~`T-12`, `B-01`~`B-05`입니다.
+
+```text
+http://localhost:3000/test/enter?key=로컬에서만_사용할_긴_임의값&table=B-03
+```
+
+`CUSTOMER_TEST_ENTRY_TOKEN`을 비워 두면 테스트 진입은 비활성화됩니다. 실제 운영 환경에는 이 값을 설정하지 않는 것을 권장합니다.
 
 ## 검증 내역
 
