@@ -20,7 +20,7 @@ description: Use when implementing a lam feature, bug fix, refactoring, behavior
 | 장기·병렬·고위험 작업 | 최신 본인 dev 브랜치에서 분기한 feature branch |
 | 공개 API, DB migration, 인증·인가 변경 | 최신 본인 dev 브랜치에서 분기한 feature branch |
 
-feature branch가 필요하면 작업 전에 이유와 영향 범위를 알린다. branch 생성·전환은 사용자 요청 범위에서만 수행한다.
+feature branch가 필요하면 작업 전에 이유, 기준 브랜치와 제안 브랜치명을 알린다. 새 branch는 사용자가 해당 생성을 명시적으로 승인한 후에만 만들며, 기능 구현이나 branch 전환 요청을 생성 승인으로 간주하지 않는다.
 
 이 feature branch는 본인 dev 브랜치로 병합하기 위한 작업용 branch다. `main`으로의 전달은 이 작업용 branch를 직접 사용하지 않고, 병합이 끝난 본인 dev 브랜치에서 `main`으로 Pull Request를 열어 진행한다(`lam-deliver-change` Skill 참고).
 
