@@ -156,6 +156,19 @@ http://localhost:3000
 
 프론트는 별도 설정이 없으면 기본적으로 `http://localhost:9090` API를 바라봅니다.
 
+고객 화면은 QR 세션이 있어야 열립니다. 로컬에서 QR 없이 테스트하려면 `lam-web/.env.local`에 테스트 입장 토큰을 설정하고 해당 진입 URL을 사용하세요.
+
+```bash
+CUSTOMER_TEST_ENTRY_TOKEN=로컬에서만_사용할_긴_임의값
+```
+
+```text
+http://localhost:3000/test/enter?key=로컬에서만_사용할_긴_임의값
+```
+
+기본 테이블은 `T-01`이며, 주소 끝에 `&table=B-03`처럼 테이블을 지정할 수 있습니다. 토큰을 비워 두면 테스트 진입은 비활성화됩니다.
+토큰이 설정된 경우 `/access-required` 화면에도 테스트 입장 폼이 표시됩니다.
+
 ### 3. 관리자 웹 실행
 
 관리자 기능은 `lam-admin-web`에서 별도로 실행합니다.
@@ -191,6 +204,7 @@ http://localhost:3000
 cat > .env <<'EOF'
 ADMIN_PASSWORD=로컬에서_사용할_비밀번호
 SESSION_SECRET=로컬에서_사용할_세션_서명키
+CUSTOMER_TEST_ENTRY_TOKEN=로컬에서만_사용할_긴_임의값
 EOF
 # 또는: export ADMIN_PASSWORD=... SESSION_SECRET=...
 
@@ -210,7 +224,8 @@ docker compose ps
 환경변수 구분:
 
 - **필수(기본값 없음, 미설정 시 compose 실패)**: `ADMIN_PASSWORD`, `SESSION_SECRET` (`lam-admin-web` 로그인을 통과시키는 값)
-- **로컬 개발용 기본값 있음(운영 배포 전 반드시 교체)**: `ADMIN_API_TOKEN` (`lam-api`·`lam-admin-web` 공통 기본값 `lam-admin-api-token`, 두 값이 반드시 동일해야 한다), `STAFF_ENTRY_TOKEN` (`lam-web`, 기본값 빈 문자열)
+- **선택(기본값 빈 문자열, 미설정 시 기능 비활성화)**: `STAFF_ENTRY_TOKEN`, `CUSTOMER_TEST_ENTRY_TOKEN` (`lam-web`)
+- **로컬 개발용 기본값 있음(운영 배포 전 반드시 교체)**: `ADMIN_API_TOKEN` (`lam-api`·`lam-admin-web` 공통 기본값 `lam-admin-api-token`, 두 값이 반드시 동일해야 한다)
 
 필수 값을 포함해 셸 환경변수로 덮어쓸 수 있습니다.
 
