@@ -124,6 +124,29 @@ export async function mockCustomerRequestStatusUpdate(
   });
 }
 
+/**
+ * Mocks the bulk status-change PATCH (`PATCH /api/admin/customer-requests`,
+ * the collection path — see `docs/plans/2026-09-04-admin-request-notifications.md`
+ * section 4.5), which returns the full refreshed list, same as the
+ * single-id PATCH above. This shares its URL with `mockCustomerRequestsList`
+ * (`GET` on the same path), so it must be registered *after* that call in a
+ * test: Playwright matches routes most-recently-registered-first, and
+ * `route.fallback()` on a non-`PATCH` request here defers to the
+ * previously-registered `GET` handler underneath it.
+ */
+export async function mockCustomerRequestsBulkStatusUpdate(
+  page: Page,
+  refreshedRequests: CustomerRequest[],
+): Promise<void> {
+  await page.route("**/api/admin/customer-requests", async (route) => {
+    if (route.request().method() !== "PATCH") {
+      await route.fallback();
+      return;
+    }
+    await route.fulfill({ json: refreshedRequests });
+  });
+}
+
 /** Mocks the special request list route (`GET /api/admin/special-requests`). */
 export async function mockSpecialRequestsList(
   page: Page,
