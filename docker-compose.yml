@@ -30,6 +30,11 @@ services:
       DATABASE_URL: "postgres://lam:lam@postgres:5432/lam?sslmode=disable"
       ALLOWED_ORIGIN: "*"
       ADMIN_API_TOKEN: "${ADMIN_API_TOKEN:-lam-admin-api-token}"
+      PAYMENT_API_TOKEN: "${PAYMENT_API_TOKEN:-lam-payment-api-token}"
+      TOSS_PAYMENTS_SECRET_KEY: "${TOSS_PAYMENTS_SECRET_KEY:-}"
+      TOSS_PLACE_ACCESS_KEY: "${TOSS_PLACE_ACCESS_KEY:-}"
+      TOSS_PLACE_SECRET_KEY: "${TOSS_PLACE_SECRET_KEY:-}"
+      TOSS_PLACE_MERCHANT_ID: "${TOSS_PLACE_MERCHANT_ID:-}"
     ports:
       - "9090:8080"
     # lam-api의 런타임 이미지(gcr.io/distroless/base-debian12)에는 셸/curl/wget이 없어
@@ -48,6 +53,8 @@ services:
       API_BASE_URL: "http://lam-api:8080"
       STAFF_ENTRY_TOKEN: "${STAFF_ENTRY_TOKEN:-}"
       CUSTOMER_TEST_ENTRY_TOKEN: "${CUSTOMER_TEST_ENTRY_TOKEN:-}"
+      PAYMENT_API_TOKEN: "${PAYMENT_API_TOKEN:-lam-payment-api-token}"
+      NEXT_PUBLIC_TOSS_CLIENT_KEY: "${NEXT_PUBLIC_TOSS_CLIENT_KEY:-}"
     ports:
       - "3000:8080"
 

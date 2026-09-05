@@ -126,7 +126,7 @@ func resetDB(t *testing.T) *Repository {
 	}
 
 	ctx := context.Background()
-	if _, err := testPool.Exec(ctx, `TRUNCATE menu_item_images, menu_items, menu_categories, request_guides, notices, customer_requests, special_requests, store_profile RESTART IDENTITY CASCADE`); err != nil {
+	if _, err := testPool.Exec(ctx, `TRUNCATE payment_orders, menu_item_images, menu_items, menu_categories, request_guides, notices, customer_requests, special_requests, store_profile RESTART IDENTITY CASCADE`); err != nil {
 		t.Fatalf("truncate tables: %v", err)
 	}
 

@@ -55,9 +55,10 @@ func TestMain(m *testing.M) {
 	}
 
 	testCfg = config.Config{
-		Addr:          ":9090",
-		AllowedOrigin: "*",
-		AdminAPIToken: "test-admin-token",
+		Addr:            ":9090",
+		AllowedOrigin:   "*",
+		AdminAPIToken:   "test-admin-token",
+		PaymentAPIToken: "test-payment-token",
 	}
 
 	code := m.Run()
@@ -136,7 +137,7 @@ func resetServer(t *testing.T) http.Handler {
 	}
 
 	ctx := context.Background()
-	if _, err := testPool.Exec(ctx, `TRUNCATE menu_item_images, menu_items, menu_categories, request_guides, notices, customer_requests, special_requests, store_profile RESTART IDENTITY CASCADE`); err != nil {
+	if _, err := testPool.Exec(ctx, `TRUNCATE payment_orders, menu_item_images, menu_items, menu_categories, request_guides, notices, customer_requests, special_requests, store_profile RESTART IDENTITY CASCADE`); err != nil {
 		t.Fatalf("truncate tables: %v", err)
 	}
 	if _, err := testPool.Exec(ctx, `

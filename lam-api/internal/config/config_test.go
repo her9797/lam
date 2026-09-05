@@ -10,6 +10,13 @@ func TestLoad_Defaults(t *testing.T) {
 	t.Setenv("ADMIN_API_TOKEN", "")
 	t.Setenv("SUPABASE_URL", "")
 	t.Setenv("SUPABASE_BROADCAST_KEY", "")
+	t.Setenv("PAYMENT_API_TOKEN", "")
+	t.Setenv("TOSS_PAYMENTS_SECRET_KEY", "")
+	t.Setenv("TOSS_PAYMENTS_API_BASE_URL", "")
+	t.Setenv("TOSS_PLACE_ACCESS_KEY", "")
+	t.Setenv("TOSS_PLACE_SECRET_KEY", "")
+	t.Setenv("TOSS_PLACE_MERCHANT_ID", "")
+	t.Setenv("TOSS_PLACE_API_BASE_URL", "")
 
 	cfg := Load()
 
@@ -35,6 +42,18 @@ func TestLoad_Defaults(t *testing.T) {
 	}
 	if cfg.SupabaseBroadcastKey != "" {
 		t.Errorf("SupabaseBroadcastKey = %q, want empty default", cfg.SupabaseBroadcastKey)
+	}
+	if cfg.PaymentAPIToken != "lam-payment-api-token" {
+		t.Errorf("PaymentAPIToken = %q, want local default", cfg.PaymentAPIToken)
+	}
+	if cfg.TossPaymentsSecretKey != "" || cfg.TossPlaceAccessKey != "" || cfg.TossPlaceSecretKey != "" || cfg.TossPlaceMerchantID != "" {
+		t.Error("payment provider credentials must be empty by default")
+	}
+	if cfg.TossPaymentsAPIBaseURL != "https://api.tosspayments.com" {
+		t.Errorf("TossPaymentsAPIBaseURL = %q", cfg.TossPaymentsAPIBaseURL)
+	}
+	if cfg.TossPlaceAPIBaseURL != "https://open-api.tossplace.com" {
+		t.Errorf("TossPlaceAPIBaseURL = %q", cfg.TossPlaceAPIBaseURL)
 	}
 }
 
@@ -67,6 +86,13 @@ func TestLoad_ReadsOverridesFromEnv(t *testing.T) {
 	t.Setenv("ADMIN_API_TOKEN", "custom-token")
 	t.Setenv("SUPABASE_URL", "https://project-ref.supabase.co")
 	t.Setenv("SUPABASE_BROADCAST_KEY", "sb_secret_example")
+	t.Setenv("PAYMENT_API_TOKEN", "payment-token")
+	t.Setenv("TOSS_PAYMENTS_SECRET_KEY", "live-sk")
+	t.Setenv("TOSS_PAYMENTS_API_BASE_URL", "https://payments.example.com")
+	t.Setenv("TOSS_PLACE_ACCESS_KEY", "place-access")
+	t.Setenv("TOSS_PLACE_SECRET_KEY", "place-secret")
+	t.Setenv("TOSS_PLACE_MERCHANT_ID", "merchant-123")
+	t.Setenv("TOSS_PLACE_API_BASE_URL", "https://place.example.com")
 
 	cfg := Load()
 
@@ -87,5 +113,17 @@ func TestLoad_ReadsOverridesFromEnv(t *testing.T) {
 	}
 	if cfg.SupabaseBroadcastKey != "sb_secret_example" {
 		t.Errorf("SupabaseBroadcastKey = %q, want overridden value", cfg.SupabaseBroadcastKey)
+	}
+	if cfg.PaymentAPIToken != "payment-token" || cfg.TossPaymentsSecretKey != "live-sk" {
+		t.Error("payment environment overrides were not loaded")
+	}
+	if cfg.TossPaymentsAPIBaseURL != "https://payments.example.com" {
+		t.Errorf("TossPaymentsAPIBaseURL = %q", cfg.TossPaymentsAPIBaseURL)
+	}
+	if cfg.TossPlaceAccessKey != "place-access" || cfg.TossPlaceSecretKey != "place-secret" || cfg.TossPlaceMerchantID != "merchant-123" {
+		t.Error("Toss Place environment overrides were not loaded")
+	}
+	if cfg.TossPlaceAPIBaseURL != "https://place.example.com" {
+		t.Errorf("TossPlaceAPIBaseURL = %q", cfg.TossPlaceAPIBaseURL)
 	}
 }
