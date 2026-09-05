@@ -1,0 +1,4 @@
+interface:
+  display_name: "shadcn/ui"
+  short_description: "shadcn/ui 컴포넌트 구성과 유지보수"
+  default_prompt: "$shadcn으로 현재 프로젝트 규칙에 맞는 UI 변경을 진행해 주세요."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "lam 변경 작업"
+  short_description: "ms/dev 기준으로 TDD와 완료 검증을 적용"
+  default_prompt: "$lam-work-on-issue로 이 변경을 구현하고 영향받는 검증까지 확인해 주세요."
