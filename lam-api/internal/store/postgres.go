@@ -84,6 +84,7 @@ CREATE TABLE IF NOT EXISTS menu_categories (
 
 CREATE TABLE IF NOT EXISTS menu_items (
   id TEXT PRIMARY KEY,
+  toss_catalog_item_id TEXT,
   category_id TEXT NOT NULL REFERENCES menu_categories(id) ON DELETE CASCADE,
   badge TEXT,
   badge_color TEXT,
@@ -108,6 +109,28 @@ CREATE TABLE IF NOT EXISTS menu_item_images (
   focus_y INTEGER NOT NULL DEFAULT 50,
   sort_order INTEGER NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS payment_orders (
+  id TEXT PRIMARY KEY,
+  menu_item_id TEXT REFERENCES menu_items(id) ON DELETE SET NULL,
+  toss_catalog_item_id TEXT,
+  menu_item_name TEXT NOT NULL,
+  category_name TEXT NOT NULL,
+  table_number TEXT NOT NULL DEFAULT '',
+  amount BIGINT NOT NULL CHECK (amount > 0),
+  status TEXT NOT NULL DEFAULT 'READY',
+  payment_key TEXT UNIQUE,
+  payment_method TEXT,
+  approved_at TIMESTAMPTZ,
+  vat BIGINT NOT NULL DEFAULT 0,
+  supplied_amount BIGINT NOT NULL DEFAULT 0,
+  tax_free_amount BIGINT NOT NULL DEFAULT 0,
+  pos_sync_status TEXT NOT NULL DEFAULT 'PENDING',
+  pos_order_id TEXT,
+  pos_sync_error TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS request_guides (
@@ -152,6 +175,7 @@ CREATE TABLE IF NOT EXISTS special_requests (
 ALTER TABLE menu_categories ADD COLUMN IF NOT EXISTS is_visible BOOLEAN NOT NULL DEFAULT TRUE;
 ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS is_visible BOOLEAN NOT NULL DEFAULT TRUE;
 ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS badge_color TEXT;
+ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS toss_catalog_item_id TEXT;
 ALTER TABLE request_guides ADD COLUMN IF NOT EXISTS is_visible BOOLEAN NOT NULL DEFAULT TRUE;
 ALTER TABLE notices ADD COLUMN IF NOT EXISTS is_visible BOOLEAN NOT NULL DEFAULT TRUE;
 ALTER TABLE menu_item_images ADD COLUMN IF NOT EXISTS display_area TEXT NOT NULL DEFAULT 'menu';
@@ -159,9 +183,16 @@ ALTER TABLE menu_item_images ADD COLUMN IF NOT EXISTS focus_x INTEGER NOT NULL D
 ALTER TABLE menu_item_images ADD COLUMN IF NOT EXISTS focus_y INTEGER NOT NULL DEFAULT 50;
 ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS table_number TEXT NOT NULL DEFAULT '';
 ALTER TABLE special_requests ADD COLUMN IF NOT EXISTS table_number TEXT NOT NULL DEFAULT '';
+ALTER TABLE payment_orders ADD COLUMN IF NOT EXISTS vat BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE payment_orders ADD COLUMN IF NOT EXISTS supplied_amount BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE payment_orders ADD COLUMN IF NOT EXISTS tax_free_amount BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE payment_orders ADD COLUMN IF NOT EXISTS toss_catalog_item_id TEXT;
 CREATE INDEX IF NOT EXISTS idx_customer_requests_created_at ON customer_requests (created_at DESC, id DESC);
 CREATE INDEX IF NOT EXISTS idx_customer_requests_status ON customer_requests (status);
 CREATE INDEX IF NOT EXISTS idx_special_requests_created_at ON special_requests (created_at DESC, id DESC);
+CREATE INDEX IF NOT EXISTS idx_payment_orders_created_at ON payment_orders (created_at DESC, id DESC);
+CREATE INDEX IF NOT EXISTS idx_payment_orders_status ON payment_orders (status, pos_sync_status);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_menu_items_toss_catalog_item_id ON menu_items (toss_catalog_item_id) WHERE toss_catalog_item_id IS NOT NULL;
 ALTER TABLE store_profile ADD COLUMN IF NOT EXISTS song_request_copy TEXT NOT NULL DEFAULT '';
 ALTER TABLE store_profile ADD COLUMN IF NOT EXISTS request_copy TEXT NOT NULL DEFAULT '';
 ALTER TABLE store_profile ADD COLUMN IF NOT EXISTS event_copy TEXT NOT NULL DEFAULT '';

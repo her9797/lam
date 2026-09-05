@@ -24,6 +24,7 @@ func NewMux(repository *store.Repository, cfg config.Config) http.Handler {
 	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
+	registerPaymentRoutes(mux, repository, cfg)
 
 	mux.HandleFunc("/api/v1/bootstrap", withCORS(cfg.AllowedOrigin, func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
