@@ -7,7 +7,6 @@ import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -219,20 +218,10 @@ export function MenuItemForm({ categories, items }: MenuItemFormProps) {
   }
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
-        <CardTitle>{t("itemFormTitle")}</CardTitle>
-        <CardAction>
-          <Button type="button" size="sm" disabled={!hasCategories} onClick={openCreateDialog}>
-            {t("itemAdd")}
-          </Button>
-        </CardAction>
-      </CardHeader>
-      {!hasCategories ? (
-        <CardContent>
-          <p className="text-sm text-muted-foreground">{t("noCategoriesHint")}</p>
-        </CardContent>
-      ) : null}
+    <>
+      <Button type="button" size="sm" disabled={!hasCategories} onClick={openCreateDialog}>
+        {t("itemAdd")}
+      </Button>
 
       <Dialog
         open={isCreateDialogOpen}
@@ -447,6 +436,6 @@ export function MenuItemForm({ categories, items }: MenuItemFormProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </Card>
+    </>
   );
 }

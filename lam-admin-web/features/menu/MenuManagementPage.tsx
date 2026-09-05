@@ -16,7 +16,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ListToolbar } from "@/components/list/ListToolbar";
 import { Pagination } from "@/components/list/Pagination";
@@ -104,6 +104,7 @@ export function MenuManagementPage() {
 
   const categories = bootstrapQuery.data?.categories ?? [];
   const items = bootstrapQuery.data?.items ?? [];
+  const hasCategories = categories.length > 0;
   const deleteTarget = items.find((item) => item.id === pendingDeleteId) ?? null;
 
   const { items: visibleItems, total: visibleTotal } = applyListQuery<MenuItem>(items, listQuery, {
@@ -206,13 +207,17 @@ export function MenuManagementPage() {
     <div className="flex flex-col gap-4">
       <h1 className="text-lg font-semibold text-foreground">{t("title")}</h1>
 
-      <MenuItemForm categories={categories} items={items} />
-
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
           <CardTitle>{t("listCardTitle")}</CardTitle>
+          <CardAction>
+            <MenuItemForm categories={categories} items={items} />
+          </CardAction>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
+          {!hasCategories ? (
+            <p className="text-sm text-muted-foreground">{t("noCategoriesHint")}</p>
+          ) : null}
           {imageErrorKey ? (
             <p role="alert" className="text-sm text-destructive">
               {t(imageErrorKey)}
