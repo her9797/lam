@@ -17,6 +17,7 @@ describe("i18n resources", () => {
         "dashboard",
         "menu",
         "notices",
+        "notifications",
         "requests",
         "specialRequests",
         "storeCopy",

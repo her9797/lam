@@ -37,6 +37,7 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
+import { NotificationBell } from "@/features/notifications/NotificationBell";
 import { LanguageMenu } from "@/features/settings/LanguageMenu";
 import { ThemeMenu } from "@/features/settings/ThemeMenu";
 import { ThemeProvider } from "@/features/settings/ThemeProvider";
@@ -214,6 +215,7 @@ function AdminShellContent({ children }: { children: ReactNode }) {
             </ol>
           </nav>
           <div className="flex items-center gap-2">
+            <NotificationBell />
             <LanguageMenu />
             <ThemeMenu />
           </div>

@@ -24,6 +24,17 @@ vi.mock(
   }),
 );
 
+// `NotificationBell` calls `useCustomerRequestsQuery()` (a real TanStack
+// Query hook), which throws without a `QueryClientProvider` ancestor — one
+// this file's many `render(<AdminShell>...)` call sites don't have, since
+// nothing else here needs Query. Its own behavior (badge count, panel,
+// mark-checked, mark-all, toast) is already covered by
+// `features/notifications/NotificationBell.test.tsx`; this file's job is
+// only to verify the shell places it in the header.
+vi.mock("@/features/notifications/NotificationBell", () => ({
+  NotificationBell: () => <button type="button">알림</button>,
+}));
+
 import i18n from "@/i18n/client";
 
 import { AdminShell } from "./AdminShell";
@@ -181,6 +192,16 @@ describe("AdminShell", () => {
     const themeTrigger = screen.getByRole("button", { name: /테마:/ });
     expect(themeTrigger.tagName).toBe("BUTTON");
     expect(themeTrigger).not.toBeDisabled();
+  });
+
+  it("places the notification bell in the header alongside the language and theme menus", () => {
+    render(
+      <AdminShell>
+        <p>page content</p>
+      </AdminShell>,
+    );
+
+    expect(screen.getByRole("button", { name: "알림" })).toBeInTheDocument();
   });
 
   it("logs out via a keyboard-operable button and redirects to the login page", async () => {

@@ -1,6 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { fetchCustomerRequests, fetchCustomerRequestsPage, updateCustomerRequestStatus } from "./api";
+import {
+  fetchCustomerRequests,
+  fetchCustomerRequestsPage,
+  updateCustomerRequestStatus,
+  updateCustomerRequestStatuses,
+} from "./api";
 import type { CustomerRequestListQuery, CustomerRequestStatus } from "./model";
 
 /**
@@ -18,10 +23,28 @@ export const requestsKeys = {
   list: (query: CustomerRequestListQuery) => ["requests", "list", query] as const,
 };
 
+/**
+ * Safety-net poll interval for the notification feature
+ * (`docs/plans/2026-09-04-admin-request-notifications.md` section 4.3):
+ * Realtime Broadcast is the primary signal, but Broadcast delivery isn't
+ * guaranteed, so this query still refetches on its own every 60s. Applied
+ * only to `useCustomerRequestsQuery` (the unfiltered `all`-keyed query the
+ * notification bell and dashboard both read) — `useCustomerRequestsPageQuery`
+ * backs the filtered list screens and isn't part of the alarm data path.
+ */
+const SAFETY_NET_POLL_INTERVAL_MS = 60_000;
+
 export function useCustomerRequestsQuery() {
   return useQuery({
     queryKey: requestsKeys.all,
     queryFn: fetchCustomerRequests,
+    refetchInterval: SAFETY_NET_POLL_INTERVAL_MS,
+    // Stop polling once the tab is hidden — an admin who's tabbed away
+    // doesn't need this running, and the counterpart focus refetch
+    // (`refetchOnWindowFocus: true`, set globally in
+    // `lib/query/query-client.ts`) already catches up the moment they
+    // return.
+    refetchIntervalInBackground: false,
   });
 }
 
@@ -45,6 +68,24 @@ export function useUpdateCustomerRequestStatusMutation() {
     // dashboard query and every `requestsKeys.list(query)` page) is
     // invalidated and refetched under its own current condition instead of
     // being overwritten with the response body.
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: requestsKeys.all });
+    },
+  });
+}
+
+/**
+ * Bulk counterpart used by the notification panel's "모두 확인" action
+ * (`docs/plans/2026-09-04-admin-request-notifications.md` section 4.5) —
+ * same cache-invalidation strategy as `useUpdateCustomerRequestStatusMutation`
+ * above, since this endpoint also returns the full unfiltered list.
+ */
+export function useUpdateCustomerRequestStatusesMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ ids, status }: { ids: string[]; status: CustomerRequestStatus }) =>
+      updateCustomerRequestStatuses(ids, status),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: requestsKeys.all });
     },

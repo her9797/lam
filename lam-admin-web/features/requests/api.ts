@@ -62,3 +62,22 @@ export function updateCustomerRequestStatus(
     body: JSON.stringify({ status }),
   });
 }
+
+/**
+ * `lam-api`'s `PATCH /api/v1/admin/customer-requests` (collection path, no
+ * id segment) applies `status` to every id in one statement and returns the
+ * full, refreshed request list — see
+ * `docs/plans/2026-09-04-admin-request-notifications.md` section 4.5 for why
+ * this exists instead of one `updateCustomerRequestStatus` call per id
+ * (atomicity; a single round trip instead of N).
+ */
+export function updateCustomerRequestStatuses(
+  ids: string[],
+  status: CustomerRequestStatus,
+): Promise<CustomerRequest[]> {
+  return fetchJson<CustomerRequest[]>(CUSTOMER_REQUESTS_PATH, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ids, status }),
+  });
+}
