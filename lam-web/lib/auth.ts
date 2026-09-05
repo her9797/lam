@@ -1,12 +1,10 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
-type SessionKind = "admin" | "qr" | "staff";
+type SessionKind = "qr" | "staff";
 
 const SESSION_VERSION = "v1";
-const ADMIN_COOKIE = "lam_admin_session";
 const QR_COOKIE = "lam_qr_session";
 const STAFF_COOKIE = "lam_staff_session";
-const ADMIN_MAX_AGE_SECONDS = 60 * 60 * 12;
 const QR_MAX_AGE_SECONDS = 60 * 60 * 8;
 
 function getSessionSecret() {
@@ -53,10 +51,6 @@ function verifySessionValue(value: string | undefined, expectedKind: SessionKind
   }
 }
 
-export function createAdminSessionValue() {
-  return createSessionValue("admin", ADMIN_MAX_AGE_SECONDS);
-}
-
 export function createQrSessionValue() {
   return createSessionValue("qr", QR_MAX_AGE_SECONDS);
 }
@@ -65,20 +59,12 @@ export function createStaffSessionValue() {
   return createSessionValue("staff", QR_MAX_AGE_SECONDS);
 }
 
-export function isAdminSessionValid(value: string | undefined) {
-  return verifySessionValue(value, "admin");
-}
-
 export function isQrSessionValid(value: string | undefined) {
   return verifySessionValue(value, "qr");
 }
 
 export function isStaffSessionValid(value: string | undefined) {
   return verifySessionValue(value, "staff");
-}
-
-export function getAdminCookieName() {
-  return ADMIN_COOKIE;
 }
 
 export function getQrCookieName() {
@@ -91,14 +77,6 @@ export function getStaffCookieName() {
 
 export function getStaffEntryToken() {
   return process.env.STAFF_ENTRY_TOKEN ?? "";
-}
-
-export function getAdminPassword() {
-  return process.env.ADMIN_PASSWORD ?? "lam-admin";
-}
-
-export function getAdminApiToken() {
-  return process.env.ADMIN_API_TOKEN ?? "lam-admin-api-token";
 }
 
 export function getQrAccessToken() {
@@ -133,10 +111,6 @@ export function isQrTableSignatureValid(table: string, signature: string | null)
   } catch {
     return false;
   }
-}
-
-export function getAdminCookieMaxAge() {
-  return ADMIN_MAX_AGE_SECONDS;
 }
 
 export function getQrCookieMaxAge() {

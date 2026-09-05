@@ -18,8 +18,8 @@
 
 ```text
 lam
-├─ lam-web         # 손님용 모바일 웹 + 관리자 웹
-├─ lam-admin-web   # 운영자용 관리자 웹(신규)
+├─ lam-web         # 손님용 모바일 웹
+├─ lam-admin-web   # 운영자용 관리자 웹
 ├─ lam-api         # 메뉴/운영 데이터 API
 ├─ docker-compose.yml
 ├─ .gitignore
@@ -95,16 +95,15 @@ lam
 
 ### `lam-web`
 
-손님이 실제로 보게 되는 QR 메뉴 웹과 운영자가 사용하는 관리자 UI를 포함합니다.
+손님이 실제로 보게 되는 QR 메뉴 웹입니다.
 
 - Next.js App Router 기반 구조
 - `screens`, `navigation`, `services` 중심 분리
-- 관리자/손님 화면을 같은 프로젝트 안에서 운영
 - API 실패 시 로컬 목 데이터 fallback 지원
 
 ### `lam-admin-web`
 
-운영자용 관리자 웹입니다. 기존 `lam-web` 내부의 관리자 UI는 이 프로젝트와 별개로 그대로 유지되며, 별도의 Next.js 프로젝트로 운영됩니다.
+운영자용 관리자 웹입니다. 관리자 화면과 인증·관리자 API 프록시는 `lam-web`에서 분리되어 이 프로젝트에서 독립적으로 운영됩니다.
 
 - Next.js App Router 기반 구조
 - 카테고리/메뉴/이벤트 관리, 손님 요청(`바로 전달하기`/`특별한`) 확인 화면 제공
@@ -159,7 +158,7 @@ http://localhost:3000
 
 ### 3. 관리자 웹 실행
 
-기존 `lam-web`의 관리자 UI는 그대로 유지되며, 아래 `lam-admin-web`은 별도로 선택 실행할 수 있는 신규 관리자 웹입니다.
+관리자 기능은 `lam-admin-web`에서 별도로 실행합니다.
 
 ```bash
 cd lam-admin-web
@@ -205,8 +204,8 @@ docker compose ps
 | --- | --- | --- | --- |
 | `postgres` | `lam-postgres` | `5432` | PostgreSQL |
 | `lam-api` | `lam-api` | `9090` | API 서버 |
-| `lam-web` | `lam-web` | `3000` | 손님용 웹(+ 기존 관리자 UI) |
-| `lam-admin-web` | `lam-admin-web` | `3001` | 신규 관리자 웹, 로그인: `http://localhost:3001/login` |
+| `lam-web` | `lam-web` | `3000` | 손님용 웹 |
+| `lam-admin-web` | `lam-admin-web` | `3001` | 관리자 웹, 로그인: `http://localhost:3001/login` |
 
 환경변수 구분:
 
@@ -238,7 +237,7 @@ API_BASE_URL=http://localhost:9090 docker compose up -d --build lam-admin-web
 ## 개발 메모
 
 - 프론트는 API 연결 실패 시 로컬 데이터로 자동 fallback 됩니다.
-- 관리자 기능까지 포함되어 있어 단순 메뉴 페이지보다 운영 시나리오에 가깝게 구성되어 있습니다.
+- 관리자 기능은 `lam-admin-web`로 분리되어 손님용 웹과 독립적으로 운영됩니다.
 - 현재 UI는 모바일 우선으로 설계되어 있으며, QR 진입 흐름에 맞춰 빠르게 탐색할 수 있도록 조정되어 있습니다.
 
 ## 사용할 수 있는 검증 명령

@@ -1,22 +1,11 @@
-export type CustomerRequestStatus = "pending" | "checked" | "completed";
 export type CustomerRequestGender = "male" | "female";
-
-export type CustomerRequest = {
-  id: string;
-  tableNumber: string;
-  text: string;
-  status: CustomerRequestStatus;
-  createdAt: string;
-  handledAt?: string;
-};
 
 export type CustomerRequestInput = {
   tableNumber: string;
   text: string;
 };
 
-export type SpecialRequest = {
-  id: string;
+export type SpecialRequestInput = {
   tableNumber: string;
   gender: CustomerRequestGender;
   name: string;
@@ -25,10 +14,7 @@ export type SpecialRequest = {
   instagram: string;
   idealType: string;
   text: string;
-  createdAt: string;
 };
-
-export type SpecialRequestInput = Omit<SpecialRequest, "id" | "createdAt">;
 
 async function readError(response: Response) {
   const errorBody = (await response.json().catch(() => null)) as {
@@ -64,63 +50,4 @@ export async function createSpecialRequest(payload: SpecialRequestInput) {
   if (!response.ok) {
     throw new Error(await readError(response));
   }
-}
-
-export async function listCustomerRequests(): Promise<CustomerRequest[]> {
-  const response = await fetch("/api/admin/customer-requests", {
-    method: "GET",
-    cache: "no-store",
-  });
-
-  if (!response.ok) {
-    throw new Error(await readError(response));
-  }
-
-  return (await response.json()) as CustomerRequest[];
-}
-
-export async function listSpecialRequests(): Promise<SpecialRequest[]> {
-  const response = await fetch("/api/admin/special-requests", {
-    method: "GET",
-    cache: "no-store",
-  });
-
-  if (!response.ok) {
-    throw new Error(await readError(response));
-  }
-
-  return (await response.json()) as SpecialRequest[];
-}
-
-export async function updateCustomerRequestStatus(
-  customerRequestId: string,
-  status: CustomerRequestStatus,
-): Promise<CustomerRequest[]> {
-  const response = await fetch(`/api/admin/customer-requests/${customerRequestId}/status`, {
-    method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ status }),
-  });
-
-  if (!response.ok) {
-    throw new Error(await readError(response));
-  }
-
-  return (await response.json()) as CustomerRequest[];
-}
-
-export async function deleteSpecialRequest(
-  specialRequestId: string,
-): Promise<SpecialRequest[]> {
-  const response = await fetch(`/api/admin/special-requests/${specialRequestId}`, {
-    method: "DELETE",
-  });
-
-  if (!response.ok) {
-    throw new Error(await readError(response));
-  }
-
-  return (await response.json()) as SpecialRequest[];
 }

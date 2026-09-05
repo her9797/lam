@@ -42,7 +42,7 @@ export function TableSessionBadge({ canEdit = false }: { canEdit?: boolean }) {
     setDraft(stored);
   }, []);
 
-  const label = canEdit ? "ADMIN" : formatTableLabel(tableNumber);
+  const label = canEdit ? "STAFF" : formatTableLabel(tableNumber);
 
   if (!canEdit) {
     return <span className="floating-table-badge">{label}</span>;
@@ -80,23 +80,23 @@ export function TableSessionBadge({ canEdit = false }: { canEdit?: boolean }) {
 
       {isOpen ? (
         <div
-          className="admin-modal-backdrop"
+          className="table-session-modal-backdrop"
           role="presentation"
           onClick={() => setIsOpen(false)}
         >
           <div
-            className="admin-modal-card table-session-modal"
+            className="table-session-modal"
             role="dialog"
             aria-modal="true"
             aria-label="테이블 번호 변경"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="admin-modal-header">
+            <div className="table-session-modal-header">
               <div>
                 <p className="section-kicker">table</p>
                 <h2>현재 자리</h2>
               </div>
-              <button type="button" className="admin-ghost-button" onClick={() => setIsOpen(false)}>
+              <button type="button" className="table-session-modal-close" onClick={() => setIsOpen(false)}>
                 닫기
               </button>
             </div>
