@@ -8,6 +8,7 @@
 lam-web/node_modules
 lam-web/.next
 lam-web/out
+lam-web/*.tsbuildinfo
 
 # Admin Web
 lam-admin-web/node_modules

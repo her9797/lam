@@ -34,6 +34,8 @@ npm test
 - `/menu/[category]`: 카테고리별 메뉴 상세
 - `/requests`: 요청사항 안내 화면
 - `/events`: 공지 및 이벤트 화면
+- `/checkout`: 토스페이먼츠 결제 화면
+- `/payments/success`, `/payments/fail`: 결제 결과 화면
 - `/test/enter`: 테스트 환경용 고객 세션 진입점
 
 ## 디렉토리 구조
@@ -94,6 +96,15 @@ http://localhost:3000/test/enter?key=로컬에서만_사용할_긴_임의값&tab
 ```
 
 `CUSTOMER_TEST_ENTRY_TOKEN`을 비워 두면 테스트 진입은 비활성화됩니다. 실제 운영 환경에는 이 값을 설정하지 않는 것을 권장합니다.
+
+결제 화면을 사용하려면 `lam-web/.env.local`에 토스페이먼츠 클라이언트 키와 API가 공유할 내부 토큰을 설정합니다.
+
+```bash
+NEXT_PUBLIC_TOSS_CLIENT_KEY=토스페이먼츠_클라이언트키
+PAYMENT_API_TOKEN=lam-api와_동일한_긴_임의값
+```
+
+시크릿 키는 `lam-web`에 설정하지 않습니다. `TOSS_PAYMENTS_SECRET_KEY`와 토스플레이스 키는 반드시 `lam-api`에서만 관리합니다.
 
 ## 검증 내역
 

@@ -1,9 +1,12 @@
 "use client";
 
 import { useEffect, useId, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import type { MenuItem } from "@/data/menu-data";
 import { getMenuItemDetail } from "@/lib/menu-item-detail";
+import { getStoredTableNumber } from "@/lib/table-session";
+import { createPaymentOrder } from "@/services/payment-service";
 
 type MenuItemCardProps = {
   item: MenuItem;
@@ -11,7 +14,10 @@ type MenuItemCardProps = {
 };
 
 export function MenuItemCard({ item, imageArea = "menu" }: MenuItemCardProps) {
+  const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
+  const [isOrdering, setIsOrdering] = useState(false);
+  const [orderError, setOrderError] = useState("");
   const titleId = useId();
   const descriptionId = useId();
   const detail = getMenuItemDetail(item);
@@ -46,6 +52,21 @@ export function MenuItemCard({ item, imageArea = "menu" }: MenuItemCardProps) {
     };
   }, [isOpen]);
 
+  async function handleOrder() {
+    setIsOrdering(true);
+    setOrderError("");
+    try {
+      const order = await createPaymentOrder({
+        menuItemId: item.id,
+        tableNumber: getStoredTableNumber(),
+      });
+      router.push(`/checkout?orderId=${encodeURIComponent(order.orderId)}`);
+    } catch (error) {
+      setOrderError(error instanceof Error ? error.message : "주문을 시작하지 못했습니다.");
+      setIsOrdering(false);
+    }
+  }
+
   return (
     <>
       <button
@@ -67,18 +88,19 @@ export function MenuItemCard({ item, imageArea = "menu" }: MenuItemCardProps) {
           )}
         </div>
         <div className="menu-copy">
-          {item.badge ? (
-            <p
-              className="menu-badge"
-              data-badge-color={item.badgeColor || "green"}
-            >
-              {item.badge}
-            </p>
-          ) : null}
           <h3>{item.name}</h3>
           <p>{item.description}</p>
         </div>
-        <div className="menu-price">{item.price}</div>
+        <div className="menu-side">
+          <span
+            className={item.badge ? "menu-badge" : "menu-badge menu-badge-placeholder"}
+            data-badge-color={item.badgeColor || "green"}
+            aria-hidden={item.badge ? undefined : true}
+          >
+            {item.badge || "badge"}
+          </span>
+          <span className="menu-price">{item.price}</span>
+        </div>
       </button>
 
       {isOpen ? (
@@ -101,13 +123,15 @@ export function MenuItemCard({ item, imageArea = "menu" }: MenuItemCardProps) {
             <p className="menu-detail-description" id={descriptionId}>
               {detail.description || "메뉴 설명이 준비 중입니다."}
             </p>
+            {orderError ? <p className="table-session-error">{orderError}</p> : null}
             <div className="menu-detail-actions">
               <button
                 className="request-compose-button menu-detail-order-button"
                 type="button"
-                disabled
+                disabled={isOrdering}
+                onClick={handleOrder}
               >
-                주문
+                {isOrdering ? "주문 준비 중..." : "주문"}
               </button>
               <button
                 className="table-session-modal-close menu-detail-close-button"
