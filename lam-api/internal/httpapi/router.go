@@ -1,20 +1,25 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/her9797/lam/lam-api/internal/config"
 	"github.com/her9797/lam/lam-api/internal/lamdata"
+	"github.com/her9797/lam/lam-api/internal/notify"
 	"github.com/her9797/lam/lam-api/internal/store"
 )
 
 func NewMux(repository *store.Repository, cfg config.Config) http.Handler {
 	mux := http.NewServeMux()
+	broadcaster := notify.NewBroadcaster(cfg.SupabaseURL, cfg.SupabaseBroadcastKey)
 
 	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
@@ -71,6 +76,7 @@ func NewMux(repository *store.Repository, cfg config.Config) http.Handler {
 			return
 		}
 
+		sendNewRequestBroadcastAsync(broadcaster)
 		writeJSON(w, http.StatusCreated, map[string]string{"status": "ok"})
 	}))
 
@@ -889,4 +895,22 @@ func writeJSON(w http.ResponseWriter, status int, payload any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(payload)
+}
+
+// sendNewRequestBroadcastAsync fires the Realtime Broadcast signal in the
+// background so a slow or unreachable Supabase endpoint never adds latency
+// to (or fails) the customer request creation it follows — see
+// docs/plans/2026-09-04-admin-request-notifications.md section 4.7. It
+// uses its own background context rather than the request's, since the
+// request (and its context) may already be finished by the time this
+// completes. broadcaster.Send is itself a no-op when Supabase isn't
+// configured, so this is safe to call unconditionally.
+func sendNewRequestBroadcastAsync(broadcaster *notify.Broadcaster) {
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := broadcaster.Send(ctx, notify.RequestsTopic, notify.NewRequestEvent, notify.NewRequestPayload{Type: notify.NewRequestEvent}); err != nil {
+			log.Printf("notify: failed to send new-request broadcast: %v", err)
+		}
+	}()
 }

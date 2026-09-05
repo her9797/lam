@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 )
 
 func doRequest(t *testing.T, handler http.Handler, method, path string, body []byte, headers map[string]string) *httptest.ResponseRecorder {
@@ -223,6 +224,62 @@ func TestRouter_CustomerRequests_BulkStatusUpdate(t *testing.T) {
 		rec := doRequest(t, handler, http.MethodGet, "/api/v1/admin/customer-requests", nil, adminHeaders())
 		if rec.Code != http.StatusOK {
 			t.Errorf("status = %d, want %d, body = %s", rec.Code, http.StatusOK, rec.Body.String())
+		}
+	})
+}
+
+// TestRouter_CustomerRequests_SendsBroadcastOnCreate exercises the router
+// directly wired to a fake Supabase broadcast endpoint (config.Config
+// pointed at an httptest.Server), independent of resetServer's shared
+// testCfg (which leaves Supabase unconfigured on purpose, so every other
+// integration test exercises the "disabled" no-op path).
+func TestRouter_CustomerRequests_SendsBroadcastOnCreate(t *testing.T) {
+	resetServer(t) // truncates tables; its returned handler isn't used here
+
+	received := make(chan string, 1)
+	broadcastServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		received <- r.URL.Path
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	defer broadcastServer.Close()
+
+	cfg := testCfg
+	cfg.SupabaseURL = broadcastServer.URL
+	cfg.SupabaseBroadcastKey = "test-broadcast-key"
+	handler := NewMux(testRepo, cfg)
+
+	t.Run("general request creation sends a broadcast", func(t *testing.T) {
+		body, _ := json.Marshal(map[string]string{"tableNumber": "T-01", "text": "napkins"})
+		rec := doRequest(t, handler, http.MethodPost, "/api/v1/customer-requests", body, nil)
+		if rec.Code != http.StatusCreated {
+			t.Fatalf("status = %d, want %d, body = %s", rec.Code, http.StatusCreated, rec.Body.String())
+		}
+
+		select {
+		case path := <-received:
+			if path != "/realtime/v1/api/broadcast/admin-requests/events/new_request" {
+				t.Errorf("broadcast path = %q, want the admin-requests/new_request path", path)
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatal("timed out waiting for the broadcast send")
+		}
+	})
+
+	t.Run("special request creation does not send a broadcast", func(t *testing.T) {
+		body, _ := json.Marshal(map[string]string{
+			"tableNumber": "T-02", "gender": "female", "name": "n", "age": "20",
+			"residence": "r", "instagram": "i", "idealType": "t", "text": "hello",
+		})
+		rec := doRequest(t, handler, http.MethodPost, "/api/v1/special-requests", body, nil)
+		if rec.Code != http.StatusCreated {
+			t.Fatalf("status = %d, want %d, body = %s", rec.Code, http.StatusCreated, rec.Body.String())
+		}
+
+		select {
+		case path := <-received:
+			t.Fatalf("unexpected broadcast for a special request: %q", path)
+		case <-time.After(200 * time.Millisecond):
+			// expected: no broadcast for special requests
 		}
 	})
 }
