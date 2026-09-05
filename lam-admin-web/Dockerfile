@@ -12,6 +12,19 @@ RUN npm ci
 
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
+
+# NEXT_PUBLIC_* 값은 `npm run build` 시점에 클라이언트 번들에 그대로 박히므로,
+# 컨테이너 실행 시점 환경변수(Cloud Run 서비스의 --set-env-vars/--set-secrets)로
+# 넣어도 이 빌드 단계에는 전달되지 않는다. 빌드 시점에 --build-arg 또는
+# gcloud run deploy --source ... --set-build-env-vars로 값을 넘겨야 한다.
+# 둘 다 비워두면 features/notifications의 Realtime Broadcast 구독이
+# lib/supabase/client.ts의 설계대로 조용히 비활성화되고(60초 안전망 폴링은
+# 계속 동작), 빌드 자체는 그대로 성공한다.
+ARG NEXT_PUBLIC_SUPABASE_URL
+ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
+ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
+ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
+
 RUN npm run build
 
 FROM node:24-alpine AS runtime
