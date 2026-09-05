@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/her9797/lam/lam-api/internal/lamdata"
@@ -18,6 +19,16 @@ var (
 	ErrAlreadyExists = errors.New("resource already exists")
 	ErrNotFound      = errors.New("resource not found")
 )
+
+// idSeq backstops nextID's timestamp against two calls landing in the same
+// nanosecond (observed in CI: two Create* calls close enough together to
+// share a UnixMilli() value collided on the same id and the second insert
+// failed with ErrAlreadyExists).
+var idSeq int64
+
+func nextID(prefix string) string {
+	return fmt.Sprintf("%s-%d-%d", prefix, time.Now().UnixNano(), atomic.AddInt64(&idSeq, 1))
+}
 
 type CreateMenuItemInput struct {
 	CategoryID  string
@@ -148,6 +159,9 @@ ALTER TABLE menu_item_images ADD COLUMN IF NOT EXISTS focus_x INTEGER NOT NULL D
 ALTER TABLE menu_item_images ADD COLUMN IF NOT EXISTS focus_y INTEGER NOT NULL DEFAULT 50;
 ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS table_number TEXT NOT NULL DEFAULT '';
 ALTER TABLE special_requests ADD COLUMN IF NOT EXISTS table_number TEXT NOT NULL DEFAULT '';
+CREATE INDEX IF NOT EXISTS idx_customer_requests_created_at ON customer_requests (created_at DESC, id DESC);
+CREATE INDEX IF NOT EXISTS idx_customer_requests_status ON customer_requests (status);
+CREATE INDEX IF NOT EXISTS idx_special_requests_created_at ON special_requests (created_at DESC, id DESC);
 ALTER TABLE store_profile ADD COLUMN IF NOT EXISTS song_request_copy TEXT NOT NULL DEFAULT '';
 ALTER TABLE store_profile ADD COLUMN IF NOT EXISTS request_copy TEXT NOT NULL DEFAULT '';
 ALTER TABLE store_profile ADD COLUMN IF NOT EXISTS event_copy TEXT NOT NULL DEFAULT '';
@@ -460,7 +474,7 @@ func (r *Repository) CreateMenuItem(ctx context.Context, input CreateMenuItemInp
 		return err
 	}
 
-	id := fmt.Sprintf("menu-%d", time.Now().UnixMilli())
+	id := nextID("menu")
 	_, err = r.pool.Exec(ctx, `INSERT INTO menu_items (id, category_id, badge, badge_color, name, description, price, is_visible, sort_order) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
 		id, input.CategoryID, nullable(input.Badge), nullable(input.BadgeColor), input.Name, input.Description, input.Price, input.IsVisible, sortOrder)
 	return classifyError(err)
@@ -476,7 +490,7 @@ func (r *Repository) CreateRequestGuide(ctx context.Context, text string, isVisi
 		return err
 	}
 
-	id := fmt.Sprintf("request-%d", time.Now().UnixMilli())
+	id := nextID("request")
 	_, err = r.pool.Exec(ctx, `INSERT INTO request_guides (id, text, is_visible, sort_order) VALUES ($1, $2, $3, $4)`, id, text, isVisible, sortOrder)
 	return classifyError(err)
 }
@@ -535,7 +549,7 @@ func (r *Repository) CreateCustomerRequest(ctx context.Context, tableNumber stri
 		return ErrInvalidInput
 	}
 
-	id := fmt.Sprintf("customer-request-%d", time.Now().UnixMilli())
+	id := nextID("customer-request")
 	_, err := r.pool.Exec(ctx, `
 		INSERT INTO customer_requests (id, table_number, text, status)
 		VALUES ($1, $2, $3, 'pending')
@@ -589,6 +603,258 @@ func (r *Repository) ListSpecialRequests(ctx context.Context) ([]lamdata.Special
 	return requests, rows.Err()
 }
 
+// songRequestPrefix is the one place this repository knows about the
+// "song request" convention: it is not a separate resource, just a
+// customer_requests row whose text starts with this literal. Must stay in
+// sync with the identical constant in lam-admin-web's
+// features/dashboard/summary.ts — a drift here silently empties the
+// kind=song / kind=general filters below.
+const songRequestPrefix = "[노래 신청]"
+
+// CustomerRequestFilter is the validated, store-layer form of an admin
+// customer-request list query. Callers (httpapi) are expected to have
+// already validated Sort/Order/Kind/Status against a fixed whitelist;
+// ListCustomerRequestsPage re-validates Sort/Order itself before touching
+// SQL, since an unrecognized value here would otherwise have no safe
+// ORDER BY translation.
+type CustomerRequestFilter struct {
+	Status   string // "" = all statuses
+	Kind     string // "all" | "general" | "song"
+	Search   string
+	Sort     string // "status" | "createdAt" | "tableNumber"
+	Order    string // "asc" | "desc"
+	Page     int
+	PageSize int
+}
+
+// SpecialRequestFilter is the equivalent validated filter for
+// ListSpecialRequestsPage.
+type SpecialRequestFilter struct {
+	Gender   string // "" = both genders
+	Search   string
+	Sort     string // "createdAt" | "name"
+	Order    string // "asc" | "desc"
+	Page     int
+	PageSize int
+}
+
+// escapeLikePattern escapes the characters ILIKE treats specially (\, %, _)
+// so a user-typed search term is matched literally once wrapped in
+// "%"+escaped+"%", rather than as a LIKE pattern of its own.
+func escapeLikePattern(input string) string {
+	replacer := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
+	return replacer.Replace(input)
+}
+
+func searchPatternOrEmpty(search string) string {
+	if strings.TrimSpace(search) == "" {
+		return ""
+	}
+	return "%" + escapeLikePattern(search) + "%"
+}
+
+func clampListPage(page int) int {
+	if page < 1 {
+		return 1
+	}
+	return page
+}
+
+func clampListPageSize(pageSize int) int {
+	if pageSize < 1 {
+		return 20
+	}
+	if pageSize > 100 {
+		return 100
+	}
+	return pageSize
+}
+
+func customerRequestOrderByClause(sort string, order string) (string, error) {
+	direction := "DESC"
+	if order == "asc" {
+		direction = "ASC"
+	} else if order != "desc" && order != "" {
+		return "", fmt.Errorf("%w: order %q", ErrInvalidInput, order)
+	}
+
+	switch sort {
+	case "status", "":
+		return "CASE status WHEN 'pending' THEN 0 WHEN 'checked' THEN 1 ELSE 2 END " + direction + ", created_at DESC, id DESC", nil
+	case "createdAt":
+		return "created_at " + direction + ", id " + direction, nil
+	case "tableNumber":
+		return "table_number " + direction + ", created_at DESC, id DESC", nil
+	default:
+		return "", fmt.Errorf("%w: sort %q", ErrInvalidInput, sort)
+	}
+}
+
+func specialRequestOrderByClause(sort string, order string) (string, error) {
+	direction := "DESC"
+	if order == "asc" {
+		direction = "ASC"
+	} else if order != "desc" && order != "" {
+		return "", fmt.Errorf("%w: order %q", ErrInvalidInput, order)
+	}
+
+	switch sort {
+	case "createdAt", "":
+		return "created_at " + direction + ", id " + direction, nil
+	case "name":
+		return "name " + direction + ", created_at DESC, id DESC", nil
+	default:
+		return "", fmt.Errorf("%w: sort %q", ErrInvalidInput, sort)
+	}
+}
+
+const customerRequestFilterWhere = `
+	WHERE ($1 = '' OR status = $1)
+	  AND (
+	    $2 = 'all' OR $2 = ''
+	    OR ($2 = 'song' AND starts_with(text, $3))
+	    OR ($2 = 'general' AND NOT starts_with(text, $3))
+	  )
+	  AND ($4 = '' OR text ILIKE $4 ESCAPE '\' OR table_number ILIKE $4 ESCAPE '\')
+`
+
+// ListCustomerRequestsPage applies filter/search/sort/pagination server-side
+// and reports the total matching row count alongside the current page, so
+// callers can render page controls without a second round trip. Unlike
+// ListCustomerRequests (kept as-is for the no-parameters/legacy-array
+// response path), this is only reached when the caller supplied at least
+// one recognized query parameter.
+func (r *Repository) ListCustomerRequestsPage(ctx context.Context, filter CustomerRequestFilter) ([]lamdata.CustomerRequest, int, error) {
+	orderBy, err := customerRequestOrderByClause(filter.Sort, filter.Order)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	page := clampListPage(filter.Page)
+	pageSize := clampListPageSize(filter.PageSize)
+	searchPattern := searchPatternOrEmpty(filter.Search)
+
+	var total int
+	countSQL := "SELECT COUNT(*) FROM customer_requests" + customerRequestFilterWhere
+	if err := r.pool.QueryRow(ctx, countSQL, filter.Status, filter.Kind, songRequestPrefix, searchPattern).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
+	listSQL := `
+		SELECT id, COALESCE(table_number, ''), COALESCE(text, ''), status, created_at, handled_at
+		FROM customer_requests
+	` + customerRequestFilterWhere + `
+		ORDER BY ` + orderBy + `
+		LIMIT $5 OFFSET $6
+	`
+	offset := (page - 1) * pageSize
+	rows, err := r.pool.Query(ctx, listSQL, filter.Status, filter.Kind, songRequestPrefix, searchPattern, pageSize, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	requests := make([]lamdata.CustomerRequest, 0)
+	for rows.Next() {
+		var item lamdata.CustomerRequest
+		var createdAt time.Time
+		var handledAt *time.Time
+		if err := rows.Scan(
+			&item.ID,
+			&item.TableNumber,
+			&item.Text,
+			&item.Status,
+			&createdAt,
+			&handledAt,
+		); err != nil {
+			return nil, 0, err
+		}
+		item.CreatedAt = formatTimestamp(createdAt)
+		if handledAt != nil {
+			item.HandledAt = formatTimestamp(*handledAt)
+		}
+		requests = append(requests, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
+	}
+
+	return requests, total, nil
+}
+
+const specialRequestFilterWhere = `
+	WHERE ($1 = '' OR gender = $1)
+	  AND (
+	    $2 = ''
+	    OR name ILIKE $2 ESCAPE '\'
+	    OR table_number ILIKE $2 ESCAPE '\'
+	    OR instagram ILIKE $2 ESCAPE '\'
+	    OR residence ILIKE $2 ESCAPE '\'
+	    OR text ILIKE $2 ESCAPE '\'
+	  )
+`
+
+// ListSpecialRequestsPage is the special_requests equivalent of
+// ListCustomerRequestsPage. See that method's doc comment for the
+// legacy-array-vs-envelope split this only ever serves the envelope side of.
+func (r *Repository) ListSpecialRequestsPage(ctx context.Context, filter SpecialRequestFilter) ([]lamdata.SpecialRequest, int, error) {
+	orderBy, err := specialRequestOrderByClause(filter.Sort, filter.Order)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	page := clampListPage(filter.Page)
+	pageSize := clampListPageSize(filter.PageSize)
+	searchPattern := searchPatternOrEmpty(filter.Search)
+
+	var total int
+	countSQL := "SELECT COUNT(*) FROM special_requests" + specialRequestFilterWhere
+	if err := r.pool.QueryRow(ctx, countSQL, filter.Gender, searchPattern).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
+	listSQL := `
+		SELECT id, COALESCE(table_number, ''), gender, name, age, residence, instagram, ideal_type, text, created_at
+		FROM special_requests
+	` + specialRequestFilterWhere + `
+		ORDER BY ` + orderBy + `
+		LIMIT $3 OFFSET $4
+	`
+	offset := (page - 1) * pageSize
+	rows, err := r.pool.Query(ctx, listSQL, filter.Gender, searchPattern, pageSize, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	requests := make([]lamdata.SpecialRequest, 0)
+	for rows.Next() {
+		var item lamdata.SpecialRequest
+		var createdAt time.Time
+		if err := rows.Scan(
+			&item.ID,
+			&item.TableNumber,
+			&item.Gender,
+			&item.Name,
+			&item.Age,
+			&item.Residence,
+			&item.Instagram,
+			&item.IdealType,
+			&item.Text,
+			&createdAt,
+		); err != nil {
+			return nil, 0, err
+		}
+		item.CreatedAt = formatTimestamp(createdAt)
+		requests = append(requests, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
+	}
+
+	return requests, total, nil
+}
+
 func (r *Repository) CreateSpecialRequest(ctx context.Context, input lamdata.SpecialRequest) error {
 	if strings.TrimSpace(input.TableNumber) == "" ||
 		!isValidCustomerRequestGender(input.Gender) ||
@@ -601,7 +867,7 @@ func (r *Repository) CreateSpecialRequest(ctx context.Context, input lamdata.Spe
 		return ErrInvalidInput
 	}
 
-	id := fmt.Sprintf("special-request-%d", time.Now().UnixMilli())
+	id := nextID("special-request")
 	_, err := r.pool.Exec(ctx, `
 		INSERT INTO special_requests (id, table_number, gender, name, age, residence, instagram, ideal_type, text)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
@@ -638,6 +904,30 @@ func (r *Repository) UpdateCustomerRequestStatus(ctx context.Context, id string,
 		return ErrNotFound
 	}
 	return nil
+}
+
+// maxBulkCustomerRequestIDs bounds a single bulk status update so one
+// request can't force an unbounded IN-list onto the database.
+const maxBulkCustomerRequestIDs = 200
+
+// UpdateCustomerRequestStatuses applies status to every id in one statement.
+// Unlike UpdateCustomerRequestStatus, an id with no matching row is silently
+// ignored rather than reported as ErrNotFound: callers pass ids gathered
+// from a list they already fetched, and one request deleted in the
+// meantime must not fail the update for the rest.
+func (r *Repository) UpdateCustomerRequestStatuses(ctx context.Context, ids []string, status string) error {
+	if len(ids) == 0 || len(ids) > maxBulkCustomerRequestIDs || !isValidCustomerRequestStatus(status) {
+		return ErrInvalidInput
+	}
+
+	_, err := r.pool.Exec(ctx, `
+		UPDATE customer_requests
+		SET status = $2,
+			updated_at = NOW(),
+			handled_at = CASE WHEN $2 = 'completed' THEN NOW() ELSE NULL END
+		WHERE id = ANY($1)
+	`, ids, status)
+	return classifyError(err)
 }
 
 func (r *Repository) DeleteCustomerRequest(ctx context.Context, id string) error {
@@ -684,7 +974,7 @@ func (r *Repository) CreateNotice(ctx context.Context, text string, isVisible bo
 		return err
 	}
 
-	id := fmt.Sprintf("notice-%d", time.Now().UnixMilli())
+	id := nextID("notice")
 	_, err = r.pool.Exec(ctx, `INSERT INTO notices (id, text, is_visible, sort_order) VALUES ($1, $2, $3, $4)`, id, text, isVisible, sortOrder)
 	return classifyError(err)
 }
@@ -784,7 +1074,7 @@ func (r *Repository) CreateMenuImage(ctx context.Context, input CreateMenuImageI
 		}
 	}
 
-	id := fmt.Sprintf("image-%d", time.Now().UnixMilli())
+	id := nextID("image")
 	_, err = tx.Exec(ctx, `
 		INSERT INTO menu_item_images (id, menu_item_id, filename, mime_type, content, size_bytes, is_primary, display_area, focus_x, focus_y, sort_order)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)

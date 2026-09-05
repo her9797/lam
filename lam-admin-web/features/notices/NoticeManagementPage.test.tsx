@@ -303,4 +303,45 @@ describe("NoticeManagementPage", () => {
     expect(within(row1).getByRole("button", { name: "삭제" })).toBeDisabled();
     expect(within(row2).getByRole("button", { name: "삭제" })).not.toBeDisabled();
   });
+
+  it("filters the notice table by text", () => {
+    render(<NoticeManagementPage />);
+
+    fireEvent.change(screen.getByPlaceholderText("공지 문구로 검색"), {
+      target: { value: "라이브" },
+    });
+
+    expect(screen.getByText("금요일 라이브 공연")).toBeInTheDocument();
+    expect(screen.queryByText("매주 수요일 하이볼 1,000원 할인")).not.toBeInTheDocument();
+  });
+
+  it("shows a distinct 'no results' state when a search yields nothing", () => {
+    render(<NoticeManagementPage />);
+
+    fireEvent.change(screen.getByPlaceholderText("공지 문구로 검색"), {
+      target: { value: "no-such-notice" },
+    });
+
+    expect(screen.getByText("검색 결과가 없습니다.")).toBeInTheDocument();
+    expect(screen.queryByText("등록된 공지/이벤트가 없습니다.")).not.toBeInTheDocument();
+  });
+
+  it("paginates when there are more notices than one page", () => {
+    const manyNotices = Array.from({ length: 21 }, (_, index) => ({
+      id: `notice-${index}`,
+      text: `공지 ${String(index).padStart(2, "0")}`,
+      isVisible: true,
+    }));
+    mockBootstrap({ data: { ...FIXTURE, notices: manyNotices } });
+
+    render(<NoticeManagementPage />);
+
+    expect(screen.getByText("총 21건")).toBeInTheDocument();
+    expect(screen.getByText("공지 00")).toBeInTheDocument();
+    expect(screen.queryByText("공지 20")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "다음" }));
+
+    expect(screen.getByText("공지 20")).toBeInTheDocument();
+  });
 });

@@ -1,21 +1,30 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { CustomerRequest } from "./model";
+import type { CustomerRequest, CustomerRequestPageResult } from "./model";
 
-const useCustomerRequestsQueryMock = vi.fn();
+const replaceMock = vi.fn();
+let currentSearchParams = new URLSearchParams();
+
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/requests",
+  useRouter: () => ({ replace: replaceMock }),
+  useSearchParams: () => currentSearchParams,
+}));
+
+const useCustomerRequestsPageQueryMock = vi.fn();
 const useUpdateCustomerRequestStatusMutationMock = vi.fn();
 const mutateMock = vi.fn();
 const refetchMock = vi.fn();
 
 vi.mock("./queries", () => ({
-  useCustomerRequestsQuery: () => useCustomerRequestsQueryMock(),
+  useCustomerRequestsPageQuery: (query: unknown) => useCustomerRequestsPageQueryMock(query),
   useUpdateCustomerRequestStatusMutation: () => useUpdateCustomerRequestStatusMutationMock(),
 }));
 
 import { RequestListPage } from "./RequestListPage";
 
-const FIXTURE: CustomerRequest[] = [
+const ITEMS: CustomerRequest[] = [
   {
     id: "r1",
     tableNumber: "1",
@@ -26,26 +35,33 @@ const FIXTURE: CustomerRequest[] = [
   {
     id: "r2",
     tableNumber: "2",
-    text: "[노래 신청] Dynamite - BTS",
-    status: "pending",
+    text: "check please",
+    status: "checked",
     createdAt: "2026-09-03T10:05:00Z",
   },
+];
+
+const SONG_ITEMS: CustomerRequest[] = [
   {
     id: "r3",
     tableNumber: "3",
-    text: "[노래 신청] Butter",
-    status: "checked",
+    text: "[노래 신청] Dynamite - BTS",
+    status: "pending",
     createdAt: "2026-09-03T10:10:00Z",
   },
 ];
 
+function pageFixture(items: CustomerRequest[], overrides: Partial<CustomerRequestPageResult> = {}): CustomerRequestPageResult {
+  return { items, page: 1, pageSize: 20, total: items.length, ...overrides };
+}
+
 function mockQuery(overrides: Partial<ReturnType<typeof defaultQueryResult>> = {}) {
-  useCustomerRequestsQueryMock.mockReturnValue({ ...defaultQueryResult(), ...overrides });
+  useCustomerRequestsPageQueryMock.mockReturnValue({ ...defaultQueryResult(), ...overrides });
 }
 
 function defaultQueryResult() {
   return {
-    data: FIXTURE,
+    data: pageFixture(ITEMS),
     isLoading: false,
     isError: false,
     error: null as unknown,
@@ -74,6 +90,9 @@ describe("RequestListPage", () => {
   beforeEach(() => {
     mutateMock.mockClear();
     refetchMock.mockClear();
+    replaceMock.mockClear();
+    useCustomerRequestsPageQueryMock.mockClear();
+    currentSearchParams = new URLSearchParams();
     mockQuery();
     mockMutation();
   });
@@ -82,7 +101,7 @@ describe("RequestListPage", () => {
     cleanup();
   });
 
-  it("shows a loading state while the request list is loading", () => {
+  it("shows a loading state while the request page is loading", () => {
     mockQuery({ data: undefined, isLoading: true });
 
     render(<RequestListPage kind="general" />);
@@ -105,29 +124,57 @@ describe("RequestListPage", () => {
     expect(refetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it("shows the empty state when there are no general requests", () => {
-    mockQuery({ data: [] });
+  it("shows translated labels (not the raw value) in the status and sort selects", () => {
+    render(<RequestListPage kind="general" />);
+
+    // Base UI's <Select.Value> renders the raw string value unless given a
+    // label mapping — a prior version of this page showed literal "all"/
+    // "status" here instead of "전체"/"상태순". Locks the fix in place.
+    expect(screen.getByText("전체")).toBeInTheDocument();
+    expect(screen.getByText("상태순")).toBeInTheDocument();
+    expect(screen.queryByText("all", { selector: "span" })).not.toBeInTheDocument();
+    expect(screen.queryByText("status", { selector: "span" })).not.toBeInTheDocument();
+  });
+
+  it("requests kind=general for the general screen and kind=song for the song screen", () => {
+    render(<RequestListPage kind="general" />);
+    expect(useCustomerRequestsPageQueryMock).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: "general" }),
+    );
+
+    cleanup();
+    render(<RequestListPage kind="song" />);
+    expect(useCustomerRequestsPageQueryMock).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: "song" }),
+    );
+  });
+
+  it("shows the original empty state when the result is empty with no active filter", () => {
+    mockQuery({ data: pageFixture([], { total: 0 }) });
 
     render(<RequestListPage kind="general" />);
 
     expect(screen.getByText("대기 중인 손님 요청이 없습니다.")).toBeInTheDocument();
   });
 
-  it("renders only non-song requests for kind='general'", () => {
+  it("shows a distinct 'no results' state when a filter/search yields nothing", () => {
+    currentSearchParams = new URLSearchParams("q=nomatch");
+    mockQuery({ data: pageFixture([], { total: 0 }) });
+
     render(<RequestListPage kind="general" />);
 
-    expect(screen.getByText("물 좀 주세요")).toBeInTheDocument();
-    expect(screen.queryByText(/Dynamite/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Butter/)).not.toBeInTheDocument();
+    expect(screen.getByText("검색 결과가 없습니다.")).toBeInTheDocument();
+    expect(screen.queryByText("대기 중인 손님 요청이 없습니다.")).not.toBeInTheDocument();
   });
 
-  it("renders only song requests for kind='song', with the classification prefix stripped for display", () => {
+  it("renders rows from the server response, stripping the song-request prefix for display", () => {
+    currentSearchParams = new URLSearchParams("sort=createdAt&order=desc");
+    mockQuery({ data: pageFixture(SONG_ITEMS) });
+
     render(<RequestListPage kind="song" />);
 
     expect(screen.getByText("Dynamite - BTS")).toBeInTheDocument();
-    expect(screen.getByText("Butter")).toBeInTheDocument();
     expect(screen.queryByText("[노래 신청] Dynamite - BTS")).not.toBeInTheDocument();
-    expect(screen.queryByText("물 좀 주세요")).not.toBeInTheDocument();
   });
 
   it("advances a pending request to checked when its action button is clicked", () => {
@@ -139,21 +186,52 @@ describe("RequestListPage", () => {
   });
 
   it("advances a checked request to completed when its action button is clicked", () => {
-    render(<RequestListPage kind="song" />);
+    render(<RequestListPage kind="general" />);
 
     fireEvent.click(screen.getByRole("button", { name: "처리완료" }));
 
-    expect(mutateMock).toHaveBeenCalledWith({ id: "r3", status: "completed" });
+    expect(mutateMock).toHaveBeenCalledWith({ id: "r2", status: "completed" });
   });
 
   it("disables only the row whose own mutation is in flight, preventing duplicate submission", () => {
-    mockMutation({ isPending: true, variables: { id: "r2", status: "checked" } });
+    mockMutation({ isPending: true, variables: { id: "r1", status: "checked" } });
 
-    render(<RequestListPage kind="song" />);
+    render(<RequestListPage kind="general" />);
 
     const buttons = screen.getAllByRole("button", { name: "확인" });
-    // r2 (pending, mutating) vs r3 (checked, shows "처리완료" not "확인")
     expect(buttons).toHaveLength(1);
     expect(buttons[0]).toBeDisabled();
+  });
+
+  it("navigates to the next page via Pagination, keeping the other query params", () => {
+    currentSearchParams = new URLSearchParams("status=pending");
+    mockQuery({ data: pageFixture(ITEMS, { page: 1, total: 45 }) });
+
+    render(<RequestListPage kind="general" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "다음" }));
+
+    expect(replaceMock).toHaveBeenCalledWith("/requests?page=2&status=pending");
+  });
+
+  it("debounces a typed search into the URL and resets to page 1", async () => {
+    vi.useFakeTimers();
+    currentSearchParams = new URLSearchParams("page=3");
+    mockQuery({ data: pageFixture(ITEMS, { page: 3, total: 45 }) });
+
+    render(<RequestListPage kind="general" />);
+
+    fireEvent.change(screen.getByPlaceholderText("테이블 번호, 내용으로 검색"), {
+      target: { value: "napkin" },
+    });
+
+    expect(replaceMock).not.toHaveBeenCalled();
+
+    await act(async () => {
+      vi.advanceTimersByTime(300);
+    });
+
+    expect(replaceMock).toHaveBeenCalledWith("/requests?q=napkin");
+    vi.useRealTimers();
   });
 });

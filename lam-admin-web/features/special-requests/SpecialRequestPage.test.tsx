@@ -1,21 +1,21 @@
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { SpecialRequest } from "./model";
+import type { SpecialRequest, SpecialRequestPageResult } from "./model";
 
-const useSpecialRequestsQueryMock = vi.fn();
+const useSpecialRequestsPageQueryMock = vi.fn();
 const useDeleteSpecialRequestMutationMock = vi.fn();
 const mutateMock = vi.fn();
 const refetchMock = vi.fn();
 
 vi.mock("./queries", () => ({
-  useSpecialRequestsQuery: () => useSpecialRequestsQueryMock(),
+  useSpecialRequestsPageQuery: (query: unknown) => useSpecialRequestsPageQueryMock(query),
   useDeleteSpecialRequestMutation: () => useDeleteSpecialRequestMutationMock(),
 }));
 
 import { SpecialRequestPage } from "./SpecialRequestPage";
 
-const FIXTURE: SpecialRequest[] = [
+const ITEMS: SpecialRequest[] = [
   {
     id: "s1",
     tableNumber: "5",
@@ -30,13 +30,20 @@ const FIXTURE: SpecialRequest[] = [
   },
 ];
 
+function pageFixture(
+  items: SpecialRequest[],
+  overrides: Partial<SpecialRequestPageResult> = {},
+): SpecialRequestPageResult {
+  return { items, page: 1, pageSize: 20, total: items.length, ...overrides };
+}
+
 function mockQuery(overrides: Partial<ReturnType<typeof defaultQueryResult>> = {}) {
-  useSpecialRequestsQueryMock.mockReturnValue({ ...defaultQueryResult(), ...overrides });
+  useSpecialRequestsPageQueryMock.mockReturnValue({ ...defaultQueryResult(), ...overrides });
 }
 
 function defaultQueryResult() {
   return {
-    data: FIXTURE,
+    data: pageFixture(ITEMS),
     isLoading: false,
     isError: false,
     error: null as unknown,
@@ -65,6 +72,7 @@ describe("SpecialRequestPage", () => {
   beforeEach(() => {
     mutateMock.mockClear();
     refetchMock.mockClear();
+    useSpecialRequestsPageQueryMock.mockClear();
     mockQuery();
     mockMutation();
   });
@@ -73,7 +81,7 @@ describe("SpecialRequestPage", () => {
     cleanup();
   });
 
-  it("shows a loading state while the special request list is loading", () => {
+  it("shows a loading state while the special request page is loading", () => {
     mockQuery({ data: undefined, isLoading: true });
 
     render(<SpecialRequestPage />);
@@ -96,8 +104,21 @@ describe("SpecialRequestPage", () => {
     expect(refetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it("shows the empty state when there are no special requests", () => {
-    mockQuery({ data: [] });
+  it("requests the default query (no gender, empty search, createdAt desc, page 1) on first render", () => {
+    render(<SpecialRequestPage />);
+
+    expect(useSpecialRequestsPageQueryMock).toHaveBeenCalledWith({
+      page: 1,
+      pageSize: 20,
+      gender: undefined,
+      search: "",
+      sort: "createdAt",
+      order: "desc",
+    });
+  });
+
+  it("shows the original empty state when the result is empty with no active filter", () => {
+    mockQuery({ data: pageFixture([], { total: 0 }) });
 
     render(<SpecialRequestPage />);
 
@@ -149,9 +170,6 @@ describe("SpecialRequestPage", () => {
     const confirmDialog = screen.getByRole("alertdialog");
     fireEvent.click(within(confirmDialog).getByRole("button", { name: "삭제" }));
 
-    // The mutation was invoked, but `mutateMock` never resolved it — the
-    // dialog must not auto-close just because the action button was
-    // clicked; only the mutation's own `onSuccess` should close it.
     expect(mutateMock).toHaveBeenCalledWith("s1", expect.anything());
     expect(screen.getByRole("alertdialog")).toBeInTheDocument();
 
@@ -178,8 +196,6 @@ describe("SpecialRequestPage", () => {
     render(<SpecialRequestPage />);
     fireEvent.click(screen.getByRole("button", { name: "상세보기" }));
     expect(screen.getByRole("dialog")).toBeInTheDocument();
-    // Close the detail dialog (base-ui makes the rest of the page inert
-    // while it's open) before exercising the separate delete-confirm flow.
     fireEvent.keyDown(document, { key: "Escape", code: "Escape" });
 
     fireEvent.click(screen.getByRole("button", { name: "삭제" }));
@@ -195,5 +211,62 @@ describe("SpecialRequestPage", () => {
 
     logSpy.mockRestore();
     errorSpy.mockRestore();
+  });
+
+  it("never puts the typed search text into the page URL", async () => {
+    vi.useFakeTimers();
+    const pushStateSpy = vi.spyOn(window.history, "pushState");
+    const replaceStateSpy = vi.spyOn(window.history, "replaceState");
+
+    render(<SpecialRequestPage />);
+
+    fireEvent.change(screen.getByPlaceholderText("테이블 번호, 이름, 연락처로 검색"), {
+      target: { value: "홍길동" },
+    });
+
+    await act(async () => {
+      vi.advanceTimersByTime(300);
+    });
+
+    expect(useSpecialRequestsPageQueryMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ search: "홍길동", page: 1 }),
+    );
+    expect(window.location.search).not.toContain("홍길동");
+    expect(pushStateSpy).not.toHaveBeenCalled();
+    expect(replaceStateSpy).not.toHaveBeenCalled();
+
+    pushStateSpy.mockRestore();
+    replaceStateSpy.mockRestore();
+    vi.useRealTimers();
+  });
+
+  it("shows a distinct 'no results' state when a filter/search yields nothing", async () => {
+    vi.useFakeTimers();
+    mockQuery({ data: pageFixture([], { total: 0 }) });
+
+    render(<SpecialRequestPage />);
+
+    fireEvent.change(screen.getByPlaceholderText("테이블 번호, 이름, 연락처로 검색"), {
+      target: { value: "no-such-name" },
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(300);
+    });
+
+    expect(screen.getByText("검색 결과가 없습니다.")).toBeInTheDocument();
+    expect(screen.queryByText("접수된 특별 요청이 없습니다.")).not.toBeInTheDocument();
+    vi.useRealTimers();
+  });
+
+  it("moves to the next page via Pagination", () => {
+    mockQuery({ data: pageFixture(ITEMS, { page: 1, total: 45 }) });
+
+    render(<SpecialRequestPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "다음" }));
+
+    expect(useSpecialRequestsPageQueryMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ page: 2 }),
+    );
   });
 });

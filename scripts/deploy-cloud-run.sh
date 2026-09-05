@@ -14,7 +14,7 @@ gcloud run deploy lam-api \
   --allow-unauthenticated \
   --min-instances=0 \
   --max-instances=1 \
-  --set-secrets=DATABASE_URL=lam-database-url:latest,ADMIN_API_TOKEN=lam-admin-api-token:latest \
+  --set-secrets=DATABASE_URL=lam-database-url:latest,ADMIN_API_TOKEN=lam-admin-api-token:latest,SUPABASE_BROADCAST_KEY=lam-supabase-secret-key:latest,SUPABASE_URL=lam-supabase-url:latest \
   --set-env-vars='ALLOWED_ORIGIN=*' \
   --quiet
 

@@ -7,6 +7,14 @@ type Config struct {
 	DatabaseURL   string
 	AllowedOrigin string
 	AdminAPIToken string
+	// SupabaseURL and SupabaseBroadcastKey configure the best-effort
+	// Realtime Broadcast signal sent after a customer request is created
+	// (see internal/notify.Broadcaster). Both are empty by default so
+	// local docker-compose (no Supabase project) keeps working unchanged
+	// — internal/notify.Broadcaster treats an empty SupabaseBroadcastKey
+	// as "sending is disabled", not an error.
+	SupabaseURL          string
+	SupabaseBroadcastKey string
 }
 
 func Load() Config {
@@ -36,9 +44,11 @@ func Load() Config {
 	}
 
 	return Config{
-		Addr:          addr,
-		DatabaseURL:   databaseURL,
-		AllowedOrigin: allowedOrigin,
-		AdminAPIToken: adminAPIToken,
+		Addr:                 addr,
+		DatabaseURL:          databaseURL,
+		AllowedOrigin:        allowedOrigin,
+		AdminAPIToken:        adminAPIToken,
+		SupabaseURL:          os.Getenv("SUPABASE_URL"),
+		SupabaseBroadcastKey: os.Getenv("SUPABASE_BROADCAST_KEY"),
 	}
 }

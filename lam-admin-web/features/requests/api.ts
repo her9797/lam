@@ -1,11 +1,48 @@
 import { fetchJson } from "@/lib/api/fetch-json";
 
-import type { CustomerRequest, CustomerRequestStatus } from "./model";
+import type {
+  CustomerRequest,
+  CustomerRequestListQuery,
+  CustomerRequestPageResult,
+  CustomerRequestStatus,
+} from "./model";
 
 const CUSTOMER_REQUESTS_PATH = "/api/admin/customer-requests";
 
 export function fetchCustomerRequests(): Promise<CustomerRequest[]> {
   return fetchJson<CustomerRequest[]>(CUSTOMER_REQUESTS_PATH, { method: "GET" });
+}
+
+/**
+ * Fetches a server-filtered/sorted/paginated page. Reaching `lam-api` with
+ * at least one recognized query param switches its response from the
+ * legacy plain array (`fetchCustomerRequests` above) to the
+ * `{ items, page, pageSize, total }` envelope this returns — see
+ * `docs/plans/2026-09-04-admin-list-paging-search-sort.md` section 4.3.
+ * `page`/`pageSize`/`kind`/`sort`/`order` are always sent (so a caller of
+ * this function always gets the envelope), `status` only when set, and an
+ * empty `search` is omitted so the server never has to special-case "".
+ */
+export function fetchCustomerRequestsPage(
+  query: CustomerRequestListQuery,
+): Promise<CustomerRequestPageResult> {
+  const params = new URLSearchParams({
+    page: String(query.page),
+    pageSize: String(query.pageSize),
+    kind: query.kind,
+    sort: query.sort,
+    order: query.order,
+  });
+  if (query.status) {
+    params.set("status", query.status);
+  }
+  if (query.search.trim()) {
+    params.set("q", query.search);
+  }
+
+  return fetchJson<CustomerRequestPageResult>(`${CUSTOMER_REQUESTS_PATH}?${params.toString()}`, {
+    method: "GET",
+  });
 }
 
 /**
@@ -23,5 +60,24 @@ export function updateCustomerRequestStatus(
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ status }),
+  });
+}
+
+/**
+ * `lam-api`'s `PATCH /api/v1/admin/customer-requests` (collection path, no
+ * id segment) applies `status` to every id in one statement and returns the
+ * full, refreshed request list — see
+ * `docs/plans/2026-09-04-admin-request-notifications.md` section 4.5 for why
+ * this exists instead of one `updateCustomerRequestStatus` call per id
+ * (atomicity; a single round trip instead of N).
+ */
+export function updateCustomerRequestStatuses(
+  ids: string[],
+  status: CustomerRequestStatus,
+): Promise<CustomerRequest[]> {
+  return fetchJson<CustomerRequest[]>(CUSTOMER_REQUESTS_PATH, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ids, status }),
   });
 }

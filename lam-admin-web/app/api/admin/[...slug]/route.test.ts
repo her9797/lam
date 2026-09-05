@@ -148,4 +148,18 @@ describe("/api/admin/[...slug] proxy", () => {
     expect(init.method).toBe("DELETE");
     expect(init.body).toBeUndefined();
   });
+
+  it("forwards the query string to the upstream admin API", async () => {
+    const request = makeRequest(
+      "GET",
+      "customer-requests?page=2&pageSize=20&status=pending",
+    );
+    const response = await GET(request, context(["customer-requests"]));
+
+    expect(response.status).toBe(200);
+    const [url] = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(url).toBe(
+      `${process.env.API_BASE_URL}/api/v1/admin/customer-requests?page=2&pageSize=20&status=pending`,
+    );
+  });
 });

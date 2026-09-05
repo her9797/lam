@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 
+import { LoadingState } from "@/components/states/PageStates";
 import { RequestListPage } from "@/features/requests/RequestListPage";
 
 export const metadata: Metadata = {
@@ -7,5 +9,9 @@ export const metadata: Metadata = {
 };
 
 export default function Page() {
-  return <RequestListPage kind="song" />;
+  return (
+    <Suspense fallback={<LoadingState />}>
+      <RequestListPage kind="song" />
+    </Suspense>
+  );
 }

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 )
 
 func doRequest(t *testing.T, handler http.Handler, method, path string, body []byte, headers map[string]string) *httptest.ResponseRecorder {
@@ -148,6 +149,137 @@ func TestRouter_CustomerRequests_CreateAndAdminFlow(t *testing.T) {
 		rec := doRequest(t, handler, http.MethodDelete, "/api/v1/admin/customer-requests/"+requestID, nil, adminHeaders())
 		if rec.Code != http.StatusOK {
 			t.Fatalf("status = %d, want %d, body = %s", rec.Code, http.StatusOK, rec.Body.String())
+		}
+	})
+}
+
+func TestRouter_CustomerRequests_BulkStatusUpdate(t *testing.T) {
+	handler := resetServer(t)
+
+	for _, table := range []string{"T-01", "T-02"} {
+		body, _ := json.Marshal(map[string]string{"tableNumber": table, "text": "help"})
+		rec := doRequest(t, handler, http.MethodPost, "/api/v1/customer-requests", body, nil)
+		if rec.Code != http.StatusCreated {
+			t.Fatalf("create status = %d, want %d, body = %s", rec.Code, http.StatusCreated, rec.Body.String())
+		}
+	}
+
+	rec := doRequest(t, handler, http.MethodGet, "/api/v1/admin/customer-requests", nil, adminHeaders())
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d, body = %s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	var requests []struct {
+		ID     string `json:"id"`
+		Status string `json:"status"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &requests); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if len(requests) != 2 {
+		t.Fatalf("requests = %+v, want 2 pending requests", requests)
+	}
+	firstID, secondID := requests[0].ID, requests[1].ID
+
+	t.Run("requires auth", func(t *testing.T) {
+		body, _ := json.Marshal(map[string]any{"ids": []string{firstID}, "status": "checked"})
+		rec := doRequest(t, handler, http.MethodPatch, "/api/v1/admin/customer-requests", body, nil)
+		if rec.Code != http.StatusUnauthorized {
+			t.Errorf("status = %d, want %d", rec.Code, http.StatusUnauthorized)
+		}
+	})
+
+	t.Run("empty ids is a bad request", func(t *testing.T) {
+		body, _ := json.Marshal(map[string]any{"ids": []string{}, "status": "checked"})
+		rec := doRequest(t, handler, http.MethodPatch, "/api/v1/admin/customer-requests", body, adminHeaders())
+		if rec.Code != http.StatusBadRequest {
+			t.Errorf("status = %d, want %d, body = %s", rec.Code, http.StatusBadRequest, rec.Body.String())
+		}
+	})
+
+	t.Run("bulk update ignores an unknown id and returns the refreshed list", func(t *testing.T) {
+		body, _ := json.Marshal(map[string]any{"ids": []string{firstID, secondID, "missing"}, "status": "checked"})
+		rec := doRequest(t, handler, http.MethodPatch, "/api/v1/admin/customer-requests", body, adminHeaders())
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d, body = %s", rec.Code, http.StatusOK, rec.Body.String())
+		}
+
+		var updated []struct {
+			ID     string `json:"id"`
+			Status string `json:"status"`
+		}
+		if err := json.Unmarshal(rec.Body.Bytes(), &updated); err != nil {
+			t.Fatalf("decode body: %v", err)
+		}
+		if len(updated) != 2 {
+			t.Fatalf("updated = %+v, want 2 requests", updated)
+		}
+		for _, item := range updated {
+			if item.Status != "checked" {
+				t.Errorf("item %+v, want status=checked", item)
+			}
+		}
+	})
+
+	t.Run("GET on the collection path still works", func(t *testing.T) {
+		rec := doRequest(t, handler, http.MethodGet, "/api/v1/admin/customer-requests", nil, adminHeaders())
+		if rec.Code != http.StatusOK {
+			t.Errorf("status = %d, want %d, body = %s", rec.Code, http.StatusOK, rec.Body.String())
+		}
+	})
+}
+
+// TestRouter_CustomerRequests_SendsBroadcastOnCreate exercises the router
+// directly wired to a fake Supabase broadcast endpoint (config.Config
+// pointed at an httptest.Server), independent of resetServer's shared
+// testCfg (which leaves Supabase unconfigured on purpose, so every other
+// integration test exercises the "disabled" no-op path).
+func TestRouter_CustomerRequests_SendsBroadcastOnCreate(t *testing.T) {
+	resetServer(t) // truncates tables; its returned handler isn't used here
+
+	received := make(chan string, 1)
+	broadcastServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		received <- r.URL.Path
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	defer broadcastServer.Close()
+
+	cfg := testCfg
+	cfg.SupabaseURL = broadcastServer.URL
+	cfg.SupabaseBroadcastKey = "test-broadcast-key"
+	handler := NewMux(testRepo, cfg)
+
+	t.Run("general request creation sends a broadcast", func(t *testing.T) {
+		body, _ := json.Marshal(map[string]string{"tableNumber": "T-01", "text": "napkins"})
+		rec := doRequest(t, handler, http.MethodPost, "/api/v1/customer-requests", body, nil)
+		if rec.Code != http.StatusCreated {
+			t.Fatalf("status = %d, want %d, body = %s", rec.Code, http.StatusCreated, rec.Body.String())
+		}
+
+		select {
+		case path := <-received:
+			if path != "/realtime/v1/api/broadcast/admin-requests/events/new_request" {
+				t.Errorf("broadcast path = %q, want the admin-requests/new_request path", path)
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatal("timed out waiting for the broadcast send")
+		}
+	})
+
+	t.Run("special request creation does not send a broadcast", func(t *testing.T) {
+		body, _ := json.Marshal(map[string]string{
+			"tableNumber": "T-02", "gender": "female", "name": "n", "age": "20",
+			"residence": "r", "instagram": "i", "idealType": "t", "text": "hello",
+		})
+		rec := doRequest(t, handler, http.MethodPost, "/api/v1/special-requests", body, nil)
+		if rec.Code != http.StatusCreated {
+			t.Fatalf("status = %d, want %d, body = %s", rec.Code, http.StatusCreated, rec.Body.String())
+		}
+
+		select {
+		case path := <-received:
+			t.Fatalf("unexpected broadcast for a special request: %q", path)
+		case <-time.After(200 * time.Millisecond):
+			// expected: no broadcast for special requests
 		}
 	})
 }

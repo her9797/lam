@@ -2,6 +2,7 @@ package store
 
 import (
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -104,6 +105,32 @@ func TestFormatTimestamp(t *testing.T) {
 	if got != want {
 		t.Errorf("formatTimestamp(%v) = %q, want %q (should normalize to UTC)", input, got, want)
 	}
+}
+
+func TestNextID(t *testing.T) {
+	t.Run("includes the given prefix", func(t *testing.T) {
+		id := nextID("menu")
+		if !strings.HasPrefix(id, "menu-") {
+			t.Errorf("nextID(%q) = %q, want prefix %q", "menu", id, "menu-")
+		}
+	})
+
+	t.Run("never repeats across rapid successive calls, even within the same nanosecond", func(t *testing.T) {
+		// CreateCustomerRequest (and every other Create*) used to derive its
+		// id from time.Now().UnixMilli() alone: two calls landing in the same
+		// millisecond produced the same id and the second insert failed with
+		// ErrAlreadyExists. This reproduces that race deterministically by
+		// calling nextID in a tight loop instead of relying on CI timing luck.
+		const n = 10000
+		seen := make(map[string]bool, n)
+		for i := 0; i < n; i++ {
+			id := nextID("x")
+			if seen[id] {
+				t.Fatalf("nextID() produced a duplicate id %q after %d calls", id, i)
+			}
+			seen[id] = true
+		}
+	})
 }
 
 func TestClassifyError(t *testing.T) {

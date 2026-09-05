@@ -2,11 +2,21 @@
 
 import "@/i18n/client";
 
-import { useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useTranslation } from "react-i18next";
 
+import { ListToolbar } from "@/components/list/ListToolbar";
+import { Pagination } from "@/components/list/Pagination";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states/PageStates";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -15,15 +25,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  selectGeneralRequests,
-  selectSongRequests,
-  stripSongRequestPrefix,
-} from "@/features/dashboard/summary";
+import { stripSongRequestPrefix } from "@/features/dashboard/summary";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { formatDateTime } from "@/lib/utils";
 
-import type { CustomerRequest, CustomerRequestStatus } from "./model";
-import { useCustomerRequestsQuery, useUpdateCustomerRequestStatusMutation } from "./queries";
+import { buildRequestListSearchParams, parseRequestListQuery } from "./list-query-url";
+import type { CustomerRequest, CustomerRequestListQuery, CustomerRequestSort, CustomerRequestStatus } from "./model";
+import { useCustomerRequestsPageQuery, useUpdateCustomerRequestStatusMutation } from "./queries";
 
 // Translation keys in the `requests` namespace, not rendered text.
 const STATUS_LABEL_KEY: Record<CustomerRequestStatus, string> = {
@@ -63,20 +71,52 @@ const COPY_KEYS: Record<
   },
 };
 
+const SEARCH_DEBOUNCE_MS = 300;
+
 export function RequestListPage({ kind }: { kind: RequestListPageKind }) {
   const { t, i18n } = useTranslation("requests");
-  const requestsQuery = useCustomerRequestsQuery();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const query = useMemo(() => parseRequestListQuery(searchParams, kind), [searchParams, kind]);
+
+  const updateQuery = useCallback(
+    (patch: Partial<CustomerRequestListQuery>) => {
+      const params = buildRequestListSearchParams({ ...query, ...patch });
+      const queryString = params.toString();
+      router.replace(queryString ? `${pathname}?${queryString}` : pathname);
+    },
+    [query, pathname, router],
+  );
+
+  // The search box is a local, immediately-updated value so typing feels
+  // responsive; only the debounced value is pushed into the URL (and so,
+  // in turn, the fetch). Re-synced from the URL during render (React's
+  // "adjusting state when a prop changes" pattern, not an effect — an
+  // effect here would commit a stale box value for one extra render) so
+  // switching between /requests and /song-requests, or using the back
+  // button, doesn't leave stale text in the box.
+  const [searchInput, setSearchInput] = useState(query.search);
+  const [syncedSearch, setSyncedSearch] = useState(query.search);
+  if (query.search !== syncedSearch) {
+    setSyncedSearch(query.search);
+    setSearchInput(query.search);
+  }
+
+  const debouncedSearch = useDebouncedValue(searchInput, SEARCH_DEBOUNCE_MS);
+  useEffect(() => {
+    if (debouncedSearch !== query.search) {
+      updateQuery({ search: debouncedSearch, page: 1 });
+    }
+    // Only the debounced value should re-trigger this; `query`/`updateQuery`
+    // change on every URL update this effect itself causes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch]);
+
+  const requestsQuery = useCustomerRequestsPageQuery(query);
   const statusMutation = useUpdateCustomerRequestStatusMutation();
   const copyKeys = COPY_KEYS[kind];
-
-  const requests = useMemo(() => {
-    if (!requestsQuery.data) {
-      return [];
-    }
-    return kind === "song"
-      ? selectSongRequests(requestsQuery.data)
-      : selectGeneralRequests(requestsQuery.data);
-  }, [requestsQuery.data, kind]);
 
   if (requestsQuery.isLoading) {
     return <LoadingState label={t(copyKeys.loadingLabel)} />;
@@ -91,6 +131,24 @@ export function RequestListPage({ kind }: { kind: RequestListPageKind }) {
       />
     );
   }
+
+  const requests = requestsQuery.data?.items ?? [];
+  const total = requestsQuery.data?.total ?? 0;
+  const hasActiveFilter = Boolean(query.status) || query.search.trim().length > 0;
+
+  // Label lookups for the two <Select>s below — see the render-prop comment
+  // at their `SelectValue` for why these exist.
+  const STATUS_FILTER_LABELS: Record<string, string> = {
+    all: t("common:filterAll"),
+    pending: t("statusPending"),
+    checked: t("statusChecked"),
+    completed: t("statusCompleted"),
+  };
+  const SORT_LABELS: Record<string, string> = {
+    status: t("sortByStatus"),
+    createdAt: t("sortByCreatedAt"),
+    tableNumber: t("sortByTableNumber"),
+  };
 
   function isRowMutating(id: string): boolean {
     return statusMutation.isPending && statusMutation.variables?.id === id;
@@ -108,6 +166,55 @@ export function RequestListPage({ kind }: { kind: RequestListPageKind }) {
     <div className="flex flex-col gap-4">
       <h1 className="text-lg font-semibold text-foreground">{t(copyKeys.title)}</h1>
 
+      <ListToolbar
+        searchValue={searchInput}
+        onSearchChange={setSearchInput}
+        searchPlaceholder={t("searchPlaceholder")}
+      >
+        <Select
+          value={query.status ?? "all"}
+          onValueChange={(value) =>
+            updateQuery({
+              status: value === "all" ? undefined : (value as CustomerRequestStatus),
+              page: 1,
+            })
+          }
+        >
+          <SelectTrigger size="sm" aria-label={t("statusFilterLabel")}>
+            {/* Base UI's <Select.Value> shows the raw string value unless
+                told how to render a label for it — see its own doc comment
+                ("When the item values are objects ... {value, label}").
+                Since these items are plain strings, this render-prop is
+                required or the trigger displays "all"/"pending" literally. */}
+            <SelectValue placeholder={t("statusFilterLabel")}>
+              {(value: string) => STATUS_FILTER_LABELS[value] ?? value}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">{t("common:filterAll")}</SelectItem>
+            <SelectItem value="pending">{t("statusPending")}</SelectItem>
+            <SelectItem value="checked">{t("statusChecked")}</SelectItem>
+            <SelectItem value="completed">{t("statusCompleted")}</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Select
+          value={query.sort}
+          onValueChange={(value) => updateQuery({ sort: value as CustomerRequestSort, page: 1 })}
+        >
+          <SelectTrigger size="sm" aria-label={t("common:sortLabel")}>
+            <SelectValue placeholder={t("common:sortLabel")}>
+              {(value: string) => SORT_LABELS[value] ?? value}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="status">{t("sortByStatus")}</SelectItem>
+            <SelectItem value="createdAt">{t("sortByCreatedAt")}</SelectItem>
+            <SelectItem value="tableNumber">{t("sortByTableNumber")}</SelectItem>
+          </SelectContent>
+        </Select>
+      </ListToolbar>
+
       {statusMutation.isError ? (
         <p role="alert" className="text-sm text-destructive">
           {statusMutation.error instanceof Error
@@ -117,7 +224,14 @@ export function RequestListPage({ kind }: { kind: RequestListPageKind }) {
       ) : null}
 
       {requests.length === 0 ? (
-        <EmptyState title={t(copyKeys.emptyTitle)} description={t(copyKeys.emptyDescription)} />
+        hasActiveFilter ? (
+          <EmptyState
+            title={t("common:listNoResultsTitle")}
+            description={t("common:listNoResultsDescription")}
+          />
+        ) : (
+          <EmptyState title={t(copyKeys.emptyTitle)} description={t(copyKeys.emptyDescription)} />
+        )
       ) : (
         <Table>
           <TableHeader>
@@ -161,6 +275,13 @@ export function RequestListPage({ kind }: { kind: RequestListPageKind }) {
           </TableBody>
         </Table>
       )}
+
+      <Pagination
+        page={query.page}
+        pageSize={query.pageSize}
+        total={total}
+        onPageChange={(page) => updateQuery({ page })}
+      />
     </div>
   );
 }

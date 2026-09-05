@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { deleteSpecialRequest, fetchSpecialRequests } from "./api";
-import type { SpecialRequest } from "./model";
+import { deleteSpecialRequest, fetchSpecialRequests, fetchSpecialRequestsPage } from "./api";
+import type { SpecialRequest, SpecialRequestListQuery, SpecialRequestPageResult } from "./model";
 
 describe("special-requests api", () => {
   const originalFetch = global.fetch;
@@ -57,5 +57,44 @@ describe("special-requests api", () => {
     ) as unknown as typeof fetch;
 
     await expect(fetchSpecialRequests()).rejects.toMatchObject({ status: 500 });
+  });
+
+  it("fetches a filtered/sorted/paginated page and encodes every field as a query param", async () => {
+    const fixture: SpecialRequestPageResult = { items: [], page: 2, pageSize: 10, total: 0 };
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify(fixture), { status: 200 }));
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const query: SpecialRequestListQuery = {
+      page: 2,
+      pageSize: 10,
+      gender: "female",
+      search: "서울",
+      sort: "name",
+      order: "asc",
+    };
+    const result = await fetchSpecialRequestsPage(query);
+
+    const [url] = fetchMock.mock.calls[0] as unknown as [string];
+    const requestUrl = new URL(url, "http://localhost");
+    expect(requestUrl.pathname).toBe("/api/admin/special-requests");
+    expect(requestUrl.searchParams.get("page")).toBe("2");
+    expect(requestUrl.searchParams.get("pageSize")).toBe("10");
+    expect(requestUrl.searchParams.get("gender")).toBe("female");
+    expect(requestUrl.searchParams.get("q")).toBe("서울");
+    expect(requestUrl.searchParams.get("sort")).toBe("name");
+    expect(requestUrl.searchParams.get("order")).toBe("asc");
+    expect(result).toEqual(fixture);
+  });
+
+  it("omits the gender param when no gender filter is set", async () => {
+    const fixture: SpecialRequestPageResult = { items: [], page: 1, pageSize: 20, total: 0 };
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify(fixture), { status: 200 }));
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    await fetchSpecialRequestsPage({ page: 1, pageSize: 20, search: "", sort: "createdAt", order: "desc" });
+
+    const [url] = fetchMock.mock.calls[0] as unknown as [string];
+    const requestUrl = new URL(url, "http://localhost");
+    expect(requestUrl.searchParams.has("gender")).toBe(false);
   });
 });

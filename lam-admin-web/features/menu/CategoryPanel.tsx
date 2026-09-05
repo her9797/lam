@@ -19,6 +19,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ListToolbar } from "@/components/list/ListToolbar";
 import { EmptyState } from "@/components/states/PageStates";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -32,6 +33,7 @@ import {
 } from "@/components/ui/table";
 
 import type { MenuCategory } from "@/features/bootstrap/model";
+import { applyListQuery, type ListQueryState } from "@/lib/list/apply-list-query";
 
 import { validateCategoryForm, type CategoryFormErrors } from "./model";
 import {
@@ -54,12 +56,23 @@ export function CategoryPanel({ categories }: { categories: MenuCategory[] }) {
   const [errors, setErrors] = useState<CategoryFormErrors>({});
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  // Search-only (no sort/pagination): category counts are structurally
+  // small (one per physical menu section), so those controls would add
+  // clutter without a real problem to solve.
+  const [search, setSearch] = useState("");
 
   const createMutation = useCreateCategoryMutation();
   const visibilityMutation = useUpdateCategoryVisibilityMutation();
   const deleteMutation = useDeleteCategoryMutation();
 
+  // The create form's duplicate-id validation (`handleSubmit` below) must
+  // see every category id regardless of this table's own search filter, so
+  // it stays on the unfiltered `categories` prop.
   const deleteTarget = categories.find((category) => category.id === pendingDeleteId) ?? null;
+  const listQuery: ListQueryState = { search, sort: "", order: "asc", page: 1, pageSize: 1000 };
+  const { items: visibleCategories } = applyListQuery<MenuCategory>(categories, listQuery, {
+    searchText: (category) => `${category.label} ${category.id}`,
+  });
 
   function isVisibilityPending(id: string): boolean {
     return visibilityMutation.isPending && visibilityMutation.variables?.id === id;
@@ -117,10 +130,23 @@ export function CategoryPanel({ categories }: { categories: MenuCategory[] }) {
         </CardAction>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
+        {categories.length > 0 ? (
+          <ListToolbar
+            searchValue={search}
+            onSearchChange={setSearch}
+            searchPlaceholder={t("categorySearchPlaceholder")}
+          />
+        ) : null}
+
         {categories.length === 0 ? (
           <EmptyState
             title={t("categoryEmptyTitle")}
             description={t("categoryEmptyDescription")}
+          />
+        ) : visibleCategories.length === 0 ? (
+          <EmptyState
+            title={t("common:listNoResultsTitle")}
+            description={t("common:listNoResultsDescription")}
           />
         ) : (
           <Table>
@@ -133,7 +159,7 @@ export function CategoryPanel({ categories }: { categories: MenuCategory[] }) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {categories.map((category) => (
+              {visibleCategories.map((category) => (
                 <TableRow key={category.id}>
                   <TableCell>{category.id}</TableCell>
                   <TableCell>{category.label}</TableCell>

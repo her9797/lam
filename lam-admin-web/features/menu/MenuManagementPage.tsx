@@ -16,9 +16,18 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ListToolbar } from "@/components/list/ListToolbar";
+import { Pagination } from "@/components/list/Pagination";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states/PageStates";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -29,6 +38,8 @@ import {
 } from "@/components/ui/table";
 
 import { useBootstrapQuery } from "@/features/bootstrap/queries";
+import type { MenuItem } from "@/features/bootstrap/model";
+import { applyListQuery, type ListQueryState } from "@/lib/list/apply-list-query";
 
 import {
   UPLOAD_FOCUS_CENTER,
@@ -66,6 +77,17 @@ export function MenuManagementPage() {
   // not rendered text, so the message follows a language switch.
   const [imageErrorKey, setImageErrorKey] = useState<string | null>(null);
 
+  // Search/sort/pagination applies only to this table's own rendering —
+  // never to the `items` passed to `MenuItemForm` below, which needs the
+  // full, unfiltered list to detect a newly-created item by diffing ids.
+  const [listQuery, setListQuery] = useState<ListQueryState>({
+    search: "",
+    sort: "",
+    order: "asc",
+    page: 1,
+    pageSize: 20,
+  });
+
   if (bootstrapQuery.isLoading) {
     return <LoadingState label={t("loading")} />;
   }
@@ -82,7 +104,19 @@ export function MenuManagementPage() {
 
   const categories = bootstrapQuery.data?.categories ?? [];
   const items = bootstrapQuery.data?.items ?? [];
+  const hasCategories = categories.length > 0;
   const deleteTarget = items.find((item) => item.id === pendingDeleteId) ?? null;
+
+  const { items: visibleItems, total: visibleTotal } = applyListQuery<MenuItem>(items, listQuery, {
+    searchText: (item) => `${item.name} ${item.description}`,
+    sortValue: (item, key) => (key === "price" ? Number(item.price) || 0 : item.name),
+  });
+
+  const ITEM_SORT_LABELS: Record<string, string> = {
+    none: t("common:filterAll"),
+    name: t("itemSortByName"),
+    price: t("itemSortByPrice"),
+  };
 
   function isVisibilityPending(id: string): boolean {
     return visibilityMutation.isPending && visibilityMutation.variables?.id === id;
@@ -173,13 +207,17 @@ export function MenuManagementPage() {
     <div className="flex flex-col gap-4">
       <h1 className="text-lg font-semibold text-foreground">{t("title")}</h1>
 
-      <MenuItemForm categories={categories} items={items} />
-
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
           <CardTitle>{t("listCardTitle")}</CardTitle>
+          <CardAction>
+            <MenuItemForm categories={categories} items={items} />
+          </CardAction>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
+          {!hasCategories ? (
+            <p className="text-sm text-muted-foreground">{t("noCategoriesHint")}</p>
+          ) : null}
           {imageErrorKey ? (
             <p role="alert" className="text-sm text-destructive">
               {t(imageErrorKey)}
@@ -193,8 +231,46 @@ export function MenuManagementPage() {
             </p>
           ) : null}
 
+          {items.length > 0 ? (
+            <ListToolbar
+              searchValue={listQuery.search}
+              onSearchChange={(search) => setListQuery((prev) => ({ ...prev, search, page: 1 }))}
+              searchPlaceholder={t("itemSearchPlaceholder")}
+            >
+              <Select
+                value={listQuery.sort || "none"}
+                onValueChange={(value) =>
+                  setListQuery((prev) => ({
+                    ...prev,
+                    sort: value === "none" ? "" : String(value),
+                    page: 1,
+                  }))
+                }
+              >
+                <SelectTrigger size="sm" aria-label={t("common:sortLabel")}>
+                  {/* Base UI's <Select.Value> shows the raw string value
+                      unless told how to render a label for it — required
+                      here since these items are plain strings. */}
+                  <SelectValue placeholder={t("common:sortLabel")}>
+                    {(value: string) => ITEM_SORT_LABELS[value] ?? value}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">{t("common:filterAll")}</SelectItem>
+                  <SelectItem value="name">{t("itemSortByName")}</SelectItem>
+                  <SelectItem value="price">{t("itemSortByPrice")}</SelectItem>
+                </SelectContent>
+              </Select>
+            </ListToolbar>
+          ) : null}
+
           {items.length === 0 ? (
             <EmptyState title={t("itemEmptyTitle")} description={t("itemEmptyDescription")} />
+          ) : visibleItems.length === 0 ? (
+            <EmptyState
+              title={t("common:listNoResultsTitle")}
+              description={t("common:listNoResultsDescription")}
+            />
           ) : (
             <Table>
               <TableHeader>
@@ -208,7 +284,7 @@ export function MenuManagementPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {items.map((item) => {
+                {visibleItems.map((item) => {
                   const category = categories.find((candidate) => candidate.id === item.categoryId);
                   return (
                     <TableRow key={item.id}>
@@ -262,6 +338,15 @@ export function MenuManagementPage() {
               </TableBody>
             </Table>
           )}
+
+          {items.length > 0 ? (
+            <Pagination
+              page={listQuery.page}
+              pageSize={listQuery.pageSize}
+              total={visibleTotal}
+              onPageChange={(page) => setListQuery((prev) => ({ ...prev, page }))}
+            />
+          ) : null}
         </CardContent>
       </Card>
 
