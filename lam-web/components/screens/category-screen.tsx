@@ -1,4 +1,4 @@
-import { MenuItemCard } from "@/components/menu/menu-item-card";
+import { PaginatedMenuList } from "@/components/menu/paginated-menu-list";
 import { FloatingCategoryNav } from "@/components/navigation/floating-category-nav";
 import { FloatingHomeBadge } from "@/components/navigation/floating-home-badge";
 import { ScrollTopButton } from "@/components/navigation/scroll-top-button";
@@ -33,11 +33,7 @@ export function CategoryScreen({ store, categories, category, items }: CategoryS
             </div>
           </div>
 
-          <div className="menu-list">
-            {items.map((item) => (
-              <MenuItemCard key={item.id} item={item} />
-            ))}
-          </div>
+          <PaginatedMenuList key={category.id} items={items} />
         </section>
       </div>
     </main>

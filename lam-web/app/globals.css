@@ -625,6 +625,40 @@ a {
   display: grid;
 }
 
+.customer-menu-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 0 10px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.customer-menu-page-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.customer-menu-page-controls button {
+  min-height: 36px;
+  padding: 0 13px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.customer-menu-page-controls button:disabled {
+  cursor: not-allowed;
+  opacity: 0.35;
+}
+
 .menu-item {
   display: grid;
   grid-template-columns: 56px minmax(0, 1fr) auto;
