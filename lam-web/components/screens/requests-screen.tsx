@@ -297,7 +297,7 @@ export function RequestsScreen({ store, initialCategory }: RequestsScreenProps) 
         )}
       </div>
       {feedback ? (
-        <div className="admin-toast" role="status" aria-live="polite">
+        <div className="request-toast" role="status" aria-live="polite">
           {feedback}
         </div>
       ) : null}

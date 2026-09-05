@@ -81,7 +81,7 @@ export function TableSessionCard({
 
       {isOpen ? (
         <div
-          className="admin-modal-backdrop"
+          className="table-session-modal-backdrop"
           role="presentation"
           onClick={() => {
             setIsOpen(false);
@@ -89,20 +89,20 @@ export function TableSessionCard({
           }}
         >
           <div
-            className="admin-modal-card table-session-modal"
+            className="table-session-modal"
             role="dialog"
             aria-modal="true"
             aria-label="테이블 선택"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="admin-modal-header">
+            <div className="table-session-modal-header">
               <div>
                 <p className="section-kicker">table</p>
                 <h2>테이블 번호 선택</h2>
               </div>
               <button
                 type="button"
-                className="admin-ghost-button"
+                className="table-session-modal-close"
                 onClick={() => {
                   setIsOpen(false);
                   setError("");
