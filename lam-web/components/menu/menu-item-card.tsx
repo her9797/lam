@@ -67,18 +67,19 @@ export function MenuItemCard({ item, imageArea = "menu" }: MenuItemCardProps) {
           )}
         </div>
         <div className="menu-copy">
-          {item.badge ? (
-            <p
-              className="menu-badge"
-              data-badge-color={item.badgeColor || "green"}
-            >
-              {item.badge}
-            </p>
-          ) : null}
           <h3>{item.name}</h3>
           <p>{item.description}</p>
         </div>
-        <div className="menu-price">{item.price}</div>
+        <div className="menu-side">
+          <span
+            className={item.badge ? "menu-badge" : "menu-badge menu-badge-placeholder"}
+            data-badge-color={item.badgeColor || "green"}
+            aria-hidden={item.badge ? undefined : true}
+          >
+            {item.badge || "badge"}
+          </span>
+          <span className="menu-price">{item.price}</span>
+        </div>
       </button>
 
       {isOpen ? (

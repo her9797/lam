@@ -721,6 +721,16 @@ a {
   line-height: 1.5;
 }
 
+.menu-side {
+  display: grid;
+  align-content: center;
+  justify-items: end;
+}
+
+.menu-badge-placeholder {
+  visibility: hidden;
+}
+
 .menu-price {
   color: var(--text);
   font-size: 0.98rem;

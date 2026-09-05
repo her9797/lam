@@ -26,13 +26,6 @@ export function CategoryScreen({ store, categories, category, items }: CategoryS
         <FloatingCategoryNav categories={categories} activeCategoryId={category.id} />
 
         <section className="content-card">
-          <div className="section-header">
-            <div>
-              <p className="section-kicker">category</p>
-              <h2>{category.label}</h2>
-            </div>
-          </div>
-
           <PaginatedMenuList key={category.id} items={items} />
         </section>
       </div>
