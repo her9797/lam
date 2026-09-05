@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/her9797/lam/lam-api/internal/lamdata"
@@ -18,6 +19,16 @@ var (
 	ErrAlreadyExists = errors.New("resource already exists")
 	ErrNotFound      = errors.New("resource not found")
 )
+
+// idSeq backstops nextID's timestamp against two calls landing in the same
+// nanosecond (observed in CI: two Create* calls close enough together to
+// share a UnixMilli() value collided on the same id and the second insert
+// failed with ErrAlreadyExists).
+var idSeq int64
+
+func nextID(prefix string) string {
+	return fmt.Sprintf("%s-%d-%d", prefix, time.Now().UnixNano(), atomic.AddInt64(&idSeq, 1))
+}
 
 type CreateMenuItemInput struct {
 	CategoryID  string
@@ -463,7 +474,7 @@ func (r *Repository) CreateMenuItem(ctx context.Context, input CreateMenuItemInp
 		return err
 	}
 
-	id := fmt.Sprintf("menu-%d", time.Now().UnixMilli())
+	id := nextID("menu")
 	_, err = r.pool.Exec(ctx, `INSERT INTO menu_items (id, category_id, badge, badge_color, name, description, price, is_visible, sort_order) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
 		id, input.CategoryID, nullable(input.Badge), nullable(input.BadgeColor), input.Name, input.Description, input.Price, input.IsVisible, sortOrder)
 	return classifyError(err)
@@ -479,7 +490,7 @@ func (r *Repository) CreateRequestGuide(ctx context.Context, text string, isVisi
 		return err
 	}
 
-	id := fmt.Sprintf("request-%d", time.Now().UnixMilli())
+	id := nextID("request")
 	_, err = r.pool.Exec(ctx, `INSERT INTO request_guides (id, text, is_visible, sort_order) VALUES ($1, $2, $3, $4)`, id, text, isVisible, sortOrder)
 	return classifyError(err)
 }
@@ -538,7 +549,7 @@ func (r *Repository) CreateCustomerRequest(ctx context.Context, tableNumber stri
 		return ErrInvalidInput
 	}
 
-	id := fmt.Sprintf("customer-request-%d", time.Now().UnixMilli())
+	id := nextID("customer-request")
 	_, err := r.pool.Exec(ctx, `
 		INSERT INTO customer_requests (id, table_number, text, status)
 		VALUES ($1, $2, $3, 'pending')
@@ -856,7 +867,7 @@ func (r *Repository) CreateSpecialRequest(ctx context.Context, input lamdata.Spe
 		return ErrInvalidInput
 	}
 
-	id := fmt.Sprintf("special-request-%d", time.Now().UnixMilli())
+	id := nextID("special-request")
 	_, err := r.pool.Exec(ctx, `
 		INSERT INTO special_requests (id, table_number, gender, name, age, residence, instagram, ideal_type, text)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
@@ -963,7 +974,7 @@ func (r *Repository) CreateNotice(ctx context.Context, text string, isVisible bo
 		return err
 	}
 
-	id := fmt.Sprintf("notice-%d", time.Now().UnixMilli())
+	id := nextID("notice")
 	_, err = r.pool.Exec(ctx, `INSERT INTO notices (id, text, is_visible, sort_order) VALUES ($1, $2, $3, $4)`, id, text, isVisible, sortOrder)
 	return classifyError(err)
 }
@@ -1063,7 +1074,7 @@ func (r *Repository) CreateMenuImage(ctx context.Context, input CreateMenuImageI
 		}
 	}
 
-	id := fmt.Sprintf("image-%d", time.Now().UnixMilli())
+	id := nextID("image")
 	_, err = tx.Exec(ctx, `
 		INSERT INTO menu_item_images (id, menu_item_id, filename, mime_type, content, size_bytes, is_primary, display_area, focus_x, focus_y, sort_order)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
