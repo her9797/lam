@@ -12,15 +12,16 @@ function createEntryResponse(request: NextRequest, entryKey: string | null, tabl
   const forwardedHost = request.headers.get("x-forwarded-host") ?? request.headers.get("host");
   const forwardedProtocol = request.headers.get("x-forwarded-proto") ?? "https";
   const origin = forwardedHost ? `${forwardedProtocol}://${forwardedHost}` : request.nextUrl.origin;
+  const redirectStatus = request.method === "POST" ? 303 : 307;
 
   if (!table || !isCustomerTestEntryTokenValid(configuredToken, entryKey)) {
-    return NextResponse.redirect(new URL("/access-required", origin));
+    return NextResponse.redirect(new URL("/access-required", origin), redirectStatus);
   }
 
   const destination = new URL("/", origin);
   destination.searchParams.set("table", table);
 
-  const response = NextResponse.redirect(destination);
+  const response = NextResponse.redirect(destination, redirectStatus);
   response.cookies.set(getQrCookieName(), createQrSessionValue(), {
     httpOnly: true,
     sameSite: "lax",
