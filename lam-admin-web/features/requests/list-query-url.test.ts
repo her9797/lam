@@ -3,12 +3,12 @@ import { describe, expect, it } from "vitest";
 import { buildRequestListSearchParams, parseRequestListQuery } from "./list-query-url";
 
 describe("parseRequestListQuery", () => {
-  it("defaults to page 1, no status filter, empty search, status-sort ascending", () => {
+  it("defaults to page 1, page size 10, no status filter, empty search, status-sort ascending", () => {
     const query = parseRequestListQuery(new URLSearchParams(), "general");
 
     expect(query).toEqual({
       page: 1,
-      pageSize: 20,
+      pageSize: 10,
       status: undefined,
       kind: "general",
       search: "",
@@ -17,21 +17,26 @@ describe("parseRequestListQuery", () => {
     });
   });
 
-  it("reads page/status/q/sort/order from the given search params", () => {
+  it("reads page/pageSize/status/q/sort/order from the given search params", () => {
     const query = parseRequestListQuery(
-      new URLSearchParams("page=3&status=checked&q=napkin&sort=createdAt&order=asc"),
+      new URLSearchParams("page=3&pageSize=30&status=checked&q=napkin&sort=createdAt&order=asc"),
       "song",
     );
 
     expect(query).toEqual({
       page: 3,
-      pageSize: 20,
+      pageSize: 30,
       status: "checked",
       kind: "song",
       search: "napkin",
       sort: "createdAt",
       order: "asc",
     });
+  });
+
+  it("falls back to the default page size for an unrecognized pageSize value", () => {
+    expect(parseRequestListQuery(new URLSearchParams("pageSize=15"), "general").pageSize).toBe(10);
+    expect(parseRequestListQuery(new URLSearchParams("pageSize=abc"), "general").pageSize).toBe(10);
   });
 
   it("falls back to page 1 for a non-numeric or non-positive page", () => {
@@ -69,10 +74,10 @@ describe("buildRequestListSearchParams", () => {
     expect(rebuilt).toEqual(original);
   });
 
-  it("omits page when it is 1, so the URL stays clean on the first page", () => {
+  it("omits page and pageSize when they are the defaults, so the URL stays clean on the first page", () => {
     const params = buildRequestListSearchParams({
       page: 1,
-      pageSize: 20,
+      pageSize: 10,
       status: undefined,
       kind: "general",
       search: "",
@@ -81,7 +86,22 @@ describe("buildRequestListSearchParams", () => {
     });
 
     expect(params.has("page")).toBe(false);
+    expect(params.has("pageSize")).toBe(false);
     expect(params.has("status")).toBe(false);
     expect(params.has("q")).toBe(false);
+  });
+
+  it("includes pageSize when it departs from the default", () => {
+    const params = buildRequestListSearchParams({
+      page: 1,
+      pageSize: 30,
+      status: undefined,
+      kind: "general",
+      search: "",
+      sort: "status",
+      order: "asc",
+    });
+
+    expect(params.get("pageSize")).toBe("30");
   });
 });

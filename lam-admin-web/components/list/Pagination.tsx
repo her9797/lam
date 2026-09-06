@@ -6,23 +6,38 @@ import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
 
+export const PAGE_SIZE_OPTIONS = [10, 20, 30] as const;
+
 export function Pagination({
   page,
   pageSize,
   total,
   onPageChange,
+  onPageSizeChange,
 }: {
   page: number;
   pageSize: number;
   total: number;
   onPageChange: (page: number) => void;
+  onPageSizeChange: (pageSize: number) => void;
 }) {
   const { t } = useTranslation("common");
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-      <span>{t("listTotalCount", { count: total })}</span>
+      <select
+        aria-label={t("listPageSizeLabel")}
+        className="h-8 rounded-3xl border border-transparent bg-input/50 px-3 text-sm text-foreground"
+        value={pageSize}
+        onChange={(event) => onPageSizeChange(Number(event.target.value))}
+      >
+        {PAGE_SIZE_OPTIONS.map((size) => (
+          <option key={size} value={size}>
+            {size}
+          </option>
+        ))}
+      </select>
       <div className="flex items-center gap-2">
         <Button
           type="button"

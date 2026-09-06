@@ -327,7 +327,7 @@ describe("NoticeManagementPage", () => {
   });
 
   it("paginates when there are more notices than one page", () => {
-    const manyNotices = Array.from({ length: 21 }, (_, index) => ({
+    const manyNotices = Array.from({ length: 11 }, (_, index) => ({
       id: `notice-${index}`,
       text: `공지 ${String(index).padStart(2, "0")}`,
       isVisible: true,
@@ -336,12 +336,31 @@ describe("NoticeManagementPage", () => {
 
     render(<NoticeManagementPage />);
 
-    expect(screen.getByText("총 21건")).toBeInTheDocument();
+    expect(screen.getByText("총 11건")).toBeInTheDocument();
     expect(screen.getByText("공지 00")).toBeInTheDocument();
-    expect(screen.queryByText("공지 20")).not.toBeInTheDocument();
+    expect(screen.queryByText("공지 10")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "다음" }));
 
-    expect(screen.getByText("공지 20")).toBeInTheDocument();
+    expect(screen.getByText("공지 10")).toBeInTheDocument();
+  });
+
+  it("shows 20 notices per page after choosing the 20 page-size option", () => {
+    const manyNotices = Array.from({ length: 15 }, (_, index) => ({
+      id: `notice-${index}`,
+      text: `공지 ${String(index).padStart(2, "0")}`,
+      isVisible: true,
+    }));
+    mockBootstrap({ data: { ...FIXTURE, notices: manyNotices } });
+
+    render(<NoticeManagementPage />);
+
+    expect(screen.queryByText("공지 14")).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole("combobox", { name: "페이지당 개수" }), {
+      target: { value: "20" },
+    });
+
+    expect(screen.getByText("공지 14")).toBeInTheDocument();
   });
 });

@@ -599,7 +599,7 @@ describe("MenuManagementPage", () => {
     });
 
     it("paginates when there are more items than one page", () => {
-      const manyItems = Array.from({ length: 21 }, (_, index) => ({
+      const manyItems = Array.from({ length: 11 }, (_, index) => ({
         id: `menu-${index}`,
         categoryId: "drinks",
         name: `메뉴 ${String(index).padStart(2, "0")}`,
@@ -611,15 +611,39 @@ describe("MenuManagementPage", () => {
 
       render(<MenuManagementPage />);
 
-      expect(screen.getByText("총 21건")).toBeInTheDocument();
+      expect(screen.getByText("총 11건")).toBeInTheDocument();
       expect(screen.getByText("1 / 2")).toBeInTheDocument();
       expect(screen.getByText("메뉴 00")).toBeInTheDocument();
-      expect(screen.queryByText("메뉴 20")).not.toBeInTheDocument();
+      expect(screen.queryByText("메뉴 10")).not.toBeInTheDocument();
 
       fireEvent.click(screen.getByRole("button", { name: "다음" }));
 
-      expect(screen.getByText("메뉴 20")).toBeInTheDocument();
+      expect(screen.getByText("메뉴 10")).toBeInTheDocument();
       expect(screen.queryByText("메뉴 00")).not.toBeInTheDocument();
+    });
+
+    it("shows 30 items per page after choosing the 30 page-size option", () => {
+      const manyItems = Array.from({ length: 25 }, (_, index) => ({
+        id: `menu-${index}`,
+        categoryId: "drinks",
+        name: `메뉴 ${String(index).padStart(2, "0")}`,
+        description: "",
+        price: "1000",
+        isVisible: true,
+      }));
+      mockBootstrap({ data: { ...FIXTURE, items: manyItems } });
+
+      render(<MenuManagementPage />);
+
+      expect(screen.getByText("1 / 3")).toBeInTheDocument();
+
+      fireEvent.change(screen.getByRole("combobox", { name: "페이지당 개수" }), {
+        target: { value: "30" },
+      });
+
+      expect(screen.getByText("1 / 1")).toBeInTheDocument();
+      expect(screen.getByText("메뉴 00")).toBeInTheDocument();
+      expect(screen.getByText("메뉴 24")).toBeInTheDocument();
     });
   });
 });
