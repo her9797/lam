@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/url"
 	"strconv"
+	"time"
 )
 
 const (
@@ -198,4 +199,102 @@ func parseSpecialRequestListQuery(query url.Values) (specialRequestListQuery, bo
 	}
 
 	return q, hasAnyQueryParam(query, specialRequestListParamKeys), nil
+}
+
+// paymentOrderListQuery is the parsed, validated form of the query
+// parameters accepted by GET /api/v1/admin/payment-orders. Unlike
+// customerRequestListQuery/specialRequestListQuery, there is no legacy
+// unpaginated-array response to preserve for this endpoint, so callers
+// always receive the paginated envelope — no hasParams flag needed.
+type paymentOrderListQuery struct {
+	Page          int
+	PageSize      int
+	Status        string // "" = all | "READY" | "DONE"
+	PosSyncStatus string // "" = all | "PENDING" | "SUCCEEDED" | "FAILED" | "NOT_CONFIGURED"
+	Search        string
+	From          *time.Time // inclusive
+	To            *time.Time // exclusive
+	Sort          string     // "createdAt" | "amount"
+	Order         string     // "asc" | "desc"
+}
+
+func parsePaymentOrderListQuery(query url.Values) (paymentOrderListQuery, error) {
+	q := paymentOrderListQuery{
+		Page:     defaultListPage,
+		PageSize: defaultListPageSize,
+		Sort:     "createdAt",
+		Order:    "desc",
+	}
+
+	page, err := parsePage(query)
+	if err != nil {
+		return q, err
+	}
+	q.Page = page
+
+	pageSize, err := parsePageSize(query)
+	if err != nil {
+		return q, err
+	}
+	q.PageSize = pageSize
+
+	if status := query.Get("status"); status != "" {
+		switch status {
+		case "READY", "DONE":
+			q.Status = status
+		default:
+			return q, fmt.Errorf("invalid status: %q", status)
+		}
+	}
+
+	if posSync := query.Get("posSync"); posSync != "" {
+		switch posSync {
+		case "PENDING", "SUCCEEDED", "FAILED", "NOT_CONFIGURED":
+			q.PosSyncStatus = posSync
+		default:
+			return q, fmt.Errorf("invalid posSync: %q", posSync)
+		}
+	}
+
+	q.Search = query.Get("q")
+
+	if from := query.Get("from"); from != "" {
+		parsed, err := time.Parse(time.RFC3339, from)
+		if err != nil {
+			return q, fmt.Errorf("invalid from: %q", from)
+		}
+		q.From = &parsed
+	}
+
+	if to := query.Get("to"); to != "" {
+		parsed, err := time.Parse(time.RFC3339, to)
+		if err != nil {
+			return q, fmt.Errorf("invalid to: %q", to)
+		}
+		q.To = &parsed
+	}
+
+	if q.From != nil && q.To != nil && !q.From.Before(*q.To) {
+		return q, fmt.Errorf("invalid range: from %q must be before to %q", query.Get("from"), query.Get("to"))
+	}
+
+	if sort := query.Get("sort"); sort != "" {
+		switch sort {
+		case "createdAt", "amount":
+			q.Sort = sort
+		default:
+			return q, fmt.Errorf("invalid sort: %q", sort)
+		}
+	}
+
+	if order := query.Get("order"); order != "" {
+		switch order {
+		case "asc", "desc":
+			q.Order = order
+		default:
+			return q, fmt.Errorf("invalid order: %q", order)
+		}
+	}
+
+	return q, nil
 }

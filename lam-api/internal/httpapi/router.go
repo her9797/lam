@@ -508,6 +508,46 @@ func NewMux(repository *store.Repository, cfg config.Config) http.Handler {
 		})
 	}))
 
+	mux.HandleFunc("/api/v1/admin/payment-orders", withCORS(cfg.AllowedOrigin, func(w http.ResponseWriter, r *http.Request) {
+		if !requireAdminAuth(w, r, cfg.AdminAPIToken) {
+			return
+		}
+
+		if r.Method != http.MethodGet {
+			writeMethodNotAllowed(w)
+			return
+		}
+
+		query, err := parsePaymentOrderListQuery(r.URL.Query())
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+
+		items, total, err := repository.ListPaymentOrdersPage(r.Context(), store.PaymentOrderFilter{
+			Status:        query.Status,
+			PosSyncStatus: query.PosSyncStatus,
+			Search:        query.Search,
+			From:          query.From,
+			To:            query.To,
+			Sort:          query.Sort,
+			Order:         query.Order,
+			Page:          query.Page,
+			PageSize:      query.PageSize,
+		})
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+
+		writeJSON(w, http.StatusOK, lamdata.PaymentOrderPage{
+			Items:    items,
+			Page:     query.Page,
+			PageSize: query.PageSize,
+			Total:    total,
+		})
+	}))
+
 	mux.HandleFunc("/api/v1/admin/customer-requests/", withCORS(cfg.AllowedOrigin, func(w http.ResponseWriter, r *http.Request) {
 		if !requireAdminAuth(w, r, cfg.AdminAPIToken) {
 			return

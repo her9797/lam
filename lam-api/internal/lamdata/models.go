@@ -68,6 +68,38 @@ type SpecialRequest struct {
 	CreatedAt   string `json:"createdAt"`
 }
 
+// PaymentOrder is the admin-facing read shape for a payment_orders row,
+// deliberately separate from store.PaymentOrder (the customer payment-flow
+// contract lam-web's services/payment-service.ts depends on) even though
+// the fields largely overlap — per AGENTS.md, customer and admin contracts
+// stay decoupled so the two can evolve independently.
+type PaymentOrder struct {
+	OrderID        string `json:"orderId"`
+	MenuItemID     string `json:"menuItemId,omitempty"`
+	MenuItemName   string `json:"menuItemName"`
+	CategoryName   string `json:"categoryName"`
+	TableNumber    string `json:"tableNumber"`
+	Amount         int64  `json:"amount"`
+	VAT            int64  `json:"vat"`
+	SuppliedAmount int64  `json:"suppliedAmount"`
+	TaxFreeAmount  int64  `json:"taxFreeAmount"`
+	Status         string `json:"status"`
+	PaymentMethod  string `json:"paymentMethod,omitempty"`
+	PaymentKey     string `json:"paymentKey,omitempty"`
+	ApprovedAt     string `json:"approvedAt,omitempty"`
+	POSSyncStatus  string `json:"posSyncStatus"`
+	POSOrderID     string `json:"posOrderId,omitempty"`
+	POSSyncError   string `json:"posSyncError,omitempty"`
+	CreatedAt      string `json:"createdAt"`
+}
+
+type PaymentOrderPage struct {
+	Items    []PaymentOrder `json:"items"`
+	Page     int            `json:"page"`
+	PageSize int            `json:"pageSize"`
+	Total    int            `json:"total"`
+}
+
 type CustomerRequestPage struct {
 	Items    []CustomerRequest `json:"items"`
 	Page     int               `json:"page"`
