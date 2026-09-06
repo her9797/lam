@@ -53,16 +53,25 @@ type NavItem = {
   icon: ComponentType<{ className?: string }>;
 };
 
-const TOP_NAV_ITEMS: NavItem[] = [
-  { href: "/dashboard", labelKey: "navDashboard", icon: RiDashboardLine },
-  { href: "/requests", labelKey: "navRequests", icon: RiUserVoiceLine },
-  { href: "/song-requests", labelKey: "navSongRequests", icon: RiMusic2Line },
-  { href: "/special-requests", labelKey: "navSpecialRequests", icon: RiStarLine },
-];
+const TOP_NAV_ITEMS: NavItem[] = [{ href: "/dashboard", labelKey: "navDashboard", icon: RiDashboardLine }];
+
+type NavGroup = { labelKey: string; icon: ComponentType<{ className?: string }>; items: NavItem[] };
+
+// A labeled sub-section rather than its own link — "요청 관리" has no page
+// of its own, only the three request screens nested under it.
+const REQUEST_NAV_GROUP: NavGroup = {
+  labelKey: "navRequestsGroup",
+  icon: RiUserVoiceLine,
+  items: [
+    { href: "/requests", labelKey: "navRequests", icon: RiUserVoiceLine },
+    { href: "/song-requests", labelKey: "navSongRequests", icon: RiMusic2Line },
+    { href: "/special-requests", labelKey: "navSpecialRequests", icon: RiStarLine },
+  ],
+};
 
 // A labeled sub-section rather than its own link — "상품 관리" has no page
 // of its own, only the two management screens nested under it.
-const PRODUCT_NAV_GROUP: { labelKey: string; icon: ComponentType<{ className?: string }>; items: NavItem[] } = {
+const PRODUCT_NAV_GROUP: NavGroup = {
   labelKey: "navProducts",
   icon: RiShoppingBag3Line,
   items: [
@@ -71,12 +80,18 @@ const PRODUCT_NAV_GROUP: { labelKey: string; icon: ComponentType<{ className?: s
   ],
 };
 
+const NAV_GROUPS: NavGroup[] = [REQUEST_NAV_GROUP, PRODUCT_NAV_GROUP];
+
 const BOTTOM_NAV_ITEMS: NavItem[] = [
   { href: "/notices", labelKey: "navNotices", icon: RiMegaphoneLine },
   { href: "/store-copy", labelKey: "navStoreCopy", icon: RiFileTextLine },
 ];
 
-const ALL_NAV_ITEMS: NavItem[] = [...TOP_NAV_ITEMS, ...PRODUCT_NAV_GROUP.items, ...BOTTOM_NAV_ITEMS];
+const ALL_NAV_ITEMS: NavItem[] = [
+  ...TOP_NAV_ITEMS,
+  ...NAV_GROUPS.flatMap((group) => group.items),
+  ...BOTTOM_NAV_ITEMS,
+];
 
 function findActiveItem(pathname: string | null): NavItem | undefined {
   if (!pathname) {
@@ -99,14 +114,21 @@ function AdminShellContent({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  // Manual toggle only; whether the dropdown is actually shown also factors
-  // in the current route below, so landing directly on "/menu" or
-  // "/menu/categories" (e.g. from the dashboard's shortcut card) reveals it
-  // without requiring a click first.
-  const [isProductMenuToggledOpen, setIsProductMenuToggledOpen] = useState(false);
+  // Manual toggle only, keyed by group labelKey; whether a dropdown is
+  // actually shown also factors in the current route below, so landing
+  // directly on one of its routes (e.g. from the dashboard's shortcut card)
+  // reveals it without requiring a click first.
+  const [toggledOpenGroups, setToggledOpenGroups] = useState<Record<string, boolean>>({});
   const activeItem = findActiveItem(pathname);
-  const isOnProductRoute = PRODUCT_NAV_GROUP.items.some((item) => activeItem?.href === item.href);
-  const isProductMenuOpen = isProductMenuToggledOpen || isOnProductRoute;
+
+  function isGroupOpen(group: NavGroup) {
+    const isOnGroupRoute = group.items.some((item) => activeItem?.href === item.href);
+    return toggledOpenGroups[group.labelKey] || isOnGroupRoute;
+  }
+
+  function toggleGroup(group: NavGroup) {
+    setToggledOpenGroups((open) => ({ ...open, [group.labelKey]: !open[group.labelKey] }));
+  }
 
   async function handleLogout() {
     setIsLoggingOut(true);
@@ -145,36 +167,41 @@ function AdminShellContent({ children }: { children: ReactNode }) {
               <SidebarGroupContent>
                 <SidebarMenu>
                   {TOP_NAV_ITEMS.map(renderNavItem)}
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      type="button"
-                      aria-expanded={isProductMenuOpen}
-                      onClick={() => setIsProductMenuToggledOpen((open) => !open)}
-                    >
-                      <PRODUCT_NAV_GROUP.icon className="size-4" />
-                      <span>{t(PRODUCT_NAV_GROUP.labelKey)}</span>
-                      <RiArrowDownSLine
-                        aria-hidden="true"
-                        className={`ml-auto size-4 transition-transform ${isProductMenuOpen ? "" : "-rotate-90"}`}
-                      />
-                    </SidebarMenuButton>
-                    {isProductMenuOpen ? (
-                      <SidebarMenuSub>
-                        {PRODUCT_NAV_GROUP.items.map((item) => {
-                          const Icon = item.icon;
-                          const isActive = activeItem?.href === item.href;
-                          return (
-                            <SidebarMenuSubItem key={item.href}>
-                              <SidebarMenuSubButton isActive={isActive} render={<Link href={item.href} />}>
-                                <Icon className="size-4" />
-                                <span>{t(item.labelKey)}</span>
-                              </SidebarMenuSubButton>
-                            </SidebarMenuSubItem>
-                          );
-                        })}
-                      </SidebarMenuSub>
-                    ) : null}
-                  </SidebarMenuItem>
+                  {NAV_GROUPS.map((group) => {
+                    const isOpen = isGroupOpen(group);
+                    return (
+                      <SidebarMenuItem key={group.labelKey}>
+                        <SidebarMenuButton
+                          type="button"
+                          aria-expanded={isOpen}
+                          onClick={() => toggleGroup(group)}
+                        >
+                          <group.icon className="size-4" />
+                          <span>{t(group.labelKey)}</span>
+                          <RiArrowDownSLine
+                            aria-hidden="true"
+                            className={`ml-auto size-4 transition-transform ${isOpen ? "" : "-rotate-90"}`}
+                          />
+                        </SidebarMenuButton>
+                        {isOpen ? (
+                          <SidebarMenuSub>
+                            {group.items.map((item) => {
+                              const Icon = item.icon;
+                              const isActive = activeItem?.href === item.href;
+                              return (
+                                <SidebarMenuSubItem key={item.href}>
+                                  <SidebarMenuSubButton isActive={isActive} render={<Link href={item.href} />}>
+                                    <Icon className="size-4" />
+                                    <span>{t(item.labelKey)}</span>
+                                  </SidebarMenuSubButton>
+                                </SidebarMenuSubItem>
+                              );
+                            })}
+                          </SidebarMenuSub>
+                        ) : null}
+                      </SidebarMenuItem>
+                    );
+                  })}
                   {BOTTOM_NAV_ITEMS.map(renderNavItem)}
                 </SidebarMenu>
               </SidebarGroupContent>

@@ -50,6 +50,8 @@ const NAV_LABELS = [
   "안내 문구",
 ];
 
+const REQUEST_GROUP_SUB_LABELS = ["손님 요청", "노래 신청", "특별 요청"];
+
 function setViewportWidth(width: number) {
   Object.defineProperty(window, "innerWidth", {
     writable: true,
@@ -82,9 +84,12 @@ describe("AdminShell", () => {
       </AdminShell>,
     );
 
-    // "메뉴 관리"/"카테고리 관리" sit behind the "상품 관리" dropdown, closed
-    // by default here since the mocked pathname ("/dashboard") isn't one of
-    // its routes — open it first so every item in NAV_LABELS is reachable.
+    // "손님 요청"/"노래 신청"/"특별 요청" sit behind the "요청 관리" dropdown
+    // and "메뉴 관리"/"카테고리 관리" sit behind the "상품 관리" dropdown,
+    // both closed by default here since the mocked pathname ("/dashboard")
+    // isn't one of their routes — open them first so every item in
+    // NAV_LABELS is reachable.
+    fireEvent.click(screen.getByRole("button", { name: "요청 관리" }));
     fireEvent.click(screen.getByRole("button", { name: "상품 관리" }));
 
     for (const label of NAV_LABELS) {
@@ -111,6 +116,27 @@ describe("AdminShell", () => {
     expect(toggle).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByRole("link", { name: "메뉴 관리" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "카테고리 관리" })).toBeInTheDocument();
+  });
+
+  it("exposes 요청 관리 as a collapsed dropdown that reveals its sub-links on click", () => {
+    render(
+      <AdminShell>
+        <p>page content</p>
+      </AdminShell>,
+    );
+
+    const toggle = screen.getByRole("button", { name: "요청 관리" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    for (const label of REQUEST_GROUP_SUB_LABELS) {
+      expect(screen.queryByRole("link", { name: label })).not.toBeInTheDocument();
+    }
+
+    fireEvent.click(toggle);
+
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    for (const label of REQUEST_GROUP_SUB_LABELS) {
+      expect(screen.getByRole("link", { name: label })).toBeInTheDocument();
+    }
   });
 
   it("renders the page content passed as children", () => {
