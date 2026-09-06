@@ -1,3 +1,5 @@
+import { PAGE_SIZE_OPTIONS } from "@/components/list/Pagination";
+
 import type {
   CustomerRequestKind,
   CustomerRequestListQuery,
@@ -16,7 +18,7 @@ import type {
  * `kind` is not part of the URL: it is fixed per-route by the `kind` prop
  * `RequestListPage` already receives, not a condition the operator toggles.
  */
-const DEFAULT_PAGE_SIZE = 20;
+const DEFAULT_PAGE_SIZE = 10;
 
 const VALID_STATUSES: CustomerRequestStatus[] = ["pending", "checked", "completed"];
 const VALID_SORTS: CustomerRequestSort[] = ["status", "createdAt", "tableNumber"];
@@ -27,6 +29,13 @@ function isValidStatus(value: string | null): value is CustomerRequestStatus {
 
 function isValidSort(value: string | null): value is CustomerRequestSort {
   return VALID_SORTS.includes(value as CustomerRequestSort);
+}
+
+function parsePageSize(value: string | null): number {
+  const parsed = Number(value);
+  return PAGE_SIZE_OPTIONS.includes(parsed as (typeof PAGE_SIZE_OPTIONS)[number])
+    ? parsed
+    : DEFAULT_PAGE_SIZE;
 }
 
 function defaultOrderFor(sort: CustomerRequestSort): SortOrder {
@@ -51,7 +60,7 @@ export function parseRequestListQuery(
 
   return {
     page,
-    pageSize: DEFAULT_PAGE_SIZE,
+    pageSize: parsePageSize(searchParams.get("pageSize")),
     status,
     kind,
     search: searchParams.get("q") ?? "",
@@ -69,6 +78,9 @@ export function buildRequestListSearchParams(query: CustomerRequestListQuery): U
 
   if (query.page !== 1) {
     params.set("page", String(query.page));
+  }
+  if (query.pageSize !== DEFAULT_PAGE_SIZE) {
+    params.set("pageSize", String(query.pageSize));
   }
   if (query.status) {
     params.set("status", query.status);

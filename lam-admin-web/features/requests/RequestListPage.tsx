@@ -164,7 +164,12 @@ export function RequestListPage({ kind }: { kind: RequestListPageKind }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="text-lg font-semibold text-foreground">{t(copyKeys.title)}</h1>
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="text-lg font-semibold text-foreground">{t(copyKeys.title)}</h1>
+        <span className="text-sm text-muted-foreground">
+          {t("common:listTotalCount", { count: total })}
+        </span>
+      </div>
 
       <ListToolbar
         searchValue={searchInput}
@@ -281,6 +286,7 @@ export function RequestListPage({ kind }: { kind: RequestListPageKind }) {
         pageSize={query.pageSize}
         total={total}
         onPageChange={(page) => updateQuery({ page })}
+        onPageSizeChange={(pageSize) => updateQuery({ pageSize, page: 1 })}
       />
     </div>
   );
