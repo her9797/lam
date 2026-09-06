@@ -42,7 +42,7 @@ printf '%s\n%s' '{"spec":{"routeName":"lam-web"}}' '200'
 MOCK
 chmod +x "$TEST_TMP/curl"
 
-PATH="$TEST_TMP:$PATH" bash "$ROOT_DIR/scripts/deploy-cloud-run.sh" >/dev/null
+PATH="$TEST_TMP:$PATH" bash "$ROOT_DIR/scripts/deploy-cloud-run.sh" web >/dev/null
 
 grep -Fq 'run deploy lam-web' "$GCLOUD_LOG"
 grep -Fq -- '--region=asia-northeast1' "$GCLOUD_LOG"
@@ -51,7 +51,7 @@ grep -Fq 'auth print-access-token' "$GCLOUD_LOG"
 grep -Fq 'https://asia-northeast1-run.googleapis.com/apis/domains.cloudrun.com/v1/namespaces/lam-production/domainmappings/www.barlaam.store' "$CURL_LOG"
 
 : >"$CURL_LOG"
-CLOUD_RUN_WEB_DOMAIN='' PATH="$TEST_TMP:$PATH" bash "$ROOT_DIR/scripts/deploy-cloud-run.sh" >/dev/null
+CLOUD_RUN_WEB_DOMAIN='' PATH="$TEST_TMP:$PATH" bash "$ROOT_DIR/scripts/deploy-cloud-run.sh" web >/dev/null
 if [[ -s "$CURL_LOG" ]]; then
   printf '%s\n' 'empty CLOUD_RUN_WEB_DOMAIN must skip domain mapping' >&2
   exit 1

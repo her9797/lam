@@ -59,7 +59,7 @@ const SEARCH_DEBOUNCE_MS = 300;
 
 const DEFAULT_QUERY: SpecialRequestListQuery = {
   page: 1,
-  pageSize: 20,
+  pageSize: 10,
   gender: undefined,
   search: "",
   sort: "createdAt",
@@ -151,7 +151,12 @@ export function SpecialRequestPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="text-lg font-semibold text-foreground">{t("title")}</h1>
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="text-lg font-semibold text-foreground">{t("title")}</h1>
+        <span className="text-sm text-muted-foreground">
+          {t("common:listTotalCount", { count: total })}
+        </span>
+      </div>
 
       <ListToolbar
         searchValue={searchInput}
@@ -263,6 +268,7 @@ export function SpecialRequestPage() {
         pageSize={query.pageSize}
         total={total}
         onPageChange={(page) => setQuery((prev) => ({ ...prev, page }))}
+        onPageSizeChange={(pageSize) => setQuery((prev) => ({ ...prev, pageSize, page: 1 }))}
       />
 
       <Dialog

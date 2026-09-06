@@ -85,7 +85,7 @@ export function MenuManagementPage() {
     sort: "",
     order: "asc",
     page: 1,
-    pageSize: 20,
+    pageSize: 10,
   });
 
   if (bootstrapQuery.isLoading) {
@@ -209,7 +209,14 @@ export function MenuManagementPage() {
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
-          <CardTitle>{t("listCardTitle")}</CardTitle>
+          <div className="flex items-center gap-2">
+            <CardTitle>{t("listCardTitle")}</CardTitle>
+            {items.length > 0 ? (
+              <span className="text-sm text-muted-foreground">
+                {t("common:listTotalCount", { count: visibleTotal })}
+              </span>
+            ) : null}
+          </div>
           <CardAction>
             <MenuItemForm categories={categories} items={items} />
           </CardAction>
@@ -345,6 +352,7 @@ export function MenuManagementPage() {
               pageSize={listQuery.pageSize}
               total={visibleTotal}
               onPageChange={(page) => setListQuery((prev) => ({ ...prev, page }))}
+              onPageSizeChange={(pageSize) => setListQuery((prev) => ({ ...prev, pageSize, page: 1 }))}
             />
           ) : null}
         </CardContent>

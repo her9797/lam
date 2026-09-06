@@ -18,6 +18,7 @@ export const ko = {
     skipToContent: "본문으로 바로가기",
     navigation: "주 메뉴",
     navDashboard: "대시보드",
+    navRequestsGroup: "요청 관리",
     navRequests: "손님 요청",
     navSongRequests: "노래 신청",
     navSpecialRequests: "특별 요청",
@@ -72,6 +73,7 @@ export const ko = {
     listPrevPage: "이전",
     listNextPage: "다음",
     listPageIndicator: "{{page}} / {{pageCount}}",
+    listPageSizeLabel: "페이지당 개수",
   },
   auth: {
     pageTitle: "관리자 로그인",
@@ -283,6 +285,7 @@ export const en = {
     skipToContent: "Skip to main content",
     navigation: "Main navigation",
     navDashboard: "Dashboard",
+    navRequestsGroup: "Request management",
     navRequests: "Guest requests",
     navSongRequests: "Song requests",
     navSpecialRequests: "Special requests",
@@ -333,6 +336,7 @@ export const en = {
     listPrevPage: "Previous",
     listNextPage: "Next",
     listPageIndicator: "{{page}} / {{pageCount}}",
+    listPageSizeLabel: "Per page",
   },
   auth: {
     pageTitle: "Admin sign in",

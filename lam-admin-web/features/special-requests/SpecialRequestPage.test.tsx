@@ -109,7 +109,7 @@ describe("SpecialRequestPage", () => {
 
     expect(useSpecialRequestsPageQueryMock).toHaveBeenCalledWith({
       page: 1,
-      pageSize: 20,
+      pageSize: 10,
       gender: undefined,
       search: "",
       sort: "createdAt",
