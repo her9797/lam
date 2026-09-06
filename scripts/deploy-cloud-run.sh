@@ -62,6 +62,8 @@ PROJECT_ID="${GOOGLE_CLOUD_PROJECT:-lam-production}"
 API_REGION="${CLOUD_RUN_API_REGION:-asia-northeast3}"
 WEB_REGION="${CLOUD_RUN_WEB_REGION:-asia-northeast1}"
 ADMIN_WEB_REGION="${CLOUD_RUN_ADMIN_WEB_REGION:-asia-northeast1}"
+WEB_DOMAIN="${CLOUD_RUN_WEB_DOMAIN-www.barlaam.store}"
+WEB_SERVICE_ACCOUNT="${CLOUD_RUN_WEB_SERVICE_ACCOUNT:-lam-cloud-run@${PROJECT_ID}.iam.gserviceaccount.com}"
 NEXT_PUBLIC_SUPABASE_URL="${CLOUD_RUN_NEXT_PUBLIC_SUPABASE_URL:-https://escntlunkvcoiylczijh.supabase.co}"
 NEXT_PUBLIC_SUPABASE_ANON_KEY="${CLOUD_RUN_NEXT_PUBLIC_SUPABASE_ANON_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzY250bHVua3Zjb2l5bGN6aWpoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgyODEyODUsImV4cCI6MjEwMzg1NzI4NX0.MSZoTACZWK_6wGEPFPbYe3Umz0ECnsG6ztoKM_bEZ0E}"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -92,12 +94,50 @@ deploy_web() {
     --project="$PROJECT_ID" \
     --source="$ROOT_DIR/lam-web" \
     --region="$WEB_REGION" \
+    --service-account="$WEB_SERVICE_ACCOUNT" \
     --allow-unauthenticated \
     --min-instances=0 \
     --max-instances=1 \
     --set-env-vars="API_BASE_URL=$api_base_url" \
-    --set-secrets=ADMIN_API_TOKEN=lam-admin-api-token:latest,STAFF_ENTRY_TOKEN=lam-staff-entry-token:latest,QR_SIGNING_SECRET=lam-qr-signing-secret:latest \
+    --set-secrets=PAYMENT_API_TOKEN=lam-payment-api-token:latest,SESSION_SECRET=lam-web-session-secret:latest,QR_SIGNING_SECRET=lam-qr-signing-secret:latest,QR_ACCESS_TOKEN=lam-qr-access-token:latest,STAFF_ENTRY_TOKEN=lam-staff-entry-token:latest,CUSTOMER_TEST_ENTRY_TOKEN=lam-customer-test-entry-token:latest \
     --quiet
+}
+
+ensure_web_domain_mapping() {
+  local domain_api="https://${WEB_REGION}-run.googleapis.com/apis/domains.cloudrun.com/v1/namespaces/${PROJECT_ID}/domainmappings"
+  local cloud_access_token
+  local domain_response
+  local domain_status
+  local domain_body
+
+  cloud_access_token="$("$GCLOUD" auth print-access-token)"
+  domain_response="$(curl -sS \
+    -H "Authorization: Bearer ${cloud_access_token}" \
+    -w $'\n%{http_code}' \
+    "${domain_api}/${WEB_DOMAIN}")"
+  domain_status="${domain_response##*$'\n'}"
+  domain_body="${domain_response%$'\n'*}"
+
+  case "$domain_status" in
+    200)
+      if ! grep -Eq '"routeName"[[:space:]]*:[[:space:]]*"lam-web"' <<<"$domain_body"; then
+        printf 'Domain mapping %s exists but does not target lam-web.\n' "$WEB_DOMAIN" >&2
+        exit 1
+      fi
+      ;;
+    404)
+      curl -fsS \
+        -X POST \
+        -H "Authorization: Bearer ${cloud_access_token}" \
+        -H 'Content-Type: application/json' \
+        --data "{\"apiVersion\":\"domains.cloudrun.com/v1\",\"kind\":\"DomainMapping\",\"metadata\":{\"name\":\"${WEB_DOMAIN}\",\"namespace\":\"${PROJECT_ID}\"},\"spec\":{\"routeName\":\"lam-web\",\"certificateMode\":\"AUTOMATIC\"}}" \
+        "$domain_api" >/dev/null
+      ;;
+    *)
+      printf 'Could not inspect domain mapping %s (HTTP %s).\n' "$WEB_DOMAIN" "$domain_status" >&2
+      exit 1
+      ;;
+  esac
 }
 
 # NEXT_PUBLIC_* 값은 lam-admin-web/Dockerfile의 ARG로 받아 `npm run build`
@@ -138,6 +178,9 @@ API_BASE_URL="$(get_api_base_url)"
 WEB_URL=""
 if contains web "${SERVICES[@]}"; then
   deploy_web "$API_BASE_URL"
+  if [[ -n "$WEB_DOMAIN" ]]; then
+    ensure_web_domain_mapping
+  fi
   WEB_URL="$("$GCLOUD" run services describe lam-web \
     --project="$PROJECT_ID" \
     --region="$WEB_REGION" \
@@ -157,3 +200,6 @@ printf 'Deployment complete.\n'
 [ -n "$API_BASE_URL" ] && printf '  api:   %s\n' "$API_BASE_URL"
 [ -n "$WEB_URL" ] && printf '  web:   %s\n' "$WEB_URL"
 [ -n "$ADMIN_WEB_URL" ] && printf '  admin: %s\n' "$ADMIN_WEB_URL"
+if [[ -n "$WEB_URL" && -n "$WEB_DOMAIN" ]]; then
+  printf '  domain: https://%s\n' "$WEB_DOMAIN"
+fi

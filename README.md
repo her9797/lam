@@ -263,6 +263,25 @@ API_BASE_URL=http://localhost:9090 docker compose up -d --build lam-admin-web
 
 이 경우 `lam-admin-web` 컨테이너 내부의 서버 사이드 fetch도 호스트로 나갔다가 다시 호스트의 게시된 포트로 들어오므로 정상 동작합니다. 위 override 없이 기본값 그대로 사용하는 경우, 메뉴 이미지가 깨지는 것은 알려진 제약으로 간주하고 다른 화면 확인에는 영향이 없습니다.
 
+## Cloud Run 배포
+
+전체 서비스를 배포할 때는 저장소 루트에서 다음 스크립트를 실행합니다.
+
+```bash
+bash scripts/deploy-cloud-run.sh
+```
+
+손님용 `lam-web`은 커스텀 도메인 매핑을 지원하는 `asia-northeast1`에 배포되며, 기본 도메인은 `www.barlaam.store`입니다. 배포 스크립트는 기존 매핑이 `lam-web`을 향하는지 확인하고, 매핑이 없으면 생성합니다. 도메인 소유권 검증과 DNS 레코드 등록은 사전에 완료되어 있어야 합니다.
+
+다른 프로젝트, 리전 또는 도메인을 사용할 때는 실행 전에 아래 값을 덮어쓸 수 있습니다. `CLOUD_RUN_WEB_DOMAIN`을 빈 문자열로 지정하면 도메인 매핑 확인과 생성을 생략합니다.
+
+```bash
+GOOGLE_CLOUD_PROJECT=lam-production \
+CLOUD_RUN_WEB_REGION=asia-northeast1 \
+CLOUD_RUN_WEB_DOMAIN=www.barlaam.store \
+bash scripts/deploy-cloud-run.sh
+```
+
 ## 개발 메모
 
 - 프론트는 API 연결 실패 시 로컬 데이터로 자동 fallback 됩니다.

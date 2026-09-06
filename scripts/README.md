@@ -30,11 +30,15 @@
    | 시크릿 | 사용하는 서비스 |
    | --- | --- |
    | `lam-database-url` | lam-api |
-   | `lam-admin-api-token` | lam-api, lam-web, lam-admin-web (세 곳 값이 모두 동일해야 함) |
+   | `lam-admin-api-token` | lam-api, lam-admin-web (두 곳 값이 동일해야 함) |
    | `lam-supabase-secret-key` | lam-api |
    | `lam-supabase-url` | lam-api |
+   | `lam-payment-api-token` | lam-web (lam-api에 설정된 값과 동일해야 함) |
+   | `lam-web-session-secret` | lam-web |
    | `lam-staff-entry-token` | lam-web |
    | `lam-qr-signing-secret` | lam-web |
+   | `lam-qr-access-token` | lam-web |
+   | `lam-customer-test-entry-token` | lam-web |
    | `lam-admin-web-admin-password` | lam-admin-web |
    | `lam-admin-web-session-secret` | lam-admin-web |
 
@@ -47,7 +51,9 @@
    printf '%s' '<새 값>' | gcloud secrets versions add <시크릿 이름> --data-file=- --project=lam-production
    ```
 
-3. Cloud Run 서비스 계정에 위 시크릿 접근 권한(`roles/secretmanager.secretAccessor`)이 없으면, 배포 중 권한 부여 여부를 묻는 대화형 프롬프트(`Grant access? (y/N)`)가 뜬다. `y`로 승인하면 된다.
+3. `lam-web`은 기본적으로 `lam-cloud-run@lam-production.iam.gserviceaccount.com` 서비스 계정을 사용한다. 이 계정과 다른 Cloud Run 서비스 계정에 필요한 시크릿 접근 권한(`roles/secretmanager.secretAccessor`)이 있어야 한다.
+
+4. 기본 커스텀 도메인 `www.barlaam.store`의 소유권과 DNS가 확인되어 있어야 한다. 스크립트는 `lam-web` 배포 후 기존 매핑 대상을 확인하고, 매핑이 없으면 생성한다.
 
 ### 환경변수로 덮어쓸 수 있는 값
 
@@ -57,6 +63,8 @@
 | `CLOUD_RUN_API_REGION` | `asia-northeast3` | lam-api 리전 |
 | `CLOUD_RUN_WEB_REGION` | `asia-northeast1` | lam-web 리전 |
 | `CLOUD_RUN_ADMIN_WEB_REGION` | `asia-northeast1` | lam-admin-web 리전 |
+| `CLOUD_RUN_WEB_DOMAIN` | `www.barlaam.store` | lam-web 커스텀 도메인. 빈 문자열이면 매핑 확인·생성을 생략 |
+| `CLOUD_RUN_WEB_SERVICE_ACCOUNT` | `lam-cloud-run@<project>.iam.gserviceaccount.com` | lam-web 실행 서비스 계정 |
 | `CLOUD_RUN_NEXT_PUBLIC_SUPABASE_URL` | 현재 운영 Supabase 프로젝트 URL | lam-admin-web 빌드 시점에 번들에 박히는 값 |
 | `CLOUD_RUN_NEXT_PUBLIC_SUPABASE_ANON_KEY` | 현재 운영 Supabase anon key | 위와 동일. anon/publishable key는 브라우저에 공개되도록 설계된 값이라 스크립트에 기본값으로 두어도 안전하다(RLS로 보호됨) |
 
@@ -66,7 +74,7 @@
 gcloud run services describe lam-admin-web --project=lam-production --region=asia-northeast1 --format='value(status.url)'
 ```
 
-나온 URL 접속 후 `/login` 화면이 뜨는지 확인한다.
+나온 URL 접속 후 `/login` 화면이 뜨는지 확인한다. `web`을 배포한 경우에는 출력된 커스텀 도메인의 `/access-required`에서 고객 테스트 입장 폼도 확인한다.
 
 ### 알려진 문제
 
