@@ -18,6 +18,7 @@ describe("i18n resources", () => {
         "menu",
         "notices",
         "notifications",
+        "orders",
         "requests",
         "specialRequests",
         "storeCopy",

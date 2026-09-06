@@ -2,10 +2,13 @@ package store
 
 import (
 	"context"
+	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/her9797/lam/lam-api/internal/lamdata"
 )
 
 var paymentAmountPattern = regexp.MustCompile(`^(?:[1-9][0-9]*|[1-9][0-9]{0,2}(?:,[0-9]{3})+)원$`)
@@ -189,6 +192,139 @@ func (r *Repository) CompletePaymentOrder(ctx context.Context, orderID string, i
 	}
 
 	return r.GetPaymentOrder(ctx, orderID)
+}
+
+// PaymentOrderFilter is the parsed, validated filter/sort/page input for
+// ListPaymentOrdersPage, mirroring CustomerRequestFilter/SpecialRequestFilter's
+// shape and validation style.
+type PaymentOrderFilter struct {
+	Status        string // "" = all | "READY" | "DONE"
+	PosSyncStatus string // "" = all | "PENDING" | "SUCCEEDED" | "FAILED" | "NOT_CONFIGURED"
+	Search        string
+	From          *time.Time // inclusive
+	To            *time.Time // exclusive
+	Sort          string     // "createdAt" | "amount"
+	Order         string     // "asc" | "desc"
+	Page          int
+	PageSize      int
+}
+
+func paymentOrderOrderByClause(sort string, order string) (string, error) {
+	direction := "DESC"
+	if order == "asc" {
+		direction = "ASC"
+	} else if order != "desc" && order != "" {
+		return "", fmt.Errorf("%w: order %q", ErrInvalidInput, order)
+	}
+
+	switch sort {
+	case "createdAt", "":
+		return "created_at " + direction + ", id " + direction, nil
+	case "amount":
+		return "amount " + direction + ", created_at DESC, id DESC", nil
+	default:
+		return "", fmt.Errorf("%w: sort %q", ErrInvalidInput, sort)
+	}
+}
+
+const paymentOrderFilterWhere = `
+	WHERE ($1 = '' OR status = $1)
+	  AND ($2 = '' OR pos_sync_status = $2)
+	  AND ($3::timestamptz IS NULL OR created_at >= $3)
+	  AND ($4::timestamptz IS NULL OR created_at < $4)
+	  AND ($5 = '' OR table_number ILIKE $5 ESCAPE '\' OR menu_item_name ILIKE $5 ESCAPE '\')
+`
+
+// ListPaymentOrdersPage applies filter/search/sort/pagination server-side for
+// the admin order-history screen and reports the total matching row count
+// alongside the current page, mirroring ListCustomerRequestsPage/
+// ListSpecialRequestsPage. Unlike those, there is no legacy unpaginated
+// array response to preserve here — this is a new endpoint, so it always
+// returns the paginated shape.
+func (r *Repository) ListPaymentOrdersPage(ctx context.Context, filter PaymentOrderFilter) ([]lamdata.PaymentOrder, int, error) {
+	orderBy, err := paymentOrderOrderByClause(filter.Sort, filter.Order)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	page := clampListPage(filter.Page)
+	pageSize := clampListPageSize(filter.PageSize)
+	searchPattern := searchPatternOrEmpty(filter.Search)
+
+	var total int
+	countSQL := "SELECT COUNT(*) FROM payment_orders" + paymentOrderFilterWhere
+	if err := r.pool.QueryRow(ctx, countSQL, filter.Status, filter.PosSyncStatus, filter.From, filter.To, searchPattern).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
+	listSQL := `
+		SELECT
+			id,
+			COALESCE(menu_item_id, ''),
+			menu_item_name,
+			category_name,
+			table_number,
+			amount,
+			vat,
+			supplied_amount,
+			tax_free_amount,
+			status,
+			COALESCE(payment_method, ''),
+			COALESCE(payment_key, ''),
+			approved_at,
+			pos_sync_status,
+			COALESCE(pos_order_id, ''),
+			COALESCE(pos_sync_error, ''),
+			created_at
+		FROM payment_orders
+	` + paymentOrderFilterWhere + `
+		ORDER BY ` + orderBy + `
+		LIMIT $6 OFFSET $7
+	`
+	offset := (page - 1) * pageSize
+	rows, err := r.pool.Query(ctx, listSQL, filter.Status, filter.PosSyncStatus, filter.From, filter.To, searchPattern, pageSize, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	orders := make([]lamdata.PaymentOrder, 0)
+	for rows.Next() {
+		var item lamdata.PaymentOrder
+		var approvedAt *time.Time
+		var createdAt time.Time
+		if err := rows.Scan(
+			&item.OrderID,
+			&item.MenuItemID,
+			&item.MenuItemName,
+			&item.CategoryName,
+			&item.TableNumber,
+			&item.Amount,
+			&item.VAT,
+			&item.SuppliedAmount,
+			&item.TaxFreeAmount,
+			&item.Status,
+			&item.PaymentMethod,
+			&item.PaymentKey,
+			&approvedAt,
+			&item.POSSyncStatus,
+			&item.POSOrderID,
+			&item.POSSyncError,
+			&createdAt,
+		); err != nil {
+			return nil, 0, err
+		}
+		if approvedAt != nil {
+			item.ApprovedAt = formatTimestamp(*approvedAt)
+		}
+		item.CreatedAt = formatTimestamp(createdAt)
+		orders = append(orders, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
+	}
+
+	return orders, total, nil
 }
 
 func (r *Repository) UpdatePaymentOrderPOSSync(ctx context.Context, orderID string, status string, posOrderID string, syncError string) error {

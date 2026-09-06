@@ -3,6 +3,7 @@ package httpapi
 import (
 	"net/url"
 	"testing"
+	"time"
 )
 
 func TestParseCustomerRequestListQuery_Defaults(t *testing.T) {
@@ -168,6 +169,76 @@ func TestParseSpecialRequestListQuery_InvalidValuesRejected(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			if _, _, err := parseSpecialRequestListQuery(tc.query); err == nil {
 				t.Errorf("parseSpecialRequestListQuery(%v) returned nil error, want a validation error", tc.query)
+			}
+		})
+	}
+}
+
+func TestParsePaymentOrderListQuery_Defaults(t *testing.T) {
+	q, err := parsePaymentOrderListQuery(url.Values{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if q.Page != 1 || q.PageSize != 20 || q.Status != "" || q.PosSyncStatus != "" ||
+		q.Search != "" || q.Sort != "createdAt" || q.Order != "desc" || q.From != nil || q.To != nil {
+		t.Errorf("defaults = %+v, want page=1 pageSize=20 status=\"\" posSync=\"\" sort=createdAt order=desc from=nil to=nil", q)
+	}
+}
+
+func TestParsePaymentOrderListQuery_ValidValues(t *testing.T) {
+	query := url.Values{
+		"page":     {"2"},
+		"pageSize": {"10"},
+		"status":   {"DONE"},
+		"posSync":  {"FAILED"},
+		"q":        {"T-01"},
+		"from":     {"2026-01-01T00:00:00Z"},
+		"to":       {"2026-01-02T00:00:00Z"},
+		"sort":     {"amount"},
+		"order":    {"asc"},
+	}
+
+	q, err := parsePaymentOrderListQuery(query)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	wantFrom := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	wantTo := time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC)
+	if q.Page != 2 || q.PageSize != 10 || q.Status != "DONE" || q.PosSyncStatus != "FAILED" ||
+		q.Search != "T-01" || q.Sort != "amount" || q.Order != "asc" {
+		t.Errorf("parsed = %+v, want the given values", q)
+	}
+	if q.From == nil || !q.From.Equal(wantFrom) {
+		t.Errorf("From = %v, want %v", q.From, wantFrom)
+	}
+	if q.To == nil || !q.To.Equal(wantTo) {
+		t.Errorf("To = %v, want %v", q.To, wantTo)
+	}
+}
+
+func TestParsePaymentOrderListQuery_InvalidValuesRejected(t *testing.T) {
+	cases := []struct {
+		name  string
+		query url.Values
+	}{
+		{"page zero", url.Values{"page": {"0"}}},
+		{"pageSize over max", url.Values{"pageSize": {"101"}}},
+		{"unknown status", url.Values{"status": {"CANCELED"}}},
+		{"unknown posSync", url.Values{"posSync": {"UNKNOWN"}}},
+		{"unknown sort", url.Values{"sort": {"tableNumber"}}},
+		{"unknown order", url.Values{"order": {"random"}}},
+		{"unparseable from", url.Values{"from": {"not-a-date"}}},
+		{"unparseable to", url.Values{"to": {"not-a-date"}}},
+		{"from not before to", url.Values{
+			"from": {"2026-01-02T00:00:00Z"},
+			"to":   {"2026-01-01T00:00:00Z"},
+		}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, err := parsePaymentOrderListQuery(tc.query); err == nil {
+				t.Errorf("parsePaymentOrderListQuery(%v) returned nil error, want a validation error", tc.query)
 			}
 		})
 	}
