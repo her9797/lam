@@ -35,6 +35,7 @@ import {
 import type { MenuCategory } from "@/features/bootstrap/model";
 import { applyListQuery, type ListQueryState } from "@/lib/list/apply-list-query";
 
+import { CatalogResyncButton } from "./CatalogResyncButton";
 import { validateCategoryForm, type CategoryFormErrors } from "./model";
 import {
   useCreateCategoryMutation,
@@ -123,7 +124,8 @@ export function CategoryPanel({ categories }: { categories: MenuCategory[] }) {
     <Card>
       <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
         <CardTitle>{t("categoryCardTitle")}</CardTitle>
-        <CardAction>
+        <CardAction className="flex items-center gap-2">
+          <CatalogResyncButton />
           <Button type="button" size="sm" onClick={openCreateDialog}>
             {t("categoryAdd")}
           </Button>

@@ -12,6 +12,7 @@ vi.mock("@/features/bootstrap/queries", () => ({
 const createCategoryMutate = vi.fn();
 const updateCategoryVisibilityMutate = vi.fn();
 const deleteCategoryMutate = vi.fn();
+const resyncCatalogMutate = vi.fn();
 
 function idleMutation(mutate: ReturnType<typeof vi.fn>) {
   return { mutate, isPending: false, isError: false, error: null as unknown, variables: undefined as unknown };
@@ -20,11 +21,16 @@ function idleMutation(mutate: ReturnType<typeof vi.fn>) {
 const createCategoryMutationState = { current: idleMutation(createCategoryMutate) };
 const updateCategoryVisibilityMutationState = { current: idleMutation(updateCategoryVisibilityMutate) };
 const deleteCategoryMutationState = { current: idleMutation(deleteCategoryMutate) };
+// CatalogResyncButton (rendered inside CategoryPanel) reads this too — not
+// under test here, just needs a non-throwing default so this page's own
+// tests keep exercising category create/update/delete only.
+const resyncCatalogMutationState = { current: idleMutation(resyncCatalogMutate) };
 
 vi.mock("./queries", () => ({
   useCreateCategoryMutation: () => createCategoryMutationState.current,
   useUpdateCategoryVisibilityMutation: () => updateCategoryVisibilityMutationState.current,
   useDeleteCategoryMutation: () => deleteCategoryMutationState.current,
+  useResyncCatalogMutation: () => resyncCatalogMutationState.current,
 }));
 
 import { CategoryManagementPage } from "./CategoryManagementPage";
@@ -120,6 +126,12 @@ describe("CategoryManagementPage", () => {
 
     expect(screen.getByRole("heading", { name: "카테고리 관리" })).toBeInTheDocument();
     expect(screen.getByText("등록된 카테고리가 없습니다.")).toBeInTheDocument();
+  });
+
+  it("renders the catalog resync button alongside the category form trigger", () => {
+    render(<CategoryManagementPage />);
+
+    expect(screen.getByRole("button", { name: "다시 동기화" })).toBeInTheDocument();
   });
 
   it("opens the category dialog from the trigger button, and closes it on cancel", () => {

@@ -65,7 +65,7 @@ func TestRouter_PaymentFlowUsesStoredAmountAndSyncsPOS(t *testing.T) {
 	cfg.TossPlaceSecretKey = "place-secret"
 	cfg.TossPlaceMerchantID = "merchant"
 	cfg.TossPlaceAPIBaseURL = posServer.URL
-	handler := NewMux(testRepo, cfg)
+	handler := NewMux(testRepo, cfg, nil)
 	headers := map[string]string{"Authorization": "Bearer " + cfg.PaymentAPIToken}
 
 	createBody, _ := json.Marshal(map[string]string{"menuItemId": "house-highball", "tableNumber": "7"})
@@ -164,7 +164,7 @@ func TestRouter_PaymentConfirm_SendsNewOrderBroadcast(t *testing.T) {
 	cfg.TossPaymentsAPIBaseURL = paymentServer.URL
 	cfg.SupabaseURL = broadcastServer.URL
 	cfg.SupabaseBroadcastKey = "test-broadcast-key"
-	handler := NewMux(testRepo, cfg)
+	handler := NewMux(testRepo, cfg, nil)
 	headers := map[string]string{"Authorization": "Bearer " + cfg.PaymentAPIToken}
 
 	createBody, _ := json.Marshal(map[string]string{"menuItemId": "house-highball", "tableNumber": "7"})

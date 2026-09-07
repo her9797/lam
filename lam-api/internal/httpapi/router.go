@@ -11,13 +11,18 @@ import (
 	"strings"
 	"time"
 
+	"github.com/her9797/lam/lam-api/internal/catalogsync"
 	"github.com/her9797/lam/lam-api/internal/config"
 	"github.com/her9797/lam/lam-api/internal/lamdata"
 	"github.com/her9797/lam/lam-api/internal/notify"
 	"github.com/her9797/lam/lam-api/internal/store"
 )
 
-func NewMux(repository *store.Repository, cfg config.Config) http.Handler {
+// NewMux wires the full admin/customer HTTP API. syncer may be nil — Toss
+// Place catalog sync is optional (see cmd/server/main.go's
+// startTossCatalogSync), in which case the manual resync endpoint below
+// reports 503 instead of panicking on a nil receiver.
+func NewMux(repository *store.Repository, cfg config.Config, syncer *catalogsync.Syncer) http.Handler {
 	mux := http.NewServeMux()
 	broadcaster := notify.NewBroadcaster(cfg.SupabaseURL, cfg.SupabaseBroadcastKey)
 
@@ -389,6 +394,47 @@ func NewMux(repository *store.Repository, cfg config.Config) http.Handler {
 		}
 
 		writeJSON(w, http.StatusCreated, bootstrap)
+	}))
+
+	mux.HandleFunc("/api/v1/admin/catalog-sync", withCORS(cfg.AllowedOrigin, func(w http.ResponseWriter, r *http.Request) {
+		if !requireAdminAuth(w, r, cfg.AdminAPIToken) {
+			return
+		}
+
+		if r.Method != http.MethodPost {
+			writeMethodNotAllowed(w)
+			return
+		}
+
+		if syncer == nil {
+			writeError(w, http.StatusServiceUnavailable, errors.New("toss place catalog sync is not configured"))
+			return
+		}
+
+		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+		defer cancel()
+		result, err := syncer.Sync(ctx)
+		if err != nil {
+			if errors.Is(err, catalogsync.ErrSyncInProgress) {
+				writeError(w, http.StatusConflict, err)
+				return
+			}
+			writeError(w, http.StatusBadGateway, err)
+			return
+		}
+
+		bootstrap, err := repository.GetBootstrapData(r.Context())
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+
+		writeJSON(w, http.StatusOK, lamdata.CatalogSyncResponse{
+			Created: result.Created,
+			Linked:  result.Linked,
+			Updated: result.Updated,
+			Data:    bootstrap,
+		})
 	}))
 
 	mux.HandleFunc("/api/v1/admin/customer-requests", withCORS(cfg.AllowedOrigin, func(w http.ResponseWriter, r *http.Request) {

@@ -2,11 +2,20 @@ package catalogsync
 
 import (
 	"context"
+	"errors"
 	"strings"
+	"sync"
 
 	"github.com/her9797/lam/lam-api/internal/store"
 	"github.com/her9797/lam/lam-api/internal/tossplace"
 )
+
+// ErrSyncInProgress is returned by Sync when another call is already in
+// flight on the same Syncer — the admin web's manual "다시 동기화" button
+// and the 5-minute background ticker share one Syncer instance
+// (cmd/server/main.go), so this also prevents an operator's button click
+// from overlapping the scheduled poll, not just two button clicks.
+var ErrSyncInProgress = errors.New("catalog sync already in progress")
 
 type catalogClient interface {
 	ListCatalogItems(context.Context) ([]tossplace.CatalogItem, error)
@@ -19,6 +28,7 @@ type catalogRepository interface {
 type Syncer struct {
 	client     catalogClient
 	repository catalogRepository
+	mu         sync.Mutex
 }
 
 func New(client catalogClient, repository catalogRepository) *Syncer {
@@ -26,6 +36,11 @@ func New(client catalogClient, repository catalogRepository) *Syncer {
 }
 
 func (s *Syncer) Sync(ctx context.Context) (store.TossCatalogSyncResult, error) {
+	if !s.mu.TryLock() {
+		return store.TossCatalogSyncResult{}, ErrSyncInProgress
+	}
+	defer s.mu.Unlock()
+
 	items, err := s.client.ListCatalogItems(ctx)
 	if err != nil {
 		return store.TossCatalogSyncResult{}, err
