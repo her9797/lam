@@ -3,7 +3,8 @@ import type { OrderPageResult } from "@/features/orders/model";
 import type { OrderNotification } from "./model";
 
 /**
- * Builds the completed-sale alarm list from one page of `payment_orders`.
+ * Builds the "new order arrived" alarm list from one page of
+ * `payment_orders`.
  *
  * Kept in its own module rather than merged into `selectors.ts`: customer
  * requests and payment orders are separate flows with separate sources,
@@ -14,7 +15,8 @@ import type { OrderNotification } from "./model";
  *
  * `status` is re-checked even though the query already asks the server for
  * `DONE` only: a `READY` row is an order that was started and never paid,
- * and letting one through would announce a sale that never happened.
+ * and letting one through would announce an order that never actually
+ * arrived.
  *
  * `approvedAt` falls back to `createdAt` because it is only guaranteed
  * once the payment provider confirms; the two are seconds apart for a

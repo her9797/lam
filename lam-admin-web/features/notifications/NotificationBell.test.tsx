@@ -125,8 +125,14 @@ function mockNotifications(notifications: RequestNotification[]) {
   });
 }
 
+const dismissOrderMock = vi.fn();
 function mockOrderNotifications(notifications: OrderNotification[]) {
-  useOrderNotificationsMock.mockReturnValue({ notifications, isLoading: false });
+  useOrderNotificationsMock.mockReturnValue({
+    notifications,
+    count: notifications.length,
+    isLoading: false,
+    dismiss: dismissOrderMock,
+  });
 }
 
 function mockSound(overrides: Partial<ReturnType<typeof useNotificationSoundMock>> = {}) {
@@ -270,7 +276,7 @@ describe("NotificationBell", () => {
     expect(toastAddMock).toHaveBeenCalledTimes(1);
     expect(toastAddMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        title: "새 주문이 결제되었습니다.",
+        title: "새 주문이 들어왔습니다.",
         description: "2번 테이블 · 진토닉 · ₩9,000",
       }),
     );
@@ -287,16 +293,52 @@ describe("NotificationBell", () => {
     expect(toastAddMock).not.toHaveBeenCalled();
   });
 
-  it("keeps the bell panel showing only guest requests, not paid orders", () => {
+  it("lists undismissed orders in the panel and folds them into the bell badge", () => {
     mockNotifications([]);
     mockOrderNotifications([O1, O2]);
     render(<NotificationBell />);
 
-    // Orders have no server-side read state, so they never become panel
-    // items or feed the unread badge — only the arrival toast/chime.
+    // The guest-request list body is still empty on its own (no pending
+    // requests), but the bell's badge/accessible name count now includes
+    // the two undismissed orders — an order the operator hasn't dismissed
+    // is exactly as "unread" as a request they haven't checked.
     expect(screen.getByText("확인하지 않은 요청이 없습니다.")).toBeInTheDocument();
-    expect(screen.queryByText(/하우스 하이볼/)).not.toBeInTheDocument();
-    expect(screen.queryByText("2")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "새 알림 2건" })).toBeInTheDocument();
+    expect(screen.getByText("2")).toBeInTheDocument();
+
+    expect(screen.getByText("새 주문 알림")).toBeInTheDocument();
+    expect(screen.getByText("7 · 하우스 하이볼 · ₩10,000")).toBeInTheDocument();
+    expect(screen.getByText("2 · 진토닉 · ₩9,000")).toBeInTheDocument();
+  });
+
+  it("hides the new-order section when there are no undismissed orders", () => {
+    mockNotifications([]);
+    mockOrderNotifications([]);
+    render(<NotificationBell />);
+
+    expect(screen.queryByText("새 주문 알림")).not.toBeInTheDocument();
+  });
+
+  it("adds the guest-request and order counts together on the badge", () => {
+    mockNotifications(NOTIFICATIONS);
+    mockOrderNotifications([O1]);
+    render(<NotificationBell />);
+
+    expect(screen.getByRole("button", { name: "새 알림 3건" })).toBeInTheDocument();
+    expect(screen.getByText("3")).toBeInTheDocument();
+  });
+
+  it("clicking an order in the panel dismisses it and navigates to /orders, without touching request mutations", () => {
+    mockNotifications([]);
+    mockOrderNotifications([O1]);
+    render(<NotificationBell />);
+
+    fireEvent.click(screen.getByText("7 · 하우스 하이볼 · ₩10,000"));
+
+    expect(dismissOrderMock).toHaveBeenCalledWith("o1");
+    expect(pushMock).toHaveBeenCalledWith("/orders");
+    expect(singleMutateMock).not.toHaveBeenCalled();
+    expect(bulkMutateMock).not.toHaveBeenCalled();
   });
 
   it("shows a 'sound blocked' button that resumes audio on click", () => {

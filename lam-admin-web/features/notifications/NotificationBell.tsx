@@ -30,7 +30,7 @@ import {
 } from "@/features/requests/queries";
 import { cn, formatCurrencyKRW } from "@/lib/utils";
 
-import type { RequestNotification, RequestNotificationKind } from "./model";
+import type { OrderNotification, RequestNotification, RequestNotificationKind } from "./model";
 import { NotificationPanel } from "./NotificationPanel";
 import { useNewArrivals } from "./useNewArrivals";
 import { useNewRequestArrivals } from "./useNewRequestArrivals";
@@ -49,19 +49,22 @@ export function NotificationBell() {
   const { t, i18n } = useTranslation("notifications");
   const router = useRouter();
   useRequestBroadcast();
-  const { notifications, count, isLoading, isError } = useRequestNotifications();
+  const { notifications, count: requestCount, isLoading, isError } = useRequestNotifications();
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const arrivals = useNewRequestArrivals(notifications, isLoading);
   const sound = useNotificationSound();
 
-  // Completed sales ride the same alarm path as guest requests but stop at
-  // the toast and chime: `payment_orders` has no server-side read state,
-  // so there is nothing to drive a panel item or an unread badge from —
-  // every past sale would stay "unread" forever. The bell's list and count
-  // above therefore stay request-only.
+  // New orders ride the same arrival-alarm path as guest requests (toast +
+  // chime, plus a list in the panel below), but "read" for an order means
+  // "dismissed on this device" (`useOrderNotifications`'s `dismiss`,
+  // localStorage-backed) rather than the server-owned `pending`→`checked`
+  // status requests use — `payment_orders` has no such server state. The
+  // bell's badge counts both: an order the operator hasn't dismissed yet
+  // is exactly as "unread" as a request they haven't checked.
   useOrderBroadcast();
   const orders = useOrderNotifications();
   const orderArrivals = useNewArrivals(orders.notifications, orders.isLoading);
+  const count = requestCount + orders.count;
 
   const singleMutation = useUpdateCustomerRequestStatusMutation();
   const bulkMutation = useUpdateCustomerRequestStatusesMutation();
@@ -133,6 +136,11 @@ export function NotificationBell() {
     router.push(KIND_HREF[notification.kind]);
   }
 
+  function handleOrderItemClick(order: OrderNotification) {
+    orders.dismiss(order.id);
+    router.push("/orders");
+  }
+
   function handleConfirmMarkAll() {
     bulkMutation.mutate({
       ids: notifications.map((notification) => notification.id),
@@ -185,6 +193,8 @@ export function NotificationBell() {
             onItemClick={handleItemClick}
             onMarkAllClick={() => setIsConfirmOpen(true)}
             isMarkAllPending={bulkMutation.isPending}
+            orderNotifications={orders.notifications}
+            onOrderItemClick={handleOrderItemClick}
           />
         </DropdownMenuContent>
       </DropdownMenu>

@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { OrderListQuery, OrderPageResult } from "@/features/orders/model";
 
@@ -13,26 +13,36 @@ import { fetchOrdersPage } from "@/features/orders/api";
 
 import { useOrderNotifications } from "./useOrderNotifications";
 
+function order(orderId: string, overrides: Partial<OrderPageResult["items"][number]> = {}) {
+  return {
+    orderId,
+    menuItemName: "하우스 하이볼",
+    categoryName: "하이볼",
+    tableNumber: "7",
+    amount: 10000,
+    vat: 909,
+    suppliedAmount: 9091,
+    taxFreeAmount: 0,
+    status: "DONE" as const,
+    posSyncStatus: "SUCCEEDED" as const,
+    approvedAt: "2026-09-04T10:00:30Z",
+    createdAt: "2026-09-04T10:00:00Z",
+    ...overrides,
+  };
+}
+
 const fixture: OrderPageResult = {
-  items: [
-    {
-      orderId: "o1",
-      menuItemName: "하우스 하이볼",
-      categoryName: "하이볼",
-      tableNumber: "7",
-      amount: 10000,
-      vat: 909,
-      suppliedAmount: 9091,
-      taxFreeAmount: 0,
-      status: "DONE",
-      posSyncStatus: "SUCCEEDED",
-      approvedAt: "2026-09-04T10:00:30Z",
-      createdAt: "2026-09-04T10:00:00Z",
-    },
-  ],
+  items: [order("o1")],
   page: 1,
   pageSize: 20,
   total: 1,
+};
+
+const twoOrderFixture: OrderPageResult = {
+  items: [order("o1"), order("o2", { approvedAt: "2026-09-04T11:00:00Z" })],
+  page: 1,
+  pageSize: 20,
+  total: 2,
 };
 
 function createWrapper() {
@@ -44,6 +54,10 @@ function createWrapper() {
 }
 
 describe("useOrderNotifications", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
   afterEach(() => {
     vi.restoreAllMocks();
   });
@@ -80,5 +94,45 @@ describe("useOrderNotifications", () => {
 
     expect(result.current.notifications).toEqual([]);
     expect(result.current.isLoading).toBe(true);
+  });
+
+  it("exposes count as the number of undismissed orders", async () => {
+    vi.mocked(fetchOrdersPage).mockResolvedValue(twoOrderFixture);
+
+    const { result } = renderHook(() => useOrderNotifications(), { wrapper: createWrapper() });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(result.current.count).toBe(2);
+  });
+
+  it("removes an order from the list and count once dismiss(id) is called", async () => {
+    vi.mocked(fetchOrdersPage).mockResolvedValue(twoOrderFixture);
+
+    const { result } = renderHook(() => useOrderNotifications(), { wrapper: createWrapper() });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    act(() => {
+      result.current.dismiss("o1");
+    });
+
+    expect(result.current.notifications.map((item) => item.id)).toEqual(["o2"]);
+    expect(result.current.count).toBe(1);
+  });
+
+  it("persists a dismissal in localStorage so it survives a reload", async () => {
+    vi.mocked(fetchOrdersPage).mockResolvedValue(twoOrderFixture);
+
+    const first = renderHook(() => useOrderNotifications(), { wrapper: createWrapper() });
+    await waitFor(() => expect(first.result.current.isLoading).toBe(false));
+    act(() => {
+      first.result.current.dismiss("o1");
+    });
+
+    // A fresh mount (new QueryClient too) simulates a page reload: the
+    // dismissal must come back from localStorage, not from in-memory state.
+    const second = renderHook(() => useOrderNotifications(), { wrapper: createWrapper() });
+    await waitFor(() => expect(second.result.current.isLoading).toBe(false));
+
+    expect(second.result.current.notifications.map((item) => item.id)).toEqual(["o2"]);
   });
 });
