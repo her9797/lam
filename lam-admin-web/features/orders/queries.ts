@@ -76,17 +76,16 @@ export function useOrderNotificationsQuery() {
 }
 
 /**
- * Dashboard's order-history aggregate: total DONE orders, all-time — the
- * same status/date filters `/orders` defaults to (see `list-query-url.ts`'s
- * `DEFAULT_STATUS`/`DEFAULT_DATE_PRESET`), so the card's count matches
- * exactly what that screen shows before the operator touches any filter.
- * `pageSize: 1` keeps the request cheap; only `total` from the paginated
- * envelope is read, never `items`.
+ * Dashboard's order-history aggregate: total READY (미결제/unpaid) orders,
+ * all-time — surfaces orders still awaiting payment, unlike `/orders`'s own
+ * default filter (see `list-query-url.ts`'s `DEFAULT_STATUS`), which
+ * defaults to `DONE`. `pageSize: 1` keeps the request cheap; only `total`
+ * from the paginated envelope is read, never `items`.
  */
 const DASHBOARD_ORDER_COUNT_QUERY: OrderListQuery = {
   page: 1,
   pageSize: 1,
-  status: "DONE",
+  status: "READY",
   search: "",
   datePreset: "all",
   sort: "createdAt",
