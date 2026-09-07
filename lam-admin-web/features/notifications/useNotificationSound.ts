@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 /**
  * `localStorage` key for the mute preference. Follows this app's existing
@@ -110,7 +110,20 @@ export function useNotificationSound(): UseNotificationSoundResult {
     return Ctor ? new Ctor() : null;
   });
   const [isBlocked, setIsBlocked] = useState(() => !context || context.state !== "running");
-  const [isMuted, setIsMuted] = useState(() => readStoredMuted());
+  // Starts unmuted (matching the server, which has no localStorage) rather
+  // than reading `readStoredMuted()` in the initializer — that would return
+  // the real persisted preference on the client's first render and mismatch
+  // the server-rendered HTML (icon, aria-label), breaking hydration. There
+  // is no render-time read of localStorage that both the server and the
+  // client's first render can agree on, so applying the real value after
+  // mount is the fix, not the problem — same exception already taken in
+  // `SalesStatsPage`.
+  const [isMuted, setIsMuted] = useState(false);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setIsMuted(readStoredMuted());
+  }, []);
 
   const enableSound = useCallback(() => {
     if (!context) {

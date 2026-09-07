@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useOrderNotificationsQuery } from "@/features/orders/queries";
 
@@ -23,7 +23,20 @@ import { toOrderNotifications } from "./order-selectors";
  */
 export function useOrderNotifications() {
   const ordersQuery = useOrderNotificationsQuery();
-  const [dismissedIds, setDismissedIds] = useState<Set<string>>(() => readDismissedOrderIds());
+  // Starts empty (matching the server's render, which has no localStorage)
+  // rather than reading `readDismissedOrderIds()` in the initializer — that
+  // would return real, possibly non-empty data on the client's first render
+  // and mismatch the server-rendered HTML (the bell's badge count and
+  // aria-label), breaking hydration. There is no render-time read of
+  // localStorage that both the server and the client's first render can
+  // agree on, so applying the real value after mount is the fix, not the
+  // problem — same exception already taken in `SalesStatsPage`.
+  const [dismissedIds, setDismissedIds] = useState<Set<string>>(() => new Set());
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setDismissedIds(readDismissedOrderIds());
+  }, []);
 
   const allOrders = useMemo(
     () => (ordersQuery.data ? toOrderNotifications(ordersQuery.data) : []),
