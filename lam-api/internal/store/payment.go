@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"fmt"
+	"math"
 	"regexp"
 	"strconv"
 	"strings"
@@ -347,4 +348,171 @@ func (r *Repository) UpdatePaymentOrderPOSSync(ctx context.Context, orderID stri
 		return ErrNotFound
 	}
 	return nil
+}
+
+// paymentOrderStatsFilterWhere restricts every stats query to DONE orders
+// (READY orders never contributed revenue) approved within [from, to).
+const paymentOrderStatsFilterWhere = `
+	WHERE status = 'DONE' AND approved_at >= $1 AND approved_at < $2
+`
+
+// determineTrendUnit picks the trend chart's bucket granularity from the
+// requested range's length, so the admin never has to pick a unit that
+// would render either a single bar (too coarse) or hundreds of them (too
+// fine) for the range they chose.
+func determineTrendUnit(from time.Time, to time.Time) string {
+	days := to.Sub(from).Hours() / 24
+	switch {
+	case days <= 31:
+		return "day"
+	case days <= 180:
+		return "week"
+	default:
+		return "month"
+	}
+}
+
+// GetPaymentOrderStats aggregates DONE orders approved within [from, to)
+// for the admin sales-stats screen: a summary (total revenue, order count,
+// average order value), a trend broken into day/week/month buckets (picked
+// by determineTrendUnit), and revenue/count breakdowns by category, payment
+// method, and table.
+//
+// Bucketing/grouping is done in Postgres via GROUP BY rather than in Go, so
+// arbitrarily large ranges never have to pull every matching row into
+// application memory just to sum them.
+//
+// The trend buckets are computed on `approved_at AT TIME ZONE 'Asia/Seoul'`
+// — a KST wall-clock conversion scoped to this one query, not a
+// server-wide timezone policy (contrast `formatTimestamp`, which always
+// stores/serializes in UTC, and the order-history list filter, whose
+// from/to bounds are pre-computed by the browser instead). A range here can
+// split into an arbitrary, unbounded number of buckets, so — unlike the
+// list filter's fixed from/to pair — there's no fixed set of boundaries the
+// browser could precompute; the bucketing has to happen in SQL. Korea is
+// this store's only market today, so the fixed 'Asia/Seoul' literal is
+// fine.
+func (r *Repository) GetPaymentOrderStats(ctx context.Context, from time.Time, to time.Time) (lamdata.PaymentOrderStats, error) {
+	var stats lamdata.PaymentOrderStats
+
+	var totalRevenue int64
+	var orderCount int
+	summarySQL := "SELECT COALESCE(SUM(amount), 0), COUNT(*) FROM payment_orders" + paymentOrderStatsFilterWhere
+	if err := r.pool.QueryRow(ctx, summarySQL, from, to).Scan(&totalRevenue, &orderCount); err != nil {
+		return lamdata.PaymentOrderStats{}, classifyError(err)
+	}
+	stats.Summary = lamdata.PaymentOrderStatsSummary{
+		TotalRevenue: totalRevenue,
+		OrderCount:   orderCount,
+	}
+	if orderCount > 0 {
+		stats.Summary.AverageOrderValue = int64(math.Round(float64(totalRevenue) / float64(orderCount)))
+	}
+
+	unit := determineTrendUnit(from, to)
+	trendSQL := `
+		SELECT
+			TO_CHAR(date_trunc($3, approved_at AT TIME ZONE 'Asia/Seoul'), 'YYYY-MM-DD') AS bucket,
+			COALESCE(SUM(amount), 0),
+			COUNT(*)
+		FROM payment_orders
+	` + paymentOrderStatsFilterWhere + `
+		GROUP BY bucket
+		ORDER BY bucket ASC
+	`
+	trendRows, err := r.pool.Query(ctx, trendSQL, from, to, unit)
+	if err != nil {
+		return lamdata.PaymentOrderStats{}, classifyError(err)
+	}
+	buckets := make([]lamdata.PaymentOrderTrendBucket, 0)
+	for trendRows.Next() {
+		var bucket lamdata.PaymentOrderTrendBucket
+		if err := trendRows.Scan(&bucket.Bucket, &bucket.Revenue, &bucket.OrderCount); err != nil {
+			trendRows.Close()
+			return lamdata.PaymentOrderStats{}, err
+		}
+		buckets = append(buckets, bucket)
+	}
+	trendRows.Close()
+	if err := trendRows.Err(); err != nil {
+		return lamdata.PaymentOrderStats{}, err
+	}
+	stats.Trend = lamdata.PaymentOrderTrend{Unit: unit, Buckets: buckets}
+
+	categorySQL := `
+		SELECT category_name, COALESCE(SUM(amount), 0), COUNT(*)
+		FROM payment_orders
+	` + paymentOrderStatsFilterWhere + `
+		GROUP BY category_name
+		ORDER BY SUM(amount) DESC
+	`
+	categoryRows, err := r.pool.Query(ctx, categorySQL, from, to)
+	if err != nil {
+		return lamdata.PaymentOrderStats{}, classifyError(err)
+	}
+	stats.ByCategory = make([]lamdata.PaymentOrderCategoryStat, 0)
+	for categoryRows.Next() {
+		var row lamdata.PaymentOrderCategoryStat
+		if err := categoryRows.Scan(&row.CategoryName, &row.Revenue, &row.OrderCount); err != nil {
+			categoryRows.Close()
+			return lamdata.PaymentOrderStats{}, err
+		}
+		stats.ByCategory = append(stats.ByCategory, row)
+	}
+	categoryRows.Close()
+	if err := categoryRows.Err(); err != nil {
+		return lamdata.PaymentOrderStats{}, err
+	}
+
+	paymentMethodSQL := `
+		SELECT COALESCE(payment_method, ''), COALESCE(SUM(amount), 0), COUNT(*)
+		FROM payment_orders
+	` + paymentOrderStatsFilterWhere + `
+		GROUP BY payment_method
+		ORDER BY SUM(amount) DESC
+	`
+	paymentMethodRows, err := r.pool.Query(ctx, paymentMethodSQL, from, to)
+	if err != nil {
+		return lamdata.PaymentOrderStats{}, classifyError(err)
+	}
+	stats.ByPaymentMethod = make([]lamdata.PaymentOrderPaymentMethodStat, 0)
+	for paymentMethodRows.Next() {
+		var row lamdata.PaymentOrderPaymentMethodStat
+		if err := paymentMethodRows.Scan(&row.PaymentMethod, &row.Revenue, &row.OrderCount); err != nil {
+			paymentMethodRows.Close()
+			return lamdata.PaymentOrderStats{}, err
+		}
+		stats.ByPaymentMethod = append(stats.ByPaymentMethod, row)
+	}
+	paymentMethodRows.Close()
+	if err := paymentMethodRows.Err(); err != nil {
+		return lamdata.PaymentOrderStats{}, err
+	}
+
+	tableSQL := `
+		SELECT table_number, COALESCE(SUM(amount), 0), COUNT(*)
+		FROM payment_orders
+	` + paymentOrderStatsFilterWhere + `
+		GROUP BY table_number
+		ORDER BY SUM(amount) DESC
+	`
+	tableRows, err := r.pool.Query(ctx, tableSQL, from, to)
+	if err != nil {
+		return lamdata.PaymentOrderStats{}, classifyError(err)
+	}
+	stats.ByTable = make([]lamdata.PaymentOrderTableStat, 0)
+	for tableRows.Next() {
+		var row lamdata.PaymentOrderTableStat
+		if err := tableRows.Scan(&row.TableNumber, &row.Revenue, &row.OrderCount); err != nil {
+			tableRows.Close()
+			return lamdata.PaymentOrderStats{}, err
+		}
+		stats.ByTable = append(stats.ByTable, row)
+	}
+	tableRows.Close()
+	if err := tableRows.Err(); err != nil {
+		return lamdata.PaymentOrderStats{}, err
+	}
+
+	return stats, nil
 }
