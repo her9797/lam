@@ -2,7 +2,7 @@
 
 import "@/i18n/client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Bar,
@@ -53,6 +53,12 @@ const TREND_UNIT_LABEL_KEY: Record<TrendUnit, string> = {
   month: "statsTrendUnitMonth",
 };
 
+// A fixed, arbitrary placeholder passed to `useSalesStatsQuery` before the
+// real default range is set (see `SalesStatsPage`'s mount effect) — never
+// actually fetched with, since the query's `enabled` flag stays false
+// until then.
+const EPOCH = new Date(0);
+
 function ShareChart({
   data,
   nameKey,
@@ -81,14 +87,30 @@ function ShareChart({
 
 export function SalesStatsPage() {
   const { t, i18n } = useTranslation("orders");
-  const initial = defaultDateRange();
-  const [fromStr, setFromStr] = useState(initial.from);
-  const [toStr, setToStr] = useState(initial.to);
+  // Both start blank — deterministic on the server and on the client's
+  // first render, unlike calling `defaultDateRange()` (which reads
+  // `new Date()`) directly here. Next.js still renders this "use client"
+  // page once on the server for its initial HTML, and hydrates on the
+  // client against a *separately evaluated* initial render; two `new
+  // Date()` reads, at whatever instant each side happens to run, are not
+  // guaranteed to land on the same calendar day, which previously produced
+  // React error #418 ("hydration failed") whenever they didn't agree. The
+  // effect below applies the real default exactly once, client-side only,
+  // after mount.
+  const [fromStr, setFromStr] = useState("");
+  const [toStr, setToStr] = useState("");
+  useEffect(() => {
+    const initial = defaultDateRange();
+    // This is the one deliberate exception to the lint rule's advice:
+    // there is no render-time computation of "today" that both the server
+    // and the client can agree on, so applying it after mount (accepting
+    // the one extra render pass) is the fix, not the problem.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setFromStr(initial.from);
+    setToStr(initial.to);
+  }, []);
 
-  const initialResolved = resolveDateRange(initial.from, initial.to);
-  const [lastValidRange, setLastValidRange] = useState<{ from: Date; to: Date }>(
-    initialResolved.ok ? { from: initialResolved.from, to: initialResolved.to } : { from: new Date(), to: new Date() },
-  );
+  const [lastValidRange, setLastValidRange] = useState<{ from: Date; to: Date } | null>(null);
 
   const currentResult = resolveDateRange(fromStr, toStr);
   // React's "adjust state during render" pattern (guarded, not an effect) —
@@ -96,13 +118,21 @@ export function SalesStatsPage() {
   // input in sync with a derived value without an extra render's lag.
   if (
     currentResult.ok &&
-    (currentResult.from.getTime() !== lastValidRange.from.getTime() ||
+    (lastValidRange === null ||
+      currentResult.from.getTime() !== lastValidRange.from.getTime() ||
       currentResult.to.getTime() !== lastValidRange.to.getTime())
   ) {
     setLastValidRange({ from: currentResult.from, to: currentResult.to });
   }
 
-  const statsQuery = useSalesStatsQuery(lastValidRange.from, lastValidRange.to);
+  // Only fires once a real range exists (post-mount) — before that,
+  // `lastValidRange` is a placeholder the query must not actually fetch
+  // with (see `useSalesStatsQuery`'s `enabled` option).
+  const statsQuery = useSalesStatsQuery(
+    lastValidRange?.from ?? EPOCH,
+    lastValidRange?.to ?? EPOCH,
+    lastValidRange !== null,
+  );
 
   const dateControls = (
     <div className="flex flex-wrap items-end gap-3">
@@ -127,7 +157,9 @@ export function SalesStatsPage() {
       <h1 className="text-lg font-semibold text-foreground">{t("statsTitle")}</h1>
       {dateControls}
 
-      {!currentResult.ok ? (
+      {lastValidRange === null ? (
+        <LoadingState label={t("statsLoading")} />
+      ) : !currentResult.ok ? (
         <p role="alert" className="text-sm text-destructive">
           {t("statsInvalidRange")}
         </p>
