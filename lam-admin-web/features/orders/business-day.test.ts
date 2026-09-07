@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { getDatePresetRange } from "./business-day";
+import { getBusinessDayBoundsForDate, getDatePresetRange } from "./business-day";
 
 // All Date values in this file are constructed with the local-time
 // constructor (`new Date(y, m, d, h, ...)`), and the module under test also
@@ -63,5 +63,19 @@ describe("getDatePresetRange", () => {
     const range = getDatePresetRange("last30", new Date(2026, 0, 10, 20, 0, 0, 0));
     expect(range.to).toEqual(new Date(2026, 0, 11, 6, 0, 0, 0));
     expect(range.from).toEqual(new Date(2025, 11, 12, 6, 0, 0, 0));
+  });
+});
+
+describe("getBusinessDayBoundsForDate", () => {
+  it("labels the business day by the calendar date it opens on: 16:00 that date through 06:00 the next", () => {
+    const bounds = getBusinessDayBoundsForDate(new Date(2026, 0, 10, 0, 0, 0, 0));
+    expect(bounds.start).toEqual(new Date(2026, 0, 10, 16, 0, 0, 0));
+    expect(bounds.end).toEqual(new Date(2026, 0, 11, 6, 0, 0, 0));
+  });
+
+  it("ignores any time-of-day component on the input, using only its calendar date", () => {
+    const bounds = getBusinessDayBoundsForDate(new Date(2026, 0, 10, 23, 45, 0, 0));
+    expect(bounds.start).toEqual(new Date(2026, 0, 10, 16, 0, 0, 0));
+    expect(bounds.end).toEqual(new Date(2026, 0, 11, 6, 0, 0, 0));
   });
 });

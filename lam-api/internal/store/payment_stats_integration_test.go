@@ -68,7 +68,7 @@ func TestRepository_GetPaymentOrderStats_SummaryTotalsOnlyDoneOrders(t *testing.
 
 	from := time.Date(2026, 1, 1, 0, 0, 0, 0, kst)
 	to := time.Date(2026, 2, 1, 0, 0, 0, 0, kst)
-	stats, err := repo.GetPaymentOrderStats(ctx, from, to)
+	stats, err := repo.GetPaymentOrderStats(ctx, from, to, false)
 	if err != nil {
 		t.Fatalf("GetPaymentOrderStats() error = %v", err)
 	}
@@ -90,7 +90,7 @@ func TestRepository_GetPaymentOrderStats_EmptyRangeHasZeroAverageNotDivideByZero
 
 	from := time.Date(2026, 1, 1, 0, 0, 0, 0, kst)
 	to := time.Date(2026, 2, 1, 0, 0, 0, 0, kst)
-	stats, err := repo.GetPaymentOrderStats(ctx, from, to)
+	stats, err := repo.GetPaymentOrderStats(ctx, from, to, false)
 	if err != nil {
 		t.Fatalf("GetPaymentOrderStats() error = %v", err)
 	}
@@ -121,7 +121,7 @@ func TestRepository_GetPaymentOrderStats_TrendUnitByRangeLength(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			to := base.AddDate(0, 0, tc.days)
-			stats, err := repo.GetPaymentOrderStats(ctx, base, to)
+			stats, err := repo.GetPaymentOrderStats(ctx, base, to, false)
 			if err != nil {
 				t.Fatalf("GetPaymentOrderStats() error = %v", err)
 			}
@@ -147,7 +147,7 @@ func TestRepository_GetPaymentOrderStats_BucketsByKSTCalendarDate(t *testing.T) 
 
 	from := time.Date(2026, 1, 1, 0, 0, 0, 0, kst)
 	to := time.Date(2026, 2, 1, 0, 0, 0, 0, kst)
-	stats, err := repo.GetPaymentOrderStats(ctx, from, to)
+	stats, err := repo.GetPaymentOrderStats(ctx, from, to, false)
 	if err != nil {
 		t.Fatalf("GetPaymentOrderStats() error = %v", err)
 	}
@@ -179,7 +179,7 @@ func TestRepository_GetPaymentOrderStats_GroupsByCategoryPaymentMethodAndTable(t
 
 	from := time.Date(2026, 1, 1, 0, 0, 0, 0, kst)
 	to := time.Date(2026, 2, 1, 0, 0, 0, 0, kst)
-	stats, err := repo.GetPaymentOrderStats(ctx, from, to)
+	stats, err := repo.GetPaymentOrderStats(ctx, from, to, false)
 	if err != nil {
 		t.Fatalf("GetPaymentOrderStats() error = %v", err)
 	}
@@ -222,7 +222,7 @@ func TestRepository_GetPaymentOrderStats_UnlabeledTableGroupsUnderBlank(t *testi
 
 	from := time.Date(2026, 1, 1, 0, 0, 0, 0, kst)
 	to := time.Date(2026, 2, 1, 0, 0, 0, 0, kst)
-	stats, err := repo.GetPaymentOrderStats(ctx, from, to)
+	stats, err := repo.GetPaymentOrderStats(ctx, from, to, false)
 	if err != nil {
 		t.Fatalf("GetPaymentOrderStats() error = %v", err)
 	}
@@ -230,4 +230,42 @@ func TestRepository_GetPaymentOrderStats_UnlabeledTableGroupsUnderBlank(t *testi
 	if len(stats.ByTable) != 1 || stats.ByTable[0].TableNumber != "" {
 		t.Fatalf("ByTable = %+v, want a single blank-table entry", stats.ByTable)
 	}
+}
+
+func TestRepository_GetPaymentOrderStats_BusinessDayBasisShiftsBucketBoundary(t *testing.T) {
+	repo := resetDB(t)
+	ctx := context.Background()
+
+	// 2026-01-11T02:00 KST falls after midnight but before the 06:00 close
+	// buffer, so it belongs to the business day that opened the evening of
+	// the 10th — the whole point of the business-day basis existing
+	// alongside the plain KST-calendar basis TestRepository_
+	// GetPaymentOrderStats_BucketsByKSTCalendarDate already covers.
+	seedDonePaymentOrder(t, ctx, seedDoneOrder{
+		ID: "bd1", TableNumber: "1", CategoryName: "Drinks", PaymentMethod: "카드",
+		Amount: 8000, ApprovedAt: time.Date(2026, 1, 11, 2, 0, 0, 0, kst),
+	})
+
+	from := time.Date(2026, 1, 1, 0, 0, 0, 0, kst)
+	to := time.Date(2026, 2, 1, 0, 0, 0, 0, kst)
+
+	t.Run("calendar basis buckets it on the 11th", func(t *testing.T) {
+		stats, err := repo.GetPaymentOrderStats(ctx, from, to, false)
+		if err != nil {
+			t.Fatalf("GetPaymentOrderStats() error = %v", err)
+		}
+		if len(stats.Trend.Buckets) != 1 || stats.Trend.Buckets[0].Bucket != "2026-01-11" {
+			t.Fatalf("Trend.Buckets = %+v, want a single 2026-01-11 bucket", stats.Trend.Buckets)
+		}
+	})
+
+	t.Run("business-day basis buckets it on the 10th", func(t *testing.T) {
+		stats, err := repo.GetPaymentOrderStats(ctx, from, to, true)
+		if err != nil {
+			t.Fatalf("GetPaymentOrderStats() error = %v", err)
+		}
+		if len(stats.Trend.Buckets) != 1 || stats.Trend.Buckets[0].Bucket != "2026-01-10" {
+			t.Fatalf("Trend.Buckets = %+v, want a single 2026-01-10 bucket", stats.Trend.Buckets)
+		}
+	})
 }

@@ -55,6 +55,23 @@ function rollingWindowEndingAtCurrentBoundary(reference: Date, days: number): { 
 }
 
 /**
+ * The business day *labeled* by `date`'s calendar date (only its
+ * year/month/day are read — any time-of-day component is ignored): 16:00
+ * that date through 06:00 the next. Unlike `getDatePresetRange("today")`,
+ * which is always relative to "now", this resolves an arbitrary
+ * operator-picked date — the sales-stats screen's date-range inputs use it
+ * to convert a picked "from"/"to" date into absolute instants under the
+ * "business day" aggregation basis (see `features/orders/stats/date-range.ts`).
+ */
+export function getBusinessDayBoundsForDate(date: Date): { start: Date; end: Date } {
+  const start = new Date(date.getFullYear(), date.getMonth(), date.getDate(), BUSINESS_DAY_OPEN_HOUR, 0, 0, 0);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 1);
+  end.setHours(BUSINESS_DAY_CLOSE_HOUR, 0, 0, 0);
+  return { start, end };
+}
+
+/**
  * Resolves a date-range preset to an absolute `[from, to)` bound, or
  * `{ from: undefined, to: undefined }` for "all" (no bound). `reference`
  * defaults to now and is only overridden in tests.

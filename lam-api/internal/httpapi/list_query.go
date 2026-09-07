@@ -305,8 +305,9 @@ func parsePaymentOrderListQuery(query url.Values) (paymentOrderListQuery, error)
 // screen always has an explicit range picked by the operator, so there is
 // no "all time" default to fall back to.
 type paymentOrderStatsQuery struct {
-	From time.Time
-	To   time.Time
+	From             time.Time
+	To               time.Time
+	BusinessDayBasis bool // dayBasis=business vs the "calendar" default
 }
 
 func parsePaymentOrderStatsQuery(query url.Values) (paymentOrderStatsQuery, error) {
@@ -328,5 +329,17 @@ func parsePaymentOrderStatsQuery(query url.Values) (paymentOrderStatsQuery, erro
 		return paymentOrderStatsQuery{}, fmt.Errorf("invalid range: from %q must be before to %q", fromRaw, toRaw)
 	}
 
-	return paymentOrderStatsQuery{From: from, To: to}, nil
+	businessDayBasis := false
+	if dayBasis := query.Get("dayBasis"); dayBasis != "" {
+		switch dayBasis {
+		case "business":
+			businessDayBasis = true
+		case "calendar":
+			businessDayBasis = false
+		default:
+			return paymentOrderStatsQuery{}, fmt.Errorf("invalid dayBasis: %q", dayBasis)
+		}
+	}
+
+	return paymentOrderStatsQuery{From: from, To: to, BusinessDayBasis: businessDayBasis}, nil
 }

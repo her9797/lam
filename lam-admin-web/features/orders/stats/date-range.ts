@@ -1,13 +1,24 @@
 /**
- * Converts the sales-stats screen's two `<input type="date">` values (plain
- * `YYYY-MM-DD` strings, no time component) into the absolute `[from, to)`
- * instant range `GET /api/v1/admin/payment-orders/stats` expects.
+ * Converts the sales-stats screen's two `<input type="date">` values
+ * (`YYYY-MM-DD`, no time) into the absolute `[from, to)` instant range
+ * `GET /api/v1/admin/payment-orders/stats` expects — under whichever
+ * `DayBasis` the operator has selected for the screen.
  *
- * Parsing happens in the browser, against the operator's own local clock —
- * the same approach `features/orders/business-day.ts` uses for the
- * order-history screen's date presets, for the same reason: it keeps
- * `lam-api` free of any server-side timezone policy for filtering.
+ * "calendar" treats each picked date as a plain midnight-to-midnight day.
+ * "business" treats it as the venue's buffered business day (16:00-06:00,
+ * see `../business-day.ts`) that *opens* on that date — the same
+ * convention the order-history screen's date presets use, and for the
+ * same reason: a bar/lounge's day runs from evening into the small hours,
+ * so a calendar-midnight boundary would arbitrarily split one night's
+ * orders in half.
+ *
+ * Parsing happens in the browser, against the operator's own local clock,
+ * for the same reason `business-day.ts` does: it keeps `lam-api` free of
+ * any server-side timezone policy for filtering.
  */
+import { getBusinessDayBoundsForDate, getDatePresetRange } from "../business-day";
+
+export type DayBasis = "business" | "calendar";
 
 export type DateRangeResult = { ok: true; from: Date; to: Date } | { ok: false };
 
@@ -27,26 +38,35 @@ function parseDateOnly(value: string): Date | null {
   return date;
 }
 
+function calendarDayBounds(date: Date): { start: Date; end: Date } {
+  const start = new Date(date);
+  const end = new Date(date);
+  end.setDate(end.getDate() + 1);
+  return { start, end };
+}
+
+function boundsForBasis(basis: DayBasis, date: Date): { start: Date; end: Date } {
+  return basis === "business" ? getBusinessDayBoundsForDate(date) : calendarDayBounds(date);
+}
+
 /**
- * Resolves the picked `[fromDateStr, toDateStr]` calendar range to an
- * absolute `[from, to)` instant range. `to` is the midnight that *starts
- * the day after* `toDateStr`, so a range where `from` and `to` are the same
- * calendar date still covers that entire day (an inclusive, one-day range),
- * not zero orders.
+ * Resolves the picked `[fromDateStr, toDateStr]` range to an absolute
+ * `[from, to)` instant range under `basis`. `to` is expanded to the *end*
+ * of the day/business-day it labels, so a range where `from` and `to` are
+ * the same date still covers that entire day, not zero orders.
  */
-export function resolveDateRange(fromDateStr: string, toDateStr: string): DateRangeResult {
-  const from = parseDateOnly(fromDateStr);
-  const toDayStart = parseDateOnly(toDateStr);
-  if (!from || !toDayStart) {
+export function resolveDateRange(fromDateStr: string, toDateStr: string, basis: DayBasis): DateRangeResult {
+  const fromDate = parseDateOnly(fromDateStr);
+  const toDate = parseDateOnly(toDateStr);
+  if (!fromDate || !toDate) {
     return { ok: false };
   }
-  if (from.getTime() > toDayStart.getTime()) {
+  if (fromDate.getTime() > toDate.getTime()) {
     return { ok: false };
   }
 
-  const to = new Date(toDayStart);
-  to.setDate(to.getDate() + 1);
-
+  const from = boundsForBasis(basis, fromDate).start;
+  const to = boundsForBasis(basis, toDate).end;
   return { ok: true, from, to };
 }
 
@@ -57,15 +77,22 @@ function formatDateOnly(date: Date): string {
   return `${year}-${month}-${day}`;
 }
 
-const DEFAULT_RANGE_DAYS = 30;
+const DEFAULT_RANGE_SPAN_DAYS = 30;
 
 /**
  * The screen's initial range on first load: the 30 days up to and
- * including `reference` (defaults to now).
+ * including "today" under `basis` — under "business", that's the date
+ * label `getDatePresetRange("today")` resolves to (which may be
+ * yesterday's date before the buffered close), not necessarily the
+ * calendar date the operator's clock currently shows.
  */
-export function defaultDateRange(reference: Date = new Date()): { from: string; to: string } {
-  const to = new Date(reference.getFullYear(), reference.getMonth(), reference.getDate());
-  const from = new Date(to);
-  from.setDate(from.getDate() - DEFAULT_RANGE_DAYS);
-  return { from: formatDateOnly(from), to: formatDateOnly(to) };
+export function defaultDateRange(basis: DayBasis, reference: Date = new Date()): { from: string; to: string } {
+  const todayLabel =
+    basis === "business"
+      ? (getDatePresetRange("today", reference).from ?? reference)
+      : new Date(reference.getFullYear(), reference.getMonth(), reference.getDate());
+
+  const from = new Date(todayLabel);
+  from.setDate(from.getDate() - DEFAULT_RANGE_SPAN_DAYS);
+  return { from: formatDateOnly(from), to: formatDateOnly(todayLabel) };
 }

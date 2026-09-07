@@ -564,7 +564,7 @@ func NewMux(repository *store.Repository, cfg config.Config) http.Handler {
 			return
 		}
 
-		stats, err := repository.GetPaymentOrderStats(r.Context(), query.From, query.To)
+		stats, err := repository.GetPaymentOrderStats(r.Context(), query.From, query.To, query.BusinessDayBasis)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err)
 			return

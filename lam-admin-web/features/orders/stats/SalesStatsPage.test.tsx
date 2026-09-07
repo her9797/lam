@@ -7,7 +7,7 @@ const useSalesStatsQueryMock = vi.fn();
 const refetchMock = vi.fn();
 
 vi.mock("./queries", () => ({
-  useSalesStatsQuery: (from: Date, to: Date) => useSalesStatsQueryMock(from, to),
+  useSalesStatsQuery: (from: Date, to: Date, dayBasis: string) => useSalesStatsQueryMock(from, to, dayBasis),
 }));
 
 import { SalesStatsPage } from "./SalesStatsPage";
@@ -108,7 +108,13 @@ describe("SalesStatsPage", () => {
     expect(screen.getByText("₩8,000")).toBeInTheDocument();
   });
 
-  it("shows a validation message and skips the query when the start date is after the end date", () => {
+  it("defaults the aggregation basis to '영업일' (business day)", () => {
+    render(<SalesStatsPage />);
+
+    expect(screen.getByLabelText("집계 기준")).toHaveTextContent("영업일");
+  });
+
+  it("shows a validation message when the start date is after the end date", () => {
     render(<SalesStatsPage />);
 
     const fromInput = screen.getByLabelText("시작일");

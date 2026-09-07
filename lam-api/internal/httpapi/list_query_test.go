@@ -246,8 +246,9 @@ func TestParsePaymentOrderListQuery_InvalidValuesRejected(t *testing.T) {
 
 func TestParsePaymentOrderStatsQuery_ValidValues(t *testing.T) {
 	query := url.Values{
-		"from": {"2026-01-01T00:00:00Z"},
-		"to":   {"2026-02-01T00:00:00Z"},
+		"from":     {"2026-01-01T00:00:00Z"},
+		"to":       {"2026-02-01T00:00:00Z"},
+		"dayBasis": {"business"},
 	}
 
 	q, err := parsePaymentOrderStatsQuery(query)
@@ -258,6 +259,40 @@ func TestParsePaymentOrderStatsQuery_ValidValues(t *testing.T) {
 	wantTo := time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC)
 	if !q.From.Equal(wantFrom) || !q.To.Equal(wantTo) {
 		t.Errorf("parsed = %+v, want From=%v To=%v", q, wantFrom, wantTo)
+	}
+	if !q.BusinessDayBasis {
+		t.Errorf("BusinessDayBasis = false, want true for dayBasis=business")
+	}
+}
+
+func TestParsePaymentOrderStatsQuery_DayBasisDefaultsToCalendar(t *testing.T) {
+	query := url.Values{
+		"from": {"2026-01-01T00:00:00Z"},
+		"to":   {"2026-02-01T00:00:00Z"},
+	}
+
+	q, err := parsePaymentOrderStatsQuery(query)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if q.BusinessDayBasis {
+		t.Error("BusinessDayBasis = true, want false when dayBasis is omitted")
+	}
+}
+
+func TestParsePaymentOrderStatsQuery_DayBasisCalendarIsExplicitlyFalse(t *testing.T) {
+	query := url.Values{
+		"from":     {"2026-01-01T00:00:00Z"},
+		"to":       {"2026-02-01T00:00:00Z"},
+		"dayBasis": {"calendar"},
+	}
+
+	q, err := parsePaymentOrderStatsQuery(query)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if q.BusinessDayBasis {
+		t.Error("BusinessDayBasis = true, want false for dayBasis=calendar")
 	}
 }
 
@@ -278,6 +313,11 @@ func TestParsePaymentOrderStatsQuery_InvalidValuesRejected(t *testing.T) {
 		{"from equal to", url.Values{
 			"from": {"2026-01-01T00:00:00Z"},
 			"to":   {"2026-01-01T00:00:00Z"},
+		}},
+		{"unknown dayBasis", url.Values{
+			"from":     {"2026-01-01T00:00:00Z"},
+			"to":       {"2026-02-01T00:00:00Z"},
+			"dayBasis": {"lunar"},
 		}},
 	}
 

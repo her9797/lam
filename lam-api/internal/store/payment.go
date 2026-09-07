@@ -392,7 +392,15 @@ func determineTrendUnit(from time.Time, to time.Time) string {
 // browser could precompute; the bucketing has to happen in SQL. Korea is
 // this store's only market today, so the fixed 'Asia/Seoul' literal is
 // fine.
-func (r *Repository) GetPaymentOrderStats(ctx context.Context, from time.Time, to time.Time) (lamdata.PaymentOrderStats, error) {
+//
+// businessDayBasis switches the trend buckets between plain KST-calendar
+// boundaries (midnight-to-midnight) and the venue's buffered business day
+// (16:00-06:00, matching `lam-admin-web`'s `features/orders/business-day.ts`)
+// — shifting the timestamp back 16 hours before truncating to the bucket
+// unit, then shifting the truncated boundary forward again by the same 16
+// hours, is the standard trick for truncating to an offset day/week/month
+// rather than one starting at midnight.
+func (r *Repository) GetPaymentOrderStats(ctx context.Context, from time.Time, to time.Time, businessDayBasis bool) (lamdata.PaymentOrderStats, error) {
 	var stats lamdata.PaymentOrderStats
 
 	var totalRevenue int64
@@ -412,7 +420,14 @@ func (r *Repository) GetPaymentOrderStats(ctx context.Context, from time.Time, t
 	unit := determineTrendUnit(from, to)
 	trendSQL := `
 		SELECT
-			TO_CHAR(date_trunc($3, approved_at AT TIME ZONE 'Asia/Seoul'), 'YYYY-MM-DD') AS bucket,
+			TO_CHAR(
+				CASE WHEN $4 THEN
+					date_trunc($3, (approved_at AT TIME ZONE 'Asia/Seoul') - INTERVAL '16 hours') + INTERVAL '16 hours'
+				ELSE
+					date_trunc($3, approved_at AT TIME ZONE 'Asia/Seoul')
+				END,
+				'YYYY-MM-DD'
+			) AS bucket,
 			COALESCE(SUM(amount), 0),
 			COUNT(*)
 		FROM payment_orders
@@ -420,7 +435,7 @@ func (r *Repository) GetPaymentOrderStats(ctx context.Context, from time.Time, t
 		GROUP BY bucket
 		ORDER BY bucket ASC
 	`
-	trendRows, err := r.pool.Query(ctx, trendSQL, from, to, unit)
+	trendRows, err := r.pool.Query(ctx, trendSQL, from, to, unit, businessDayBasis)
 	if err != nil {
 		return lamdata.PaymentOrderStats{}, classifyError(err)
 	}
