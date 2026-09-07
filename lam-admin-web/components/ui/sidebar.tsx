@@ -29,7 +29,7 @@ const SIDEBAR_COOKIE_NAME = "sidebar_state"
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7
 const SIDEBAR_WIDTH_COOKIE_NAME = "sidebar_width"
 const SIDEBAR_WIDTH_DEFAULT = 256 // 16rem
-const SIDEBAR_WIDTH_MIN = 192 // 12rem
+const SIDEBAR_WIDTH_MIN = 148 // 9rem
 const SIDEBAR_WIDTH_MAX = 320 // 20rem
 const SIDEBAR_WIDTH_STEP = 16 // 1rem, keyboard resize step
 const SIDEBAR_WIDTH_MOBILE = "18rem"
@@ -304,26 +304,35 @@ function SidebarResizeHandle({
 }: React.ComponentProps<"div">) {
   const { width, setWidth } = useSidebar()
 
-  function handleMouseDown(event: React.MouseEvent<HTMLDivElement>) {
+  function handlePointerDown(event: React.PointerEvent<HTMLDivElement>) {
     event.preventDefault()
     const startX = event.clientX
     const startWidth = width
+    const target = event.currentTarget
+    // jsdom (this project's test environment) doesn't implement pointer
+    // capture, so this is feature-detected rather than called unguarded.
+    if (typeof target.setPointerCapture === "function") {
+      target.setPointerCapture(event.pointerId)
+    }
     document.body.style.cursor = "col-resize"
     document.body.style.userSelect = "none"
 
-    function handleMouseMove(moveEvent: MouseEvent) {
+    function handlePointerMove(moveEvent: PointerEvent) {
       setWidth(startWidth + (moveEvent.clientX - startX))
     }
 
-    function handleMouseUp() {
+    function handlePointerUp(upEvent: PointerEvent) {
       document.body.style.cursor = ""
       document.body.style.userSelect = ""
-      window.removeEventListener("mousemove", handleMouseMove)
-      window.removeEventListener("mouseup", handleMouseUp)
+      if (typeof target.releasePointerCapture === "function") {
+        target.releasePointerCapture(upEvent.pointerId)
+      }
+      window.removeEventListener("pointermove", handlePointerMove)
+      window.removeEventListener("pointerup", handlePointerUp)
     }
 
-    window.addEventListener("mousemove", handleMouseMove)
-    window.addEventListener("mouseup", handleMouseUp)
+    window.addEventListener("pointermove", handlePointerMove)
+    window.addEventListener("pointerup", handlePointerUp)
   }
 
   function handleKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
@@ -353,7 +362,7 @@ function SidebarResizeHandle({
       tabIndex={0}
       data-slot="sidebar-resize-handle"
       data-sidebar="resize-handle"
-      onMouseDown={handleMouseDown}
+      onPointerDown={handlePointerDown}
       onKeyDown={handleKeyDown}
       className={cn(
         "absolute inset-y-0 -right-1 z-20 hidden w-2 cursor-col-resize touch-none after:absolute after:inset-y-0 after:left-1/2 after:w-px after:-translate-x-1/2 after:bg-transparent hover:after:bg-sidebar-ring focus-visible:after:bg-sidebar-ring md:block",

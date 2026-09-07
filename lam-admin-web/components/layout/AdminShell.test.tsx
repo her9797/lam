@@ -287,7 +287,7 @@ describe("AdminShell", () => {
       expect(screen.queryByRole("separator", { name: "Resize Sidebar" })).not.toBeInTheDocument();
     });
 
-    it("드래그하면 이동한 만큼 사이드바 폭이 늘어난다", () => {
+    it("마우스로 드래그하면 이동한 만큼 사이드바 폭이 늘어난다", () => {
       render(
         <AdminShell>
           <p>page content</p>
@@ -297,14 +297,14 @@ describe("AdminShell", () => {
       expect(wrapper.style.getPropertyValue("--sidebar-width")).toBe("256px");
 
       const handle = screen.getByRole("separator", { name: "Resize Sidebar" });
-      fireEvent.mouseDown(handle, { clientX: 256 });
-      fireEvent.mouseMove(window, { clientX: 306 });
-      fireEvent.mouseUp(window, { clientX: 306 });
+      fireEvent.pointerDown(handle, { clientX: 256, pointerId: 1, pointerType: "mouse" });
+      fireEvent.pointerMove(window, { clientX: 306, pointerId: 1, pointerType: "mouse" });
+      fireEvent.pointerUp(window, { clientX: 306, pointerId: 1, pointerType: "mouse" });
 
       expect(wrapper.style.getPropertyValue("--sidebar-width")).toBe("306px");
     });
 
-    it("최소 폭보다 작게 드래그하면 최소 폭(192px)으로 고정된다", () => {
+    it("터치로 드래그해도 이동한 만큼 사이드바 폭이 늘어난다", () => {
       render(
         <AdminShell>
           <p>page content</p>
@@ -313,11 +313,27 @@ describe("AdminShell", () => {
       const wrapper = getSidebarWrapper();
       const handle = screen.getByRole("separator", { name: "Resize Sidebar" });
 
-      fireEvent.mouseDown(handle, { clientX: 256 });
-      fireEvent.mouseMove(window, { clientX: -1000 });
-      fireEvent.mouseUp(window, { clientX: -1000 });
+      fireEvent.pointerDown(handle, { clientX: 256, pointerId: 2, pointerType: "touch" });
+      fireEvent.pointerMove(window, { clientX: 316, pointerId: 2, pointerType: "touch" });
+      fireEvent.pointerUp(window, { clientX: 316, pointerId: 2, pointerType: "touch" });
 
-      expect(wrapper.style.getPropertyValue("--sidebar-width")).toBe("192px");
+      expect(wrapper.style.getPropertyValue("--sidebar-width")).toBe("316px");
+    });
+
+    it("최소 폭보다 작게 드래그하면 최소 폭(148px)으로 고정된다", () => {
+      render(
+        <AdminShell>
+          <p>page content</p>
+        </AdminShell>,
+      );
+      const wrapper = getSidebarWrapper();
+      const handle = screen.getByRole("separator", { name: "Resize Sidebar" });
+
+      fireEvent.pointerDown(handle, { clientX: 256, pointerId: 1 });
+      fireEvent.pointerMove(window, { clientX: -1000, pointerId: 1 });
+      fireEvent.pointerUp(window, { clientX: -1000, pointerId: 1 });
+
+      expect(wrapper.style.getPropertyValue("--sidebar-width")).toBe("148px");
     });
 
     it("최대 폭보다 크게 드래그하면 최대 폭(320px)으로 고정된다", () => {
@@ -329,9 +345,9 @@ describe("AdminShell", () => {
       const wrapper = getSidebarWrapper();
       const handle = screen.getByRole("separator", { name: "Resize Sidebar" });
 
-      fireEvent.mouseDown(handle, { clientX: 256 });
-      fireEvent.mouseMove(window, { clientX: 2000 });
-      fireEvent.mouseUp(window, { clientX: 2000 });
+      fireEvent.pointerDown(handle, { clientX: 256, pointerId: 1 });
+      fireEvent.pointerMove(window, { clientX: 2000, pointerId: 1 });
+      fireEvent.pointerUp(window, { clientX: 2000, pointerId: 1 });
 
       expect(wrapper.style.getPropertyValue("--sidebar-width")).toBe("320px");
     });
@@ -344,9 +360,9 @@ describe("AdminShell", () => {
       );
       const handle = screen.getByRole("separator", { name: "Resize Sidebar" });
 
-      fireEvent.mouseDown(handle, { clientX: 256 });
-      fireEvent.mouseMove(window, { clientX: 300 });
-      fireEvent.mouseUp(window, { clientX: 300 });
+      fireEvent.pointerDown(handle, { clientX: 256, pointerId: 1 });
+      fireEvent.pointerMove(window, { clientX: 300, pointerId: 1 });
+      fireEvent.pointerUp(window, { clientX: 300, pointerId: 1 });
 
       expect(document.cookie).toContain("sidebar_width=300");
     });
@@ -380,7 +396,7 @@ describe("AdminShell", () => {
       expect(wrapper.style.getPropertyValue("--sidebar-width")).toBe("256px");
 
       fireEvent.keyDown(handle, { key: "Home" });
-      expect(wrapper.style.getPropertyValue("--sidebar-width")).toBe("192px");
+      expect(wrapper.style.getPropertyValue("--sidebar-width")).toBe("148px");
 
       fireEvent.keyDown(handle, { key: "End" });
       expect(wrapper.style.getPropertyValue("--sidebar-width")).toBe("320px");
