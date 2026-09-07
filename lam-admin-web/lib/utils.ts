@@ -46,3 +46,19 @@ export function formatDateTime(value: string, language?: string): string {
     },
   ).format(date)
 }
+
+/**
+ * Formats a raw won amount (e.g. `payment_orders.amount`) as currency, used
+ * by both `features/orders/OrderListPage.tsx` and
+ * `features/orders/stats/SalesStatsPage.tsx`. `style: "currency"` renders a
+ * "₩" symbol, not a translated word, so this needs no i18n resource key of
+ * its own — unlike `lam-api`'s `menu_items.price`, which is a pre-formatted
+ * "10,000원" string from the backend, kept as-is regardless of UI language.
+ */
+export function formatCurrencyKRW(amount: number, language?: string): string {
+  return new Intl.NumberFormat(resolveDateTimeLocale(language), {
+    style: "currency",
+    currency: "KRW",
+    maximumFractionDigits: 0,
+  }).format(amount)
+}

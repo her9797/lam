@@ -243,3 +243,49 @@ func TestParsePaymentOrderListQuery_InvalidValuesRejected(t *testing.T) {
 		})
 	}
 }
+
+func TestParsePaymentOrderStatsQuery_ValidValues(t *testing.T) {
+	query := url.Values{
+		"from": {"2026-01-01T00:00:00Z"},
+		"to":   {"2026-02-01T00:00:00Z"},
+	}
+
+	q, err := parsePaymentOrderStatsQuery(query)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	wantFrom := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	wantTo := time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC)
+	if !q.From.Equal(wantFrom) || !q.To.Equal(wantTo) {
+		t.Errorf("parsed = %+v, want From=%v To=%v", q, wantFrom, wantTo)
+	}
+}
+
+func TestParsePaymentOrderStatsQuery_InvalidValuesRejected(t *testing.T) {
+	cases := []struct {
+		name  string
+		query url.Values
+	}{
+		{"missing from", url.Values{"to": {"2026-02-01T00:00:00Z"}}},
+		{"missing to", url.Values{"from": {"2026-01-01T00:00:00Z"}}},
+		{"missing both", url.Values{}},
+		{"unparseable from", url.Values{"from": {"nope"}, "to": {"2026-02-01T00:00:00Z"}}},
+		{"unparseable to", url.Values{"from": {"2026-01-01T00:00:00Z"}, "to": {"nope"}}},
+		{"from not before to", url.Values{
+			"from": {"2026-02-01T00:00:00Z"},
+			"to":   {"2026-01-01T00:00:00Z"},
+		}},
+		{"from equal to", url.Values{
+			"from": {"2026-01-01T00:00:00Z"},
+			"to":   {"2026-01-01T00:00:00Z"},
+		}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, err := parsePaymentOrderStatsQuery(tc.query); err == nil {
+				t.Errorf("parsePaymentOrderStatsQuery(%v) returned nil error, want a validation error", tc.query)
+			}
+		})
+	}
+}

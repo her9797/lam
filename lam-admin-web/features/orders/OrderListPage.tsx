@@ -27,7 +27,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
-import { formatDateTime } from "@/lib/utils";
+import { formatCurrencyKRW, formatDateTime } from "@/lib/utils";
 
 import type { DatePreset } from "./business-day";
 import { buildOrderListSearchParams, parseOrderListQuery } from "./list-query-url";
@@ -62,17 +62,6 @@ const DATE_PRESET_LABEL_KEY: Record<DatePreset, string> = {
   all: "datePresetAll",
 };
 
-// `style: "currency"` renders a currency symbol ("₩"), not a translated
-// word, so this needs no i18n resource key of its own — unlike
-// `lam-api`'s `menu_items.price`, which is a pre-formatted "10,000원"
-// string from the backend, kept as-is regardless of UI language.
-function formatAmount(amount: number, language: string): string {
-  return new Intl.NumberFormat(language, {
-    style: "currency",
-    currency: "KRW",
-    maximumFractionDigits: 0,
-  }).format(amount);
-}
 
 // Field list for the detail dialog, in display order. Labels are keys in
 // the `orders` namespace. Optional fields (e.g. `paymentKey` on an unpaid
@@ -199,7 +188,7 @@ export function OrderListPage() {
       return t(POS_SYNC_LABEL_KEY[order.posSyncStatus]);
     }
     if (AMOUNT_FIELD_KEYS.has(key)) {
-      return formatAmount(value as number, i18n.language);
+      return formatCurrencyKRW(value as number, i18n.language);
     }
     if (DATE_FIELD_KEYS.has(key)) {
       return formatDateTime(value as string, i18n.language);
@@ -329,7 +318,7 @@ export function OrderListPage() {
                   {order.menuItemName}
                   <span className="text-muted-foreground"> ({order.categoryName})</span>
                 </TableCell>
-                <TableCell>{formatAmount(order.amount, i18n.language)}</TableCell>
+                <TableCell>{formatCurrencyKRW(order.amount, i18n.language)}</TableCell>
                 <TableCell>{t(STATUS_LABEL_KEY[order.status])}</TableCell>
                 <TableCell>{t(POS_SYNC_LABEL_KEY[order.posSyncStatus])}</TableCell>
                 <TableCell>

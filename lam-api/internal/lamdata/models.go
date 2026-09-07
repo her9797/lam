@@ -100,6 +100,54 @@ type PaymentOrderPage struct {
 	Total    int            `json:"total"`
 }
 
+// PaymentOrderStats is the aggregated response for the admin sales-stats
+// screen (`GET /api/v1/admin/payment-orders/stats`). Every figure is
+// computed over DONE orders only, within the caller-supplied [from, to)
+// range — see `store.Repository.GetPaymentOrderStats`'s doc comment for the
+// bucketing/timezone rules.
+type PaymentOrderStatsSummary struct {
+	TotalRevenue      int64 `json:"totalRevenue"`
+	OrderCount        int   `json:"orderCount"`
+	AverageOrderValue int64 `json:"averageOrderValue"`
+}
+
+type PaymentOrderTrendBucket struct {
+	Bucket     string `json:"bucket"`
+	Revenue    int64  `json:"revenue"`
+	OrderCount int    `json:"orderCount"`
+}
+
+type PaymentOrderTrend struct {
+	Unit    string                    `json:"unit"`
+	Buckets []PaymentOrderTrendBucket `json:"buckets"`
+}
+
+type PaymentOrderCategoryStat struct {
+	CategoryName string `json:"categoryName"`
+	Revenue      int64  `json:"revenue"`
+	OrderCount   int    `json:"orderCount"`
+}
+
+type PaymentOrderPaymentMethodStat struct {
+	PaymentMethod string `json:"paymentMethod"`
+	Revenue       int64  `json:"revenue"`
+	OrderCount    int    `json:"orderCount"`
+}
+
+type PaymentOrderTableStat struct {
+	TableNumber string `json:"tableNumber"`
+	Revenue     int64  `json:"revenue"`
+	OrderCount  int    `json:"orderCount"`
+}
+
+type PaymentOrderStats struct {
+	Summary         PaymentOrderStatsSummary        `json:"summary"`
+	Trend           PaymentOrderTrend                `json:"trend"`
+	ByCategory      []PaymentOrderCategoryStat       `json:"byCategory"`
+	ByPaymentMethod []PaymentOrderPaymentMethodStat  `json:"byPaymentMethod"`
+	ByTable         []PaymentOrderTableStat          `json:"byTable"`
+}
+
 type CustomerRequestPage struct {
 	Items    []CustomerRequest `json:"items"`
 	Page     int               `json:"page"`

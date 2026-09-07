@@ -298,3 +298,35 @@ func parsePaymentOrderListQuery(query url.Values) (paymentOrderListQuery, error)
 
 	return q, nil
 }
+
+// paymentOrderStatsQuery is the parsed, validated query for
+// GET /api/v1/admin/payment-orders/stats. Unlike paymentOrderListQuery,
+// `from`/`to` are required here (not optional filters) — the sales-stats
+// screen always has an explicit range picked by the operator, so there is
+// no "all time" default to fall back to.
+type paymentOrderStatsQuery struct {
+	From time.Time
+	To   time.Time
+}
+
+func parsePaymentOrderStatsQuery(query url.Values) (paymentOrderStatsQuery, error) {
+	fromRaw := query.Get("from")
+	toRaw := query.Get("to")
+	if fromRaw == "" || toRaw == "" {
+		return paymentOrderStatsQuery{}, fmt.Errorf("from and to are required")
+	}
+
+	from, err := time.Parse(time.RFC3339, fromRaw)
+	if err != nil {
+		return paymentOrderStatsQuery{}, fmt.Errorf("invalid from: %q", fromRaw)
+	}
+	to, err := time.Parse(time.RFC3339, toRaw)
+	if err != nil {
+		return paymentOrderStatsQuery{}, fmt.Errorf("invalid to: %q", toRaw)
+	}
+	if !from.Before(to) {
+		return paymentOrderStatsQuery{}, fmt.Errorf("invalid range: from %q must be before to %q", fromRaw, toRaw)
+	}
+
+	return paymentOrderStatsQuery{From: from, To: to}, nil
+}

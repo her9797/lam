@@ -8,6 +8,7 @@ import { useState, type ComponentType, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import {
   RiArrowDownSLine,
+  RiBarChart2Line,
   RiDashboardLine,
   RiFileTextLine,
   RiFolderLine,
@@ -64,7 +65,10 @@ type NavGroup = { labelKey: string; icon: ComponentType<{ className?: string }>;
 const ORDER_NAV_GROUP: NavGroup = {
   labelKey: "navOrdersGroup",
   icon: RiShoppingCart2Line,
-  items: [{ href: "/orders", labelKey: "navOrders", icon: RiShoppingCart2Line }],
+  items: [
+    { href: "/orders", labelKey: "navOrders", icon: RiShoppingCart2Line },
+    { href: "/orders/stats", labelKey: "navOrderStats", icon: RiBarChart2Line },
+  ],
 };
 
 // A labeled sub-section rather than its own link — "요청 관리" has no page
