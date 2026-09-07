@@ -4,6 +4,7 @@ import "@/i18n/client";
 
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { RiQuestionLine } from "@remixicon/react";
 import {
   Bar,
   BarChart,
@@ -13,7 +14,7 @@ import {
   Pie,
   PieChart,
   ResponsiveContainer,
-  Tooltip,
+  Tooltip as RechartsTooltip,
   XAxis,
   YAxis,
 } from "recharts";
@@ -37,6 +38,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { formatCurrencyKRW } from "@/lib/utils";
 
 import { defaultDateRange, resolveDateRange, type DayBasis } from "./date-range";
@@ -88,7 +90,7 @@ function ShareChart({
               <Cell key={index} fill={CHART_COLORS[index % CHART_COLORS.length]} />
             ))}
           </Pie>
-          <Tooltip />
+          <RechartsTooltip />
           <Legend />
         </PieChart>
       </ResponsiveContainer>
@@ -174,7 +176,18 @@ export function SalesStatsPage() {
         <Input id="stats-to" type="date" value={toStr} onChange={(event) => setToStr(event.target.value)} />
       </div>
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="stats-basis">{t("statsBasisLabel")}</Label>
+        <div className="flex items-center gap-1">
+          <Label htmlFor="stats-basis">{t("statsBasisLabel")}</Label>
+          <Popover>
+            <PopoverTrigger
+              aria-label={t("statsBasisHelp")}
+              className="text-muted-foreground"
+            >
+              <RiQuestionLine className="size-3.5" />
+            </PopoverTrigger>
+            <PopoverContent className="w-64">{t("statsBasisHelp")}</PopoverContent>
+          </Popover>
+        </div>
         <Select value={basis} onValueChange={(value) => setBasis(value as DayBasis)}>
           <SelectTrigger id="stats-basis" size="sm" aria-label={t("statsBasisLabel")}>
             <SelectValue placeholder={t("statsBasisLabel")}>
@@ -265,7 +278,7 @@ function SalesStatsContent({
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="bucket" />
                 <YAxis />
-                <Tooltip formatter={(value) => formatCurrencyKRW(Number(value), language)} />
+                <RechartsTooltip formatter={(value) => formatCurrencyKRW(Number(value), language)} />
                 <Bar dataKey="revenue" fill={CHART_COLORS[0]} />
               </BarChart>
             </ResponsiveContainer>
