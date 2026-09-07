@@ -125,8 +125,8 @@ func TestRouter_PaymentConfirm_SendsNewOrderBroadcast(t *testing.T) {
 	resetServer(t) // truncates tables; its returned handler isn't used here
 	if _, err := testPool.Exec(t.Context(), `
 		INSERT INTO menu_categories (id, label, sort_order) VALUES ('highball', '하이볼', 1);
-		INSERT INTO menu_items (id, category_id, name, description, price, sort_order)
-		VALUES ('house-highball', 'highball', '하우스 하이볼', '테스트 메뉴', '10,000원', 1);
+		INSERT INTO menu_items (id, category_id, name, description, price, sort_order, toss_catalog_item_id)
+		VALUES ('house-highball', 'highball', '하우스 하이볼', '테스트 메뉴', '10,000원', 1, 'pos-item-1');
 	`); err != nil {
 		t.Fatalf("seed menu: %v", err)
 	}
