@@ -94,7 +94,7 @@ const PRODUCT_NAV_GROUP: NavGroup = {
   ],
 };
 
-const NAV_GROUPS: NavGroup[] = [ORDER_NAV_GROUP, REQUEST_NAV_GROUP, PRODUCT_NAV_GROUP];
+const NAV_GROUPS: NavGroup[] = [REQUEST_NAV_GROUP, ORDER_NAV_GROUP, PRODUCT_NAV_GROUP];
 
 const BOTTOM_NAV_ITEMS: NavItem[] = [
   { href: "/notices", labelKey: "navNotices", icon: RiMegaphoneLine },
