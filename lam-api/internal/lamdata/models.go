@@ -175,3 +175,16 @@ type MenuData struct {
 	Categories []MenuCategory `json:"categories"`
 	Items      []MenuItem     `json:"items"`
 }
+
+// CatalogSyncResponse is the response for
+// POST /api/v1/admin/catalog-sync — the manual counterpart of
+// cmd/server/main.go's 5-minute background poll. `Data` is the refreshed
+// bootstrap snapshot (mirroring every other admin mutation endpoint's
+// "return the full state" contract) so the admin web can update its menu
+// list in the same round trip that reports the sync counts.
+type CatalogSyncResponse struct {
+	Created int           `json:"created"`
+	Linked  int           `json:"linked"`
+	Updated int           `json:"updated"`
+	Data    BootstrapData `json:"data"`
+}

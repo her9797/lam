@@ -246,7 +246,7 @@ func TestRouter_CustomerRequests_SendsBroadcastOnCreate(t *testing.T) {
 	cfg := testCfg
 	cfg.SupabaseURL = broadcastServer.URL
 	cfg.SupabaseBroadcastKey = "test-broadcast-key"
-	handler := NewMux(testRepo, cfg)
+	handler := NewMux(testRepo, cfg, nil)
 
 	t.Run("general request creation sends a broadcast", func(t *testing.T) {
 		body, _ := json.Marshal(map[string]string{"tableNumber": "T-01", "text": "napkins"})

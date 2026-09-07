@@ -153,5 +153,5 @@ func resetServer(t *testing.T) http.Handler {
 		t.Fatalf("seed store_profile: %v", err)
 	}
 
-	return NewMux(testRepo, testCfg)
+	return NewMux(testRepo, testCfg, nil)
 }

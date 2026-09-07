@@ -48,6 +48,7 @@ import {
   loadImageNaturalSize,
   type CropTransform,
 } from "./crop";
+import { CatalogResyncButton } from "./CatalogResyncButton";
 import { ImageCropEditor } from "./ImageCropEditor";
 import { MenuItemForm } from "./MenuItemForm";
 import { validateImageFile } from "./model";
@@ -217,7 +218,8 @@ export function MenuManagementPage() {
               </span>
             ) : null}
           </div>
-          <CardAction>
+          <CardAction className="flex items-center gap-2">
+            <CatalogResyncButton />
             <MenuItemForm categories={categories} items={items} />
           </CardAction>
         </CardHeader>

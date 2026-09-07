@@ -25,12 +25,18 @@ const createMenuItemMutationState = { current: idleMutation(createMenuItemMutate
 const updateMenuItemVisibilityMutationState = { current: idleMutation(updateMenuItemVisibilityMutate) };
 const deleteMenuItemMutationState = { current: idleMutation(deleteMenuItemMutate) };
 const uploadMenuItemImageMutationState = { current: idleMutation(uploadMenuItemImageMutate) };
+// CatalogResyncButton reads this too — not under test here, just needs a
+// non-throwing default so this page's own tests keep exercising menu item
+// create/update/delete/upload only.
+const resyncCatalogMutate = vi.fn();
+const resyncCatalogMutationState = { current: idleMutation(resyncCatalogMutate) };
 
 vi.mock("./queries", () => ({
   useCreateMenuItemMutation: () => createMenuItemMutationState.current,
   useUpdateMenuItemVisibilityMutation: () => updateMenuItemVisibilityMutationState.current,
   useDeleteMenuItemMutation: () => deleteMenuItemMutationState.current,
   useUploadMenuItemImageMutation: () => uploadMenuItemImageMutationState.current,
+  useResyncCatalogMutation: () => resyncCatalogMutationState.current,
 }));
 
 const loadImageNaturalSizeMock = vi.fn();
@@ -188,6 +194,12 @@ describe("MenuManagementPage", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("요청이 실패했습니다. (500)");
     fireEvent.click(screen.getByRole("button", { name: "다시 시도" }));
     expect(refetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders the catalog resync button alongside the menu item form trigger", () => {
+    render(<MenuManagementPage />);
+
+    expect(screen.getByRole("button", { name: "다시 동기화" })).toBeInTheDocument();
   });
 
   it("shows empty states when there are no categories or menu items", () => {
