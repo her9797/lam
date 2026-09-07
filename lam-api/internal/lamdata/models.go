@@ -142,10 +142,10 @@ type PaymentOrderTableStat struct {
 
 type PaymentOrderStats struct {
 	Summary         PaymentOrderStatsSummary        `json:"summary"`
-	Trend           PaymentOrderTrend                `json:"trend"`
-	ByCategory      []PaymentOrderCategoryStat       `json:"byCategory"`
-	ByPaymentMethod []PaymentOrderPaymentMethodStat  `json:"byPaymentMethod"`
-	ByTable         []PaymentOrderTableStat          `json:"byTable"`
+	Trend           PaymentOrderTrend               `json:"trend"`
+	ByCategory      []PaymentOrderCategoryStat      `json:"byCategory"`
+	ByPaymentMethod []PaymentOrderPaymentMethodStat `json:"byPaymentMethod"`
+	ByTable         []PaymentOrderTableStat         `json:"byTable"`
 }
 
 type CustomerRequestPage struct {

@@ -73,7 +73,7 @@ func TestRouter_AdminPaymentOrderStats_ReturnsAggregatedStats(t *testing.T) {
 				OrderCount int    `json:"orderCount"`
 			} `json:"buckets"`
 		} `json:"trend"`
-		ByCategory      []struct{ CategoryName string } `json:"byCategory"`
+		ByCategory      []struct{ CategoryName string }  `json:"byCategory"`
 		ByPaymentMethod []struct{ PaymentMethod string } `json:"byPaymentMethod"`
 		ByTable         []struct{ TableNumber string }   `json:"byTable"`
 	}
