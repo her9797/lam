@@ -16,7 +16,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ListToolbar } from "@/components/list/ListToolbar";
 import { Pagination } from "@/components/list/Pagination";
@@ -206,159 +205,154 @@ export function MenuManagementPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="text-lg font-semibold text-foreground">{t("title")}</h1>
-
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
-          <div className="flex items-center gap-2">
-            <CardTitle>{t("listCardTitle")}</CardTitle>
-            {items.length > 0 ? (
-              <span className="text-sm text-muted-foreground">
-                {t("common:listTotalCount", { count: visibleTotal })}
-              </span>
-            ) : null}
-          </div>
-          <CardAction className="flex items-center gap-2">
-            <CatalogResyncButton />
-            <MenuItemForm categories={categories} items={items} />
-          </CardAction>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-3">
-          {!hasCategories ? (
-            <p className="text-sm text-muted-foreground">{t("noCategoriesHint")}</p>
-          ) : null}
-          {imageErrorKey ? (
-            <p role="alert" className="text-sm text-destructive">
-              {t(imageErrorKey)}
-            </p>
-          ) : null}
-          {uploadMutation.isError ? (
-            <p role="alert" className="text-sm text-destructive">
-              {uploadMutation.error instanceof Error
-                ? uploadMutation.error.message
-                : t("imageUploadFailed")}
-            </p>
-          ) : null}
-
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <h1 className="text-lg font-semibold text-foreground">{t("title")}</h1>
           {items.length > 0 ? (
-            <ListToolbar
-              searchValue={listQuery.search}
-              onSearchChange={(search) => setListQuery((prev) => ({ ...prev, search, page: 1 }))}
-              searchPlaceholder={t("itemSearchPlaceholder")}
-            >
-              <Select
-                value={listQuery.sort || "none"}
-                onValueChange={(value) =>
-                  setListQuery((prev) => ({
-                    ...prev,
-                    sort: value === "none" ? "" : String(value),
-                    page: 1,
-                  }))
-                }
-              >
-                <SelectTrigger size="sm" aria-label={t("common:sortLabel")}>
-                  {/* Base UI's <Select.Value> shows the raw string value
-                      unless told how to render a label for it — required
-                      here since these items are plain strings. */}
-                  <SelectValue placeholder={t("common:sortLabel")}>
-                    {(value: string) => ITEM_SORT_LABELS[value] ?? value}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">{t("common:filterAll")}</SelectItem>
-                  <SelectItem value="name">{t("itemSortByName")}</SelectItem>
-                  <SelectItem value="price">{t("itemSortByPrice")}</SelectItem>
-                </SelectContent>
-              </Select>
-            </ListToolbar>
+            <span className="text-sm text-muted-foreground">
+              {t("common:listTotalCount", { count: visibleTotal })}
+            </span>
           ) : null}
+        </div>
+        <div className="flex items-center gap-2">
+          <CatalogResyncButton />
+          <MenuItemForm categories={categories} items={items} />
+        </div>
+      </div>
 
-          {items.length === 0 ? (
-            <EmptyState title={t("itemEmptyTitle")} description={t("itemEmptyDescription")} />
-          ) : visibleItems.length === 0 ? (
-            <EmptyState
-              title={t("common:listNoResultsTitle")}
-              description={t("common:listNoResultsDescription")}
-            />
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t("common:columnName")}</TableHead>
-                  <TableHead>{t("columnCategory")}</TableHead>
-                  <TableHead>{t("columnPrice")}</TableHead>
-                  <TableHead>{t("common:columnVisibility")}</TableHead>
-                  <TableHead>{t("columnImage")}</TableHead>
-                  <TableHead>{t("common:columnActions")}</TableHead>
+      {!hasCategories ? (
+        <p className="text-sm text-muted-foreground">{t("noCategoriesHint")}</p>
+      ) : null}
+      {imageErrorKey ? (
+        <p role="alert" className="text-sm text-destructive">
+          {t(imageErrorKey)}
+        </p>
+      ) : null}
+      {uploadMutation.isError ? (
+        <p role="alert" className="text-sm text-destructive">
+          {uploadMutation.error instanceof Error
+            ? uploadMutation.error.message
+            : t("imageUploadFailed")}
+        </p>
+      ) : null}
+
+      {items.length > 0 ? (
+        <ListToolbar
+          searchValue={listQuery.search}
+          onSearchChange={(search) => setListQuery((prev) => ({ ...prev, search, page: 1 }))}
+          searchPlaceholder={t("itemSearchPlaceholder")}
+        >
+          <Select
+            value={listQuery.sort || "none"}
+            onValueChange={(value) =>
+              setListQuery((prev) => ({
+                ...prev,
+                sort: value === "none" ? "" : String(value),
+                page: 1,
+              }))
+            }
+          >
+            <SelectTrigger size="sm" aria-label={t("common:sortLabel")}>
+              {/* Base UI's <Select.Value> shows the raw string value
+                  unless told how to render a label for it — required
+                  here since these items are plain strings. */}
+              <SelectValue placeholder={t("common:sortLabel")}>
+                {(value: string) => ITEM_SORT_LABELS[value] ?? value}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">{t("common:filterAll")}</SelectItem>
+              <SelectItem value="name">{t("itemSortByName")}</SelectItem>
+              <SelectItem value="price">{t("itemSortByPrice")}</SelectItem>
+            </SelectContent>
+          </Select>
+        </ListToolbar>
+      ) : null}
+
+      {items.length === 0 ? (
+        <EmptyState title={t("itemEmptyTitle")} description={t("itemEmptyDescription")} />
+      ) : visibleItems.length === 0 ? (
+        <EmptyState
+          title={t("common:listNoResultsTitle")}
+          description={t("common:listNoResultsDescription")}
+        />
+      ) : (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>{t("common:columnName")}</TableHead>
+              <TableHead>{t("columnCategory")}</TableHead>
+              <TableHead>{t("columnPrice")}</TableHead>
+              <TableHead>{t("common:columnVisibility")}</TableHead>
+              <TableHead>{t("columnImage")}</TableHead>
+              <TableHead>{t("common:columnActions")}</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {visibleItems.map((item) => {
+              const category = categories.find((candidate) => candidate.id === item.categoryId);
+              return (
+                <TableRow key={item.id}>
+                  <TableCell>{item.name}</TableCell>
+                  <TableCell>{category?.label ?? item.categoryId}</TableCell>
+                  <TableCell>{item.price}</TableCell>
+                  <TableCell>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={isVisibilityPending(item.id)}
+                      onClick={() =>
+                        visibilityMutation.mutate({ id: item.id, isVisible: !item.isVisible })
+                      }
+                    >
+                      {item.isVisible ? t("common:visible") : t("common:hidden")}
+                    </Button>
+                  </TableCell>
+                  <TableCell>
+                    <label className="cursor-pointer text-sm text-primary underline-offset-4 hover:underline">
+                      {t("imageSelect")}
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        className="sr-only"
+                        aria-label={t("imageSelectRowAria", { name: item.name })}
+                        disabled={isUploadPending(item.id)}
+                        onChange={(event) => {
+                          const file = event.target.files?.[0];
+                          void handleImageSelected(item.id, file);
+                          event.target.value = "";
+                        }}
+                      />
+                    </label>
+                  </TableCell>
+                  <TableCell>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="destructive"
+                      disabled={isDeletePending(item.id)}
+                      onClick={() => setPendingDeleteId(item.id)}
+                    >
+                      {t("common:delete")}
+                    </Button>
+                  </TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {visibleItems.map((item) => {
-                  const category = categories.find((candidate) => candidate.id === item.categoryId);
-                  return (
-                    <TableRow key={item.id}>
-                      <TableCell>{item.name}</TableCell>
-                      <TableCell>{category?.label ?? item.categoryId}</TableCell>
-                      <TableCell>{item.price}</TableCell>
-                      <TableCell>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          disabled={isVisibilityPending(item.id)}
-                          onClick={() =>
-                            visibilityMutation.mutate({ id: item.id, isVisible: !item.isVisible })
-                          }
-                        >
-                          {item.isVisible ? t("common:visible") : t("common:hidden")}
-                        </Button>
-                      </TableCell>
-                      <TableCell>
-                        <label className="cursor-pointer text-sm text-primary underline-offset-4 hover:underline">
-                          {t("imageSelect")}
-                          <input
-                            type="file"
-                            accept="image/jpeg,image/png,image/webp"
-                            className="sr-only"
-                            aria-label={t("imageSelectRowAria", { name: item.name })}
-                            disabled={isUploadPending(item.id)}
-                            onChange={(event) => {
-                              const file = event.target.files?.[0];
-                              void handleImageSelected(item.id, file);
-                              event.target.value = "";
-                            }}
-                          />
-                        </label>
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="destructive"
-                          disabled={isDeletePending(item.id)}
-                          onClick={() => setPendingDeleteId(item.id)}
-                        >
-                          {t("common:delete")}
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          )}
+              );
+            })}
+          </TableBody>
+        </Table>
+      )}
 
-          {items.length > 0 ? (
-            <Pagination
-              page={listQuery.page}
-              pageSize={listQuery.pageSize}
-              total={visibleTotal}
-              onPageChange={(page) => setListQuery((prev) => ({ ...prev, page }))}
-              onPageSizeChange={(pageSize) => setListQuery((prev) => ({ ...prev, pageSize, page: 1 }))}
-            />
-          ) : null}
-        </CardContent>
-      </Card>
+      {items.length > 0 ? (
+        <Pagination
+          page={listQuery.page}
+          pageSize={listQuery.pageSize}
+          total={visibleTotal}
+          onPageChange={(page) => setListQuery((prev) => ({ ...prev, page }))}
+          onPageSizeChange={(pageSize) => setListQuery((prev) => ({ ...prev, pageSize, page: 1 }))}
+        />
+      ) : null}
 
       <AlertDialog
         open={deleteTarget !== null}

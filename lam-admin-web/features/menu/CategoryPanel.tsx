@@ -17,7 +17,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ListToolbar } from "@/components/list/ListToolbar";
 import { EmptyState } from "@/components/states/PageStates";
@@ -121,80 +120,79 @@ export function CategoryPanel({ categories }: { categories: MenuCategory[] }) {
   }
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
-        <CardTitle>{t("categoryCardTitle")}</CardTitle>
-        <CardAction className="flex items-center gap-2">
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h1 className="text-lg font-semibold text-foreground">{t("categoriesTitle")}</h1>
+        <div className="flex items-center gap-2">
           <CatalogResyncButton />
           <Button type="button" size="sm" onClick={openCreateDialog}>
             {t("categoryAdd")}
           </Button>
-        </CardAction>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4">
-        {categories.length > 0 ? (
-          <ListToolbar
-            searchValue={search}
-            onSearchChange={setSearch}
-            searchPlaceholder={t("categorySearchPlaceholder")}
-          />
-        ) : null}
+        </div>
+      </div>
 
-        {categories.length === 0 ? (
-          <EmptyState
-            title={t("categoryEmptyTitle")}
-            description={t("categoryEmptyDescription")}
-          />
-        ) : visibleCategories.length === 0 ? (
-          <EmptyState
-            title={t("common:listNoResultsTitle")}
-            description={t("common:listNoResultsDescription")}
-          />
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t("columnId")}</TableHead>
-                <TableHead>{t("common:columnName")}</TableHead>
-                <TableHead>{t("common:columnVisibility")}</TableHead>
-                <TableHead>{t("common:columnActions")}</TableHead>
+      {categories.length > 0 ? (
+        <ListToolbar
+          searchValue={search}
+          onSearchChange={setSearch}
+          searchPlaceholder={t("categorySearchPlaceholder")}
+        />
+      ) : null}
+
+      {categories.length === 0 ? (
+        <EmptyState
+          title={t("categoryEmptyTitle")}
+          description={t("categoryEmptyDescription")}
+        />
+      ) : visibleCategories.length === 0 ? (
+        <EmptyState
+          title={t("common:listNoResultsTitle")}
+          description={t("common:listNoResultsDescription")}
+        />
+      ) : (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>{t("columnId")}</TableHead>
+              <TableHead>{t("common:columnName")}</TableHead>
+              <TableHead>{t("common:columnVisibility")}</TableHead>
+              <TableHead>{t("common:columnActions")}</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {visibleCategories.map((category) => (
+              <TableRow key={category.id}>
+                <TableCell>{category.id}</TableCell>
+                <TableCell>{category.label}</TableCell>
+                <TableCell>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={isVisibilityPending(category.id)}
+                    onClick={() =>
+                      visibilityMutation.mutate({ id: category.id, isVisible: !category.isVisible })
+                    }
+                  >
+                    {category.isVisible ? t("common:visible") : t("common:hidden")}
+                  </Button>
+                </TableCell>
+                <TableCell>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="destructive"
+                    disabled={isDeletePending(category.id)}
+                    onClick={() => setPendingDeleteId(category.id)}
+                  >
+                    {t("common:delete")}
+                  </Button>
+                </TableCell>
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {visibleCategories.map((category) => (
-                <TableRow key={category.id}>
-                  <TableCell>{category.id}</TableCell>
-                  <TableCell>{category.label}</TableCell>
-                  <TableCell>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      disabled={isVisibilityPending(category.id)}
-                      onClick={() =>
-                        visibilityMutation.mutate({ id: category.id, isVisible: !category.isVisible })
-                      }
-                    >
-                      {category.isVisible ? t("common:visible") : t("common:hidden")}
-                    </Button>
-                  </TableCell>
-                  <TableCell>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="destructive"
-                      disabled={isDeletePending(category.id)}
-                      onClick={() => setPendingDeleteId(category.id)}
-                    >
-                      {t("common:delete")}
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
-      </CardContent>
+            ))}
+          </TableBody>
+        </Table>
+      )}
 
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
         <DialogContent>
@@ -297,6 +295,6 @@ export function CategoryPanel({ categories }: { categories: MenuCategory[] }) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </Card>
+    </div>
   );
 }
