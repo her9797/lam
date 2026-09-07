@@ -7,6 +7,7 @@
 :root {
   font-family: "Noto Sans KR Variable", ui-sans-serif, system-ui, sans-serif;
   font-synthesis: none;
+  color-scheme: light;
 
   --background: oklch(0.985 0.001 106.423);
   --foreground: oklch(0.147 0.004 49.25);
@@ -49,6 +50,7 @@
 }
 
 .dark {
+  color-scheme: dark;
   --background: oklch(0.147 0.004 49.25);
   --foreground: oklch(0.985 0.001 106.423);
   --card: oklch(0.216 0.006 56.043);
@@ -146,6 +148,16 @@
   input,
   select {
     font: inherit;
+  }
+  /* Chromium keeps a select's native option-list background at the UA
+     default (light) once an author `color` is set on the control, even
+     though `color-scheme: dark` is in effect — pairing our light text
+     with that leftover white background makes options unreadable. Pin
+     both explicitly so the popup matches the app's dark theme. */
+  select,
+  option {
+    background-color: var(--background);
+    color: var(--foreground);
   }
   button,
   [role="button"],
