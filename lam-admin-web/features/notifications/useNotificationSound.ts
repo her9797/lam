@@ -125,6 +125,33 @@ export function useNotificationSound(): UseNotificationSoundResult {
     setIsMuted(readStoredMuted());
   }, []);
 
+  // A fresh `AudioContext` starts `suspended` on every page load/refresh —
+  // that's the browser's autoplay policy, not this app's mute preference,
+  // and it can't be avoided by persisting anything. Requiring the operator
+  // to specifically re-click the bell's volume button after every refresh
+  // (even though their real, persisted preference is already "unmuted") is
+  // what made the toggle look like it "reset to off" on reload. Any user
+  // gesture on the page — not just a click on this exact button — is
+  // sufficient to resume an `AudioContext`, so resume on the first such
+  // gesture anywhere and let the button reflect the real preference sooner.
+  useEffect(() => {
+    if (!context) {
+      return;
+    }
+    function resumeOnFirstInteraction() {
+      context
+        ?.resume()
+        .then(() => setIsBlocked(context.state !== "running"))
+        .catch(() => {});
+    }
+    window.addEventListener("pointerdown", resumeOnFirstInteraction, { once: true });
+    window.addEventListener("keydown", resumeOnFirstInteraction, { once: true });
+    return () => {
+      window.removeEventListener("pointerdown", resumeOnFirstInteraction);
+      window.removeEventListener("keydown", resumeOnFirstInteraction);
+    };
+  }, [context]);
+
   const enableSound = useCallback(() => {
     if (!context) {
       return;
