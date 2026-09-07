@@ -59,10 +59,10 @@ func TestSyncMapsPOSCategoriesToCustomerCategories(t *testing.T) {
 // call after that returns immediately — so a test can also verify the
 // Syncer is usable again once the blocked call completes.
 type blockingCatalogClient struct {
-	entered  chan struct{}
-	release  chan struct{}
-	blocked  bool
-	blockMu  sync.Mutex
+	entered chan struct{}
+	release chan struct{}
+	blocked bool
+	blockMu sync.Mutex
 }
 
 func (b *blockingCatalogClient) ListCatalogItems(context.Context) ([]tossplace.CatalogItem, error) {
