@@ -61,11 +61,24 @@ function setViewportWidth(width: number) {
   window.dispatchEvent(new Event("resize"));
 }
 
+function getSidebarWrapper() {
+  const wrapper = document.querySelector('[data-slot="sidebar-wrapper"]');
+  if (!(wrapper instanceof HTMLElement)) {
+    throw new Error("sidebar wrapper not found");
+  }
+  return wrapper;
+}
+
+function clearSidebarWidthCookie() {
+  document.cookie = "sidebar_width=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+}
+
 describe("AdminShell", () => {
   beforeEach(async () => {
     replaceMock.mockClear();
     refreshMock.mockClear();
     window.localStorage.clear();
+    clearSidebarWidthCookie();
     setViewportWidth(1024);
     global.fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ ok: true })));
     // The language menu test switches the shared i18next singleton to "en";
@@ -248,6 +261,129 @@ describe("AdminShell", () => {
         expect.objectContaining({ method: "POST" }),
       );
       expect(replaceMock).toHaveBeenCalledWith("/login");
+    });
+  });
+
+  describe("사이드바 폭 조절", () => {
+    it("펼침 상태에서는 폭 조절 핸들이 노출된다", () => {
+      render(
+        <AdminShell>
+          <p>page content</p>
+        </AdminShell>,
+      );
+
+      expect(screen.getByRole("separator", { name: "Resize Sidebar" })).toBeInTheDocument();
+    });
+
+    it("아이콘만 보이는 축소 상태에서는 폭 조절 핸들이 사라진다", () => {
+      render(
+        <AdminShell>
+          <p>page content</p>
+        </AdminShell>,
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: "메뉴 열기" }));
+
+      expect(screen.queryByRole("separator", { name: "Resize Sidebar" })).not.toBeInTheDocument();
+    });
+
+    it("드래그하면 이동한 만큼 사이드바 폭이 늘어난다", () => {
+      render(
+        <AdminShell>
+          <p>page content</p>
+        </AdminShell>,
+      );
+      const wrapper = getSidebarWrapper();
+      expect(wrapper.style.getPropertyValue("--sidebar-width")).toBe("256px");
+
+      const handle = screen.getByRole("separator", { name: "Resize Sidebar" });
+      fireEvent.mouseDown(handle, { clientX: 256 });
+      fireEvent.mouseMove(window, { clientX: 306 });
+      fireEvent.mouseUp(window, { clientX: 306 });
+
+      expect(wrapper.style.getPropertyValue("--sidebar-width")).toBe("306px");
+    });
+
+    it("최소 폭보다 작게 드래그하면 최소 폭(192px)으로 고정된다", () => {
+      render(
+        <AdminShell>
+          <p>page content</p>
+        </AdminShell>,
+      );
+      const wrapper = getSidebarWrapper();
+      const handle = screen.getByRole("separator", { name: "Resize Sidebar" });
+
+      fireEvent.mouseDown(handle, { clientX: 256 });
+      fireEvent.mouseMove(window, { clientX: -1000 });
+      fireEvent.mouseUp(window, { clientX: -1000 });
+
+      expect(wrapper.style.getPropertyValue("--sidebar-width")).toBe("192px");
+    });
+
+    it("최대 폭보다 크게 드래그하면 최대 폭(320px)으로 고정된다", () => {
+      render(
+        <AdminShell>
+          <p>page content</p>
+        </AdminShell>,
+      );
+      const wrapper = getSidebarWrapper();
+      const handle = screen.getByRole("separator", { name: "Resize Sidebar" });
+
+      fireEvent.mouseDown(handle, { clientX: 256 });
+      fireEvent.mouseMove(window, { clientX: 2000 });
+      fireEvent.mouseUp(window, { clientX: 2000 });
+
+      expect(wrapper.style.getPropertyValue("--sidebar-width")).toBe("320px");
+    });
+
+    it("드래그로 조절한 폭을 쿠키에 저장한다", () => {
+      render(
+        <AdminShell>
+          <p>page content</p>
+        </AdminShell>,
+      );
+      const handle = screen.getByRole("separator", { name: "Resize Sidebar" });
+
+      fireEvent.mouseDown(handle, { clientX: 256 });
+      fireEvent.mouseMove(window, { clientX: 300 });
+      fireEvent.mouseUp(window, { clientX: 300 });
+
+      expect(document.cookie).toContain("sidebar_width=300");
+    });
+
+    it("쿠키에 저장된 폭으로 마운트 시 복원한다", () => {
+      document.cookie = "sidebar_width=280; path=/";
+
+      render(
+        <AdminShell>
+          <p>page content</p>
+        </AdminShell>,
+      );
+
+      expect(getSidebarWrapper().style.getPropertyValue("--sidebar-width")).toBe("280px");
+    });
+
+    it("포커스 후 화살표/Home/End 키로 폭을 조절할 수 있다", () => {
+      render(
+        <AdminShell>
+          <p>page content</p>
+        </AdminShell>,
+      );
+      const wrapper = getSidebarWrapper();
+      const handle = screen.getByRole("separator", { name: "Resize Sidebar" });
+      handle.focus();
+
+      fireEvent.keyDown(handle, { key: "ArrowRight" });
+      expect(wrapper.style.getPropertyValue("--sidebar-width")).toBe("272px");
+
+      fireEvent.keyDown(handle, { key: "ArrowLeft" });
+      expect(wrapper.style.getPropertyValue("--sidebar-width")).toBe("256px");
+
+      fireEvent.keyDown(handle, { key: "Home" });
+      expect(wrapper.style.getPropertyValue("--sidebar-width")).toBe("192px");
+
+      fireEvent.keyDown(handle, { key: "End" });
+      expect(wrapper.style.getPropertyValue("--sidebar-width")).toBe("320px");
     });
   });
 });
