@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { ComponentProps, ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { RequestNotification } from "./model";
+import type { OrderNotification, RequestNotification } from "./model";
 
 // The real `DropdownMenu` is a `@base-ui/react` menu built on floating-ui
 // anchor positioning. Actually opening it triggers floating-ui's
@@ -41,6 +41,17 @@ vi.mock("./useRequestNotifications", () => ({
 // internal useQueryClient() call.
 vi.mock("./useRequestBroadcast", () => ({
   useRequestBroadcast: () => {},
+}));
+
+const useOrderNotificationsMock = vi.fn();
+vi.mock("./useOrderNotifications", () => ({
+  useOrderNotifications: () => useOrderNotificationsMock(),
+}));
+
+// Same reasoning as useRequestBroadcast above — covered on its own in
+// useOrderBroadcast.test.tsx.
+vi.mock("./useOrderBroadcast", () => ({
+  useOrderBroadcast: () => {},
 }));
 
 const toastAddMock = vi.fn();
@@ -90,6 +101,21 @@ const R2: RequestNotification = {
 };
 const NOTIFICATIONS: RequestNotification[] = [R1, R2];
 
+const O1: OrderNotification = {
+  id: "o1",
+  tableNumber: "7",
+  menuItemName: "하우스 하이볼",
+  amount: 10000,
+  approvedAt: "2026-09-04T10:00:30Z",
+};
+const O2: OrderNotification = {
+  id: "o2",
+  tableNumber: "2",
+  menuItemName: "진토닉",
+  amount: 9000,
+  approvedAt: "2026-09-04T10:02:00Z",
+};
+
 function mockNotifications(notifications: RequestNotification[]) {
   useRequestNotificationsMock.mockReturnValue({
     notifications,
@@ -97,6 +123,10 @@ function mockNotifications(notifications: RequestNotification[]) {
     isLoading: false,
     isError: false,
   });
+}
+
+function mockOrderNotifications(notifications: OrderNotification[]) {
+  useOrderNotificationsMock.mockReturnValue({ notifications, isLoading: false });
 }
 
 function mockSound(overrides: Partial<ReturnType<typeof useNotificationSoundMock>> = {}) {
@@ -113,6 +143,7 @@ function mockSound(overrides: Partial<ReturnType<typeof useNotificationSoundMock
 describe("NotificationBell", () => {
   beforeEach(() => {
     mockSound();
+    mockOrderNotifications([]);
   });
 
   afterEach(() => {
@@ -224,6 +255,48 @@ describe("NotificationBell", () => {
     rerender(<NotificationBell />);
 
     expect(playChimeMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("toasts and chimes once when a payment completes after the initial load", () => {
+    mockNotifications([]);
+    mockOrderNotifications([O1]);
+    const { rerender } = render(<NotificationBell />);
+    expect(toastAddMock).not.toHaveBeenCalled();
+    expect(playChimeMock).not.toHaveBeenCalled();
+
+    mockOrderNotifications([O2, O1]);
+    rerender(<NotificationBell />);
+
+    expect(toastAddMock).toHaveBeenCalledTimes(1);
+    expect(toastAddMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "새 주문이 결제되었습니다.",
+        description: "2번 테이블 · 진토닉 · ₩9,000",
+      }),
+    );
+    expect(playChimeMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not toast for the paid orders already present on the initial load", () => {
+    mockNotifications([]);
+    mockOrderNotifications([O1, O2]);
+    const { rerender } = render(<NotificationBell />);
+
+    rerender(<NotificationBell />);
+
+    expect(toastAddMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps the bell panel showing only guest requests, not paid orders", () => {
+    mockNotifications([]);
+    mockOrderNotifications([O1, O2]);
+    render(<NotificationBell />);
+
+    // Orders have no server-side read state, so they never become panel
+    // items or feed the unread badge — only the arrival toast/chime.
+    expect(screen.getByText("확인하지 않은 요청이 없습니다.")).toBeInTheDocument();
+    expect(screen.queryByText(/하우스 하이볼/)).not.toBeInTheDocument();
+    expect(screen.queryByText("2")).not.toBeInTheDocument();
   });
 
   it("shows a 'sound blocked' button that resumes audio on click", () => {

@@ -78,3 +78,33 @@ func TestBroadcaster_Send_ReturnsErrorOnNonSuccessStatus(t *testing.T) {
 		t.Fatal("Send() error = nil, want an error for a non-2xx response")
 	}
 }
+
+// TestBroadcaster_Send_PostsNewOrderEventToTheOrdersTopic pins the
+// order-notification half of the cross-language channel contract: these
+// constants have no shared source of truth with lam-admin-web's
+// useOrderBroadcast.ts, so a rename here would otherwise break the admin
+// client silently.
+func TestBroadcaster_Send_PostsNewOrderEventToTheOrdersTopic(t *testing.T) {
+	var (
+		gotPath string
+		gotBody map[string]string
+	)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		_ = json.NewDecoder(r.Body).Decode(&gotBody)
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	defer server.Close()
+
+	b := NewBroadcaster(server.URL, "test-broadcast-key")
+	if err := b.Send(context.Background(), OrdersTopic, NewOrderEvent, NewOrderPayload{Type: NewOrderEvent}); err != nil {
+		t.Fatalf("Send() error = %v", err)
+	}
+
+	if gotPath != "/realtime/v1/api/broadcast/admin-orders/events/new_order" {
+		t.Errorf("path = %q, want the admin-orders/new_order broadcast path", gotPath)
+	}
+	if gotBody["type"] != "new_order" {
+		t.Errorf("body = %+v, want a content-free {\"type\":\"new_order\"} signal", gotBody)
+	}
+}

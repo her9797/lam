@@ -24,7 +24,7 @@ func NewMux(repository *store.Repository, cfg config.Config) http.Handler {
 	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
-	registerPaymentRoutes(mux, repository, cfg)
+	registerPaymentRoutes(mux, repository, cfg, broadcaster)
 
 	mux.HandleFunc("/api/v1/bootstrap", withCORS(cfg.AllowedOrigin, func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
@@ -977,6 +977,22 @@ func sendNewRequestBroadcastAsync(broadcaster *notify.Broadcaster) {
 		defer cancel()
 		if err := broadcaster.Send(ctx, notify.RequestsTopic, notify.NewRequestEvent, notify.NewRequestPayload{Type: notify.NewRequestEvent}); err != nil {
 			log.Printf("notify: failed to send new-request broadcast: %v", err)
+		}
+	}()
+}
+
+// sendNewOrderBroadcastAsync is the payment-order counterpart of
+// sendNewRequestBroadcastAsync, with the same best-effort contract: the
+// signal must never add latency to, or fail, the payment confirmation it
+// follows — a completed sale is already recorded by the time this runs, so
+// a lost alarm is recoverable (the admin web's safety-net poll still
+// catches it) while a failed confirmation response is not.
+func sendNewOrderBroadcastAsync(broadcaster *notify.Broadcaster) {
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := broadcaster.Send(ctx, notify.OrdersTopic, notify.NewOrderEvent, notify.NewOrderPayload{Type: notify.NewOrderEvent}); err != nil {
+			log.Printf("notify: failed to send new-order broadcast: %v", err)
 		}
 	}()
 }

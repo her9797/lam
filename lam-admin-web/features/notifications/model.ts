@@ -14,3 +14,18 @@ export type RequestNotification = {
   preview: string;
   createdAt: string;
 };
+
+/**
+ * Alarm-facing view of a completed `payment_orders` row. Deliberately
+ * separate from `RequestNotification`: orders have no server-side read
+ * state to tie a "pending" list to, so this shape only ever feeds the
+ * arrival toast/chime — it is not a bell-panel item, and there is no
+ * unread count derived from it.
+ */
+export type OrderNotification = {
+  id: string;
+  tableNumber: string;
+  menuItemName: string;
+  amount: number;
+  approvedAt: string;
+};

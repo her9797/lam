@@ -122,6 +122,8 @@ export const ko = {
     newRequestToastTitle: "새 요청이 도착했습니다.",
     newRequestToastGeneral: "{{tableNumber}}번 테이블: {{preview}}",
     newRequestToastSong: "{{tableNumber}}번 테이블 노래 신청: {{preview}}",
+    newOrderToastTitle: "새 주문이 결제되었습니다.",
+    newOrderToastBody: "{{tableNumber}}번 테이블 · {{menuItemName}} · {{amount}}",
   },
   requests: {
     generalTitle: "손님 요청",
@@ -455,6 +457,8 @@ export const en = {
     newRequestToastTitle: "A new request has arrived.",
     newRequestToastGeneral: "Table {{tableNumber}}: {{preview}}",
     newRequestToastSong: "Table {{tableNumber}} song request: {{preview}}",
+    newOrderToastTitle: "A new order has been paid.",
+    newOrderToastBody: "Table {{tableNumber}} · {{menuItemName}} · {{amount}}",
   },
   requests: {
     generalTitle: "Guest requests",
