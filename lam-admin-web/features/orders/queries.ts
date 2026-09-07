@@ -21,6 +21,7 @@ export const orderKeys = {
   all: ["orders"] as const,
   list: (query: OrderListQuery) => ["orders", "list", query] as const,
   notifications: ["orders", "notifications"] as const,
+  count: ["orders", "count"] as const,
 };
 
 export function useOrdersPageQuery(query: OrderListQuery) {
@@ -71,5 +72,30 @@ export function useOrderNotificationsQuery() {
     // the global `refetchOnWindowFocus` catches the operator up when they
     // come back.
     refetchIntervalInBackground: false,
+  });
+}
+
+/**
+ * Dashboard's order-history aggregate: total DONE orders, all-time — the
+ * same status/date filters `/orders` defaults to (see `list-query-url.ts`'s
+ * `DEFAULT_STATUS`/`DEFAULT_DATE_PRESET`), so the card's count matches
+ * exactly what that screen shows before the operator touches any filter.
+ * `pageSize: 1` keeps the request cheap; only `total` from the paginated
+ * envelope is read, never `items`.
+ */
+const DASHBOARD_ORDER_COUNT_QUERY: OrderListQuery = {
+  page: 1,
+  pageSize: 1,
+  status: "DONE",
+  search: "",
+  datePreset: "all",
+  sort: "createdAt",
+  order: "desc",
+};
+
+export function useOrderCountQuery() {
+  return useQuery({
+    queryKey: orderKeys.count,
+    queryFn: () => fetchOrdersPage(DASHBOARD_ORDER_COUNT_QUERY),
   });
 }

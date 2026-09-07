@@ -48,6 +48,7 @@ export type DashboardSummary = {
   pendingGeneralRequestCount: number;
   pendingSongRequestCount: number;
   specialRequestCount: number;
+  orderCount: number;
   menuItemCount: number;
   noticeCount: number;
 };
@@ -57,23 +58,30 @@ function countPending(requests: CustomerRequest[]): number {
 }
 
 /**
- * Aggregates the dashboard's shortcut-card counts from the three already-
- * separate feature queries (`AppData` from `bootstrapKeys.all`,
- * `CustomerRequest[]` from `requestsKeys.all`, `SpecialRequest[]` from
- * `specialRequestKeys.all`). Pure and synchronous — callers own fetching
- * and caching; this only ever combines already-loaded data, so it never
- * merges the general/special request API calls, models, or mutation flows
- * themselves.
+ * Aggregates the dashboard's shortcut-card counts from the already-separate
+ * feature queries (`AppData` from `bootstrapKeys.all`, `CustomerRequest[]`
+ * from `requestsKeys.all`, `SpecialRequest[]` from `specialRequestKeys.all`,
+ * and the `payment_orders` total from `orderKeys.count`). Pure and
+ * synchronous — callers own fetching and caching; this only ever combines
+ * already-loaded data, so it never merges the general/special request or
+ * order API calls, models, or mutation flows themselves.
+ *
+ * `orderCount` is passed in as a plain number rather than an order array:
+ * it comes from `OrderPageResult.total` (server-side pagination), matching
+ * exactly the count `/orders` shows before any filter is touched — see
+ * `features/orders/queries.ts`'s `useOrderCountQuery`.
  */
 export function buildDashboardSummary(
   appData: AppData,
   requests: CustomerRequest[],
   specialRequests: SpecialRequest[],
+  orderCount: number,
 ): DashboardSummary {
   return {
     pendingGeneralRequestCount: countPending(selectGeneralRequests(requests)),
     pendingSongRequestCount: countPending(selectSongRequests(requests)),
     specialRequestCount: specialRequests.length,
+    orderCount,
     menuItemCount: appData.items.length,
     noticeCount: appData.notices.length,
   };

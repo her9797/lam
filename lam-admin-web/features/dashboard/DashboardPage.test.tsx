@@ -2,15 +2,18 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AppData } from "@/features/bootstrap/model";
+import type { OrderPageResult } from "@/features/orders/model";
 import type { CustomerRequest } from "@/features/requests/model";
 import type { SpecialRequest } from "@/features/special-requests/model";
 
 const useBootstrapQueryMock = vi.fn();
 const useCustomerRequestsQueryMock = vi.fn();
 const useSpecialRequestsQueryMock = vi.fn();
+const useOrderCountQueryMock = vi.fn();
 const bootstrapRefetchMock = vi.fn();
 const requestsRefetchMock = vi.fn();
 const specialRequestsRefetchMock = vi.fn();
+const orderCountRefetchMock = vi.fn();
 
 vi.mock("@/features/bootstrap/queries", () => ({
   useBootstrapQuery: () => useBootstrapQueryMock(),
@@ -20,6 +23,9 @@ vi.mock("@/features/requests/queries", () => ({
 }));
 vi.mock("@/features/special-requests/queries", () => ({
   useSpecialRequestsQuery: () => useSpecialRequestsQueryMock(),
+}));
+vi.mock("@/features/orders/queries", () => ({
+  useOrderCountQuery: () => useOrderCountQueryMock(),
 }));
 
 import { DashboardPage } from "./DashboardPage";
@@ -73,6 +79,9 @@ const EMPTY_APP_DATA: AppData = {
   notices: [],
 };
 
+const NON_EMPTY_ORDER_COUNT: OrderPageResult = { items: [], page: 1, pageSize: 1, total: 1 };
+const EMPTY_ORDER_COUNT: OrderPageResult = { items: [], page: 1, pageSize: 1, total: 0 };
+
 function mockBootstrap(overrides: Partial<ReturnType<typeof defaultBootstrapResult>> = {}) {
   useBootstrapQueryMock.mockReturnValue({ ...defaultBootstrapResult(), ...overrides });
 }
@@ -117,22 +126,46 @@ function defaultSpecialRequestsResult() {
   };
 }
 
+function mockOrderCount(overrides: Partial<ReturnType<typeof defaultOrderCountResult>> = {}) {
+  useOrderCountQueryMock.mockReturnValue({ ...defaultOrderCountResult(), ...overrides });
+}
+
+function defaultOrderCountResult() {
+  return {
+    data: NON_EMPTY_ORDER_COUNT,
+    isLoading: false,
+    isError: false,
+    error: null as unknown,
+    refetch: orderCountRefetchMock,
+  };
+}
+
 describe("DashboardPage", () => {
   beforeEach(() => {
     bootstrapRefetchMock.mockClear();
     requestsRefetchMock.mockClear();
     specialRequestsRefetchMock.mockClear();
+    orderCountRefetchMock.mockClear();
     mockBootstrap();
     mockRequests();
     mockSpecialRequests();
+    mockOrderCount();
   });
 
   afterEach(() => {
     cleanup();
   });
 
-  it("shows a loading state while any of the three queries is loading", () => {
+  it("shows a loading state while any of the four queries is loading", () => {
     mockBootstrap({ data: undefined, isLoading: true });
+
+    render(<DashboardPage />);
+
+    expect(screen.getByRole("status")).toBeInTheDocument();
+  });
+
+  it("shows a loading state while the order count query is loading", () => {
+    mockOrderCount({ data: undefined, isLoading: true });
 
     render(<DashboardPage />);
 
@@ -151,12 +184,14 @@ describe("DashboardPage", () => {
     expect(requestsRefetchMock).toHaveBeenCalledTimes(1);
     expect(bootstrapRefetchMock).not.toHaveBeenCalled();
     expect(specialRequestsRefetchMock).not.toHaveBeenCalled();
+    expect(orderCountRefetchMock).not.toHaveBeenCalled();
   });
 
   it("shows the empty state when every aggregate count is genuinely zero", () => {
     mockBootstrap({ data: EMPTY_APP_DATA });
     mockRequests({ data: [] });
     mockSpecialRequests({ data: [] });
+    mockOrderCount({ data: EMPTY_ORDER_COUNT });
 
     render(<DashboardPage />);
 
@@ -170,8 +205,8 @@ describe("DashboardPage", () => {
     expect(screen.getByText("손님 요청")).toBeInTheDocument();
     expect(screen.queryByText("표시할 데이터가 없습니다.")).not.toBeInTheDocument();
     // 1 pending general request, 0 pending song requests, 1 special request,
-    // 1 menu item, 1 notice — matches the non-empty fixtures above.
-    expect(screen.getAllByText("1")).toHaveLength(4);
+    // 1 order, 1 menu item, 1 notice — matches the non-empty fixtures above.
+    expect(screen.getAllByText("1")).toHaveLength(5);
     expect(screen.getByText("0")).toBeInTheDocument();
   });
 });
