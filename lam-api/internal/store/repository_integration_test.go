@@ -405,6 +405,94 @@ func TestRepository_CustomerRequestLifecycle(t *testing.T) {
 	})
 }
 
+func TestRepository_SongPlaybackQueueLifecycle(t *testing.T) {
+	repo := resetDB(t)
+	ctx := context.Background()
+
+	if err := repo.CreateCustomerRequest(ctx, "T-01", "물 한 잔 주세요"); err != nil {
+		t.Fatalf("CreateCustomerRequest(general) error = %v", err)
+	}
+	requests, err := repo.ListCustomerRequests(ctx)
+	if err != nil {
+		t.Fatalf("ListCustomerRequests() error = %v", err)
+	}
+	if _, err := repo.GetSongRequestQuery(ctx, requests[0].ID); !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("GetSongRequestQuery(general) error = %v, want ErrInvalidInput", err)
+	}
+
+	if err := repo.CreateCustomerRequest(ctx, "T-02", "[노래 신청] Ditto - NewJeans"); err != nil {
+		t.Fatalf("CreateCustomerRequest(song) error = %v", err)
+	}
+	requests, err = repo.ListCustomerRequests(ctx)
+	if err != nil {
+		t.Fatalf("ListCustomerRequests() error = %v", err)
+	}
+	requestID := requests[0].ID
+
+	query, err := repo.GetSongRequestQuery(ctx, requestID)
+	if err != nil {
+		t.Fatalf("GetSongRequestQuery() error = %v", err)
+	}
+	if query != "Ditto - NewJeans" {
+		t.Fatalf("GetSongRequestQuery() = %q", query)
+	}
+
+	input := QueueSongRequestInput{
+		YouTubeVideoID:      "video-123",
+		YouTubeTitle:        "NewJeans - Ditto",
+		YouTubeChannelTitle: "HYBE LABELS",
+	}
+	queued, err := repo.QueueSongRequest(ctx, requestID, input)
+	if err != nil {
+		t.Fatalf("QueueSongRequest() error = %v", err)
+	}
+	if queued.Status != "queued" || queued.CustomerRequestID != requestID || queued.TableNumber != "T-02" {
+		t.Fatalf("QueueSongRequest() = %+v", queued)
+	}
+
+	again, err := repo.QueueSongRequest(ctx, requestID, input)
+	if err != nil {
+		t.Fatalf("QueueSongRequest(idempotent) error = %v", err)
+	}
+	if again.ID != queued.ID {
+		t.Fatalf("QueueSongRequest(idempotent).ID = %q, want %q", again.ID, queued.ID)
+	}
+
+	active, err := repo.ListActiveSongQueue(ctx)
+	if err != nil {
+		t.Fatalf("ListActiveSongQueue() error = %v", err)
+	}
+	if len(active) != 1 || active[0].ID != queued.ID {
+		t.Fatalf("ListActiveSongQueue() = %+v", active)
+	}
+
+	if err := repo.UpdateSongQueueStatus(ctx, queued.ID, "queued"); !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("UpdateSongQueueStatus(queued) error = %v, want ErrInvalidInput", err)
+	}
+	if err := repo.UpdateSongQueueStatus(ctx, queued.ID, "playing"); err != nil {
+		t.Fatalf("UpdateSongQueueStatus(playing) error = %v", err)
+	}
+	active, err = repo.ListActiveSongQueue(ctx)
+	if err != nil || len(active) != 1 || active[0].Status != "playing" || active[0].StartedAt == "" {
+		t.Fatalf("playing queue = %+v, error = %v", active, err)
+	}
+
+	if err := repo.UpdateSongQueueStatus(ctx, queued.ID, "completed"); err != nil {
+		t.Fatalf("UpdateSongQueueStatus(completed) error = %v", err)
+	}
+	active, err = repo.ListActiveSongQueue(ctx)
+	if err != nil || len(active) != 0 {
+		t.Fatalf("completed active queue = %+v, error = %v", active, err)
+	}
+	requests, err = repo.ListCustomerRequests(ctx)
+	if err != nil {
+		t.Fatalf("ListCustomerRequests() error = %v", err)
+	}
+	if requests[1].Status != "completed" || requests[1].HandledAt == "" {
+		t.Fatalf("completed customer request = %+v", requests[1])
+	}
+}
+
 func TestRepository_UpdateCustomerRequestStatuses(t *testing.T) {
 	repo := resetDB(t)
 	ctx := context.Background()

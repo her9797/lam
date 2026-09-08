@@ -131,13 +131,17 @@ func connectWithRetry(ctx context.Context, hostPort string) (*pgxpool.Pool, erro
 // resetServer truncates all tables, reseeds a minimal store_profile row and
 // returns a freshly wired http.Handler for a single test.
 func resetServer(t *testing.T) http.Handler {
+	return resetServerWithConfig(t, testCfg)
+}
+
+func resetServerWithConfig(t *testing.T, cfg config.Config) http.Handler {
 	t.Helper()
 	if testRepo == nil {
 		t.Skip("docker not available; skipping integration test")
 	}
 
 	ctx := context.Background()
-	if _, err := testPool.Exec(ctx, `TRUNCATE payment_orders, menu_item_images, menu_items, menu_categories, request_guides, notices, customer_requests, special_requests, store_profile RESTART IDENTITY CASCADE`); err != nil {
+	if _, err := testPool.Exec(ctx, `TRUNCATE payment_orders, menu_item_images, menu_items, menu_categories, request_guides, notices, song_playback_queue, customer_requests, special_requests, store_profile RESTART IDENTITY CASCADE`); err != nil {
 		t.Fatalf("truncate tables: %v", err)
 	}
 	if _, err := testPool.Exec(ctx, `
@@ -147,5 +151,5 @@ func resetServer(t *testing.T) http.Handler {
 		t.Fatalf("seed store_profile: %v", err)
 	}
 
-	return NewMux(testRepo, testCfg)
+	return NewMux(testRepo, cfg)
 }

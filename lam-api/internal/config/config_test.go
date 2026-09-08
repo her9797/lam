@@ -17,6 +17,8 @@ func TestLoad_Defaults(t *testing.T) {
 	t.Setenv("TOSS_PLACE_SECRET_KEY", "")
 	t.Setenv("TOSS_PLACE_MERCHANT_ID", "")
 	t.Setenv("TOSS_PLACE_API_BASE_URL", "")
+	t.Setenv("YOUTUBE_API_KEY", "")
+	t.Setenv("YOUTUBE_API_BASE_URL", "")
 
 	cfg := Load()
 
@@ -54,6 +56,12 @@ func TestLoad_Defaults(t *testing.T) {
 	}
 	if cfg.TossPlaceAPIBaseURL != "https://open-api.tossplace.com" {
 		t.Errorf("TossPlaceAPIBaseURL = %q", cfg.TossPlaceAPIBaseURL)
+	}
+	if cfg.YouTubeAPIKey != "" {
+		t.Errorf("YouTubeAPIKey = %q, want empty default", cfg.YouTubeAPIKey)
+	}
+	if cfg.YouTubeAPIBaseURL != "https://www.googleapis.com/youtube/v3" {
+		t.Errorf("YouTubeAPIBaseURL = %q", cfg.YouTubeAPIBaseURL)
 	}
 }
 
@@ -93,6 +101,8 @@ func TestLoad_ReadsOverridesFromEnv(t *testing.T) {
 	t.Setenv("TOSS_PLACE_SECRET_KEY", "place-secret")
 	t.Setenv("TOSS_PLACE_MERCHANT_ID", "merchant-123")
 	t.Setenv("TOSS_PLACE_API_BASE_URL", "https://place.example.com")
+	t.Setenv("YOUTUBE_API_KEY", "youtube-key")
+	t.Setenv("YOUTUBE_API_BASE_URL", "https://youtube.example.com/v3")
 
 	cfg := Load()
 
@@ -125,5 +135,8 @@ func TestLoad_ReadsOverridesFromEnv(t *testing.T) {
 	}
 	if cfg.TossPlaceAPIBaseURL != "https://place.example.com" {
 		t.Errorf("TossPlaceAPIBaseURL = %q", cfg.TossPlaceAPIBaseURL)
+	}
+	if cfg.YouTubeAPIKey != "youtube-key" || cfg.YouTubeAPIBaseURL != "https://youtube.example.com/v3" {
+		t.Error("YouTube environment overrides were not loaded")
 	}
 }

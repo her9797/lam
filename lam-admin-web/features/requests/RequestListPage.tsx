@@ -31,7 +31,11 @@ import { formatDateTime } from "@/lib/utils";
 
 import { buildRequestListSearchParams, parseRequestListQuery } from "./list-query-url";
 import type { CustomerRequest, CustomerRequestListQuery, CustomerRequestSort, CustomerRequestStatus } from "./model";
-import { useCustomerRequestsPageQuery, useUpdateCustomerRequestStatusMutation } from "./queries";
+import {
+  useApproveSongRequestMutation,
+  useCustomerRequestsPageQuery,
+  useUpdateCustomerRequestStatusMutation,
+} from "./queries";
 
 // Translation keys in the `requests` namespace, not rendered text.
 const STATUS_LABEL_KEY: Record<CustomerRequestStatus, string> = {
@@ -116,6 +120,7 @@ export function RequestListPage({ kind }: { kind: RequestListPageKind }) {
 
   const requestsQuery = useCustomerRequestsPageQuery(query);
   const statusMutation = useUpdateCustomerRequestStatusMutation();
+  const approveMutation = useApproveSongRequestMutation();
   const copyKeys = COPY_KEYS[kind];
 
   if (requestsQuery.isLoading) {
@@ -151,15 +156,33 @@ export function RequestListPage({ kind }: { kind: RequestListPageKind }) {
   };
 
   function isRowMutating(id: string): boolean {
-    return statusMutation.isPending && statusMutation.variables?.id === id;
+    return (
+      (statusMutation.isPending && statusMutation.variables?.id === id) ||
+      (approveMutation.isPending && approveMutation.variables?.requestId === id)
+    );
   }
 
   function handleAdvance(request: CustomerRequest) {
+    if (kind === "song" && request.status === "pending") {
+      approveMutation.mutate({ requestId: request.id });
+      return;
+    }
     const next = NEXT_STATUS[request.status];
     if (!next) {
       return;
     }
     statusMutation.mutate({ id: request.id, status: next.status });
+  }
+
+  function mutationErrorMessage(): string {
+    const approvalError = approveMutation.error;
+    if (approvalError && typeof approvalError === "object" && "status" in approvalError) {
+      if (approvalError.status === 503) return t("songApprovalNotConfigured");
+      if (approvalError.status === 404) return t("songApprovalNoResults");
+    }
+    if (approvalError instanceof Error) return approvalError.message;
+    if (statusMutation.error instanceof Error) return statusMutation.error.message;
+    return t("statusChangeFailed");
   }
 
   return (
@@ -220,11 +243,9 @@ export function RequestListPage({ kind }: { kind: RequestListPageKind }) {
         </Select>
       </ListToolbar>
 
-      {statusMutation.isError ? (
+      {statusMutation.isError || approveMutation.isError ? (
         <p role="alert" className="text-sm text-destructive">
-          {statusMutation.error instanceof Error
-            ? statusMutation.error.message
-            : t("statusChangeFailed")}
+          {mutationErrorMessage()}
         </p>
       ) : null}
 
@@ -250,7 +271,18 @@ export function RequestListPage({ kind }: { kind: RequestListPageKind }) {
           </TableHeader>
           <TableBody>
             {requests.map((request) => {
-              const next = NEXT_STATUS[request.status];
+              const next =
+                kind === "song"
+                  ? request.status === "pending"
+                    ? { status: "checked" as const, labelKey: "actionApproveAndPlay" }
+                    : undefined
+                  : NEXT_STATUS[request.status];
+              const statusLabel =
+                kind === "song" && request.status === "checked"
+                  ? t("songStatusQueued")
+                  : kind === "song" && request.status === "completed"
+                    ? t("songStatusCompleted")
+                    : t(STATUS_LABEL_KEY[request.status]);
               return (
                 <TableRow key={request.id}>
                   <TableCell>{formatDateTime(request.createdAt, i18n.language)}</TableCell>
@@ -258,7 +290,7 @@ export function RequestListPage({ kind }: { kind: RequestListPageKind }) {
                   <TableCell className="whitespace-normal">
                     {kind === "song" ? stripSongRequestPrefix(request.text) : request.text}
                   </TableCell>
-                  <TableCell>{t(STATUS_LABEL_KEY[request.status])}</TableCell>
+                  <TableCell>{statusLabel}</TableCell>
                   <TableCell>
                     {next ? (
                       <Button

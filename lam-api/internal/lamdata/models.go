@@ -55,6 +55,20 @@ type CustomerRequest struct {
 	HandledAt   string `json:"handledAt,omitempty"`
 }
 
+type SongQueueItem struct {
+	ID                  string `json:"id"`
+	CustomerRequestID   string `json:"customerRequestId"`
+	TableNumber         string `json:"tableNumber"`
+	RequestText         string `json:"requestText"`
+	YouTubeVideoID      string `json:"youtubeVideoId"`
+	YouTubeTitle        string `json:"youtubeTitle"`
+	YouTubeChannelTitle string `json:"youtubeChannelTitle"`
+	Status              string `json:"status"`
+	QueuedAt            string `json:"queuedAt"`
+	StartedAt           string `json:"startedAt,omitempty"`
+	CompletedAt         string `json:"completedAt,omitempty"`
+}
+
 type SpecialRequest struct {
 	ID          string `json:"id"`
 	TableNumber string `json:"tableNumber"`

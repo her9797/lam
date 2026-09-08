@@ -17,6 +17,11 @@ set -euo pipefail
 printf '%s\n' "$*" >>"$GCLOUD_LOG"
 
 case "$*" in
+  "secrets describe lam-youtube-api-key "*)
+    if [[ "${MOCK_MISSING_YOUTUBE_SECRET:-}" = "1" ]]; then
+      exit 1
+    fi
+    ;;
   "run services describe lam-api "*)
     printf '%s\n' 'https://lam-api.example.run.app'
     ;;
@@ -49,6 +54,18 @@ grep -Fq -- '--region=asia-northeast1' "$GCLOUD_LOG"
 grep -Fq -- '--service-account=lam-cloud-run@lam-production.iam.gserviceaccount.com' "$GCLOUD_LOG"
 grep -Fq 'auth print-access-token' "$GCLOUD_LOG"
 grep -Fq 'https://asia-northeast1-run.googleapis.com/apis/domains.cloudrun.com/v1/namespaces/lam-production/domainmappings/www.barlaam.store' "$CURL_LOG"
+
+: >"$GCLOUD_LOG"
+PATH="$TEST_TMP:$PATH" bash "$ROOT_DIR/scripts/deploy-cloud-run.sh" api >/dev/null
+grep -Fq 'run deploy lam-api' "$GCLOUD_LOG"
+grep -Fq 'YOUTUBE_API_KEY=lam-youtube-api-key:latest' "$GCLOUD_LOG"
+
+: >"$GCLOUD_LOG"
+MOCK_MISSING_YOUTUBE_SECRET=1 PATH="$TEST_TMP:$PATH" bash "$ROOT_DIR/scripts/deploy-cloud-run.sh" api >/dev/null 2>&1
+if grep -Fq 'YOUTUBE_API_KEY=lam-youtube-api-key:latest' "$GCLOUD_LOG"; then
+  printf '%s\n' 'missing YouTube secret must not block or configure an API deployment' >&2
+  exit 1
+fi
 
 : >"$CURL_LOG"
 CLOUD_RUN_WEB_DOMAIN='' PATH="$TEST_TMP:$PATH" bash "$ROOT_DIR/scripts/deploy-cloud-run.sh" web >/dev/null

@@ -69,6 +69,14 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY="${CLOUD_RUN_NEXT_PUBLIC_SUPABASE_ANON_KEY:-eyJhbG
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 deploy_api() {
+  local api_secrets
+  api_secrets="DATABASE_URL=lam-database-url:latest,ADMIN_API_TOKEN=lam-admin-api-token:latest,SUPABASE_BROADCAST_KEY=lam-supabase-secret-key:latest,SUPABASE_URL=lam-supabase-url:latest"
+  if "$GCLOUD" secrets describe lam-youtube-api-key --project="$PROJECT_ID" >/dev/null 2>&1; then
+    api_secrets+=",YOUTUBE_API_KEY=lam-youtube-api-key:latest"
+  else
+    printf 'Warning: lam-youtube-api-key is missing; song approval will stay disabled.\n' >&2
+  fi
+
   "$GCLOUD" run deploy lam-api \
     --project="$PROJECT_ID" \
     --source="$ROOT_DIR/lam-api" \
@@ -76,7 +84,7 @@ deploy_api() {
     --allow-unauthenticated \
     --min-instances=0 \
     --max-instances=1 \
-    --set-secrets=DATABASE_URL=lam-database-url:latest,ADMIN_API_TOKEN=lam-admin-api-token:latest,SUPABASE_BROADCAST_KEY=lam-supabase-secret-key:latest,SUPABASE_URL=lam-supabase-url:latest \
+    --set-secrets="$api_secrets" \
     --set-env-vars='ALLOWED_ORIGIN=*' \
     --quiet
 }

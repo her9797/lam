@@ -121,6 +121,22 @@ describe("/api/admin/[...slug] proxy", () => {
     );
   });
 
+  it("forwards upstream 204 responses without attaching a response body", async () => {
+    global.fetch = vi.fn(async () => new Response(null, { status: 204 })) as unknown as typeof fetch;
+    const request = makeRequest("PATCH", "song-player/queue/queue-1/status", {
+      body: JSON.stringify({ status: "completed" }),
+      headers: { "Content-Type": "application/json" },
+    });
+
+    const response = await PATCH(
+      request,
+      context(["song-player", "queue", "queue-1", "status"]),
+    );
+
+    expect(response.status).toBe(204);
+    await expect(response.text()).resolves.toBe("");
+  });
+
   it("rejects a slug segment that attempts path traversal", async () => {
     const request = makeRequest("GET", "..%2F..%2Fv2%2Fsecret", {
       withSession: true,

@@ -29,6 +29,9 @@ lam-api
 - `POST /api/v1/payments/orders`
 - `GET /api/v1/payments/orders/{orderId}`
 - `POST /api/v1/payments/confirm`
+- `POST /api/v1/admin/song-requests/{requestId}/approve`
+- `GET /api/v1/admin/song-player/queue`
+- `PATCH /api/v1/admin/song-player/queue/{queueId}/status`
 
 ## 실행 방법
 
@@ -61,6 +64,14 @@ TOSS_PLACE_MERCHANT_ID=토스플레이스_가맹점_ID
 - 신규 POS 상품은 `하이볼 / 위스키 / 칵테일 / 논알콜` 웹 카테고리에 자동 분류합니다.
 - POS에서 사라진 상품, 품절 상품, 0원 상품은 손님 화면에서 숨깁니다.
 - 결제 완료 주문은 임의 상품이 아닌 연결된 POS 상품 ID로 생성합니다.
+
+신청곡 자동 재생을 사용하려면 서버 실행 환경에 YouTube Data API v3 키를 추가합니다. 키는 관리자 웹에 노출하지 않습니다.
+
+```bash
+YOUTUBE_API_KEY=서버용_YouTube_Data_API_v3_키
+```
+
+관리자가 노래 신청을 승인하면 API가 임베드 가능한 영상을 검색해 재생 대기열에 저장합니다. 관리자 웹의 `/player` 화면은 대기열을 순서대로 재생하고 완료 상태를 API에 반영합니다.
 
 ## 구현 메모
 

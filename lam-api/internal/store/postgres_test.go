@@ -75,6 +75,27 @@ func TestIsValidCustomerRequestStatus(t *testing.T) {
 	}
 }
 
+func TestIsValidSongPlaybackStatus(t *testing.T) {
+	tests := []struct {
+		status string
+		want   bool
+	}{
+		{status: "playing", want: true},
+		{status: "completed", want: true},
+		{status: "queued", want: false},
+		{status: "pending", want: false},
+		{status: "", want: false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.status, func(t *testing.T) {
+			if got := isValidSongPlaybackStatus(tc.status); got != tc.want {
+				t.Errorf("isValidSongPlaybackStatus(%q) = %v, want %v", tc.status, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestIsValidCustomerRequestGender(t *testing.T) {
 	cases := []struct {
 		gender string

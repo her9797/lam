@@ -53,6 +53,9 @@ export function NotificationBell() {
 
   const singleMutation = useUpdateCustomerRequestStatusMutation();
   const bulkMutation = useUpdateCustomerRequestStatusesMutation();
+  const generalRequestCount = notifications.filter(
+    (notification) => notification.kind === "general",
+  ).length;
 
   // `t` and `sound.playChime` are read through this ref rather than listed
   // as dependencies of the arrivals effect below. `t`'s reference is
@@ -95,15 +98,19 @@ export function NotificationBell() {
   }, [arrivals]);
 
   function handleItemClick(notification: RequestNotification) {
-    singleMutation.mutate({ id: notification.id, status: "checked" });
+    if (notification.kind === "general") {
+      singleMutation.mutate({ id: notification.id, status: "checked" });
+    }
     router.push(KIND_HREF[notification.kind]);
   }
 
   function handleConfirmMarkAll() {
-    bulkMutation.mutate({
-      ids: notifications.map((notification) => notification.id),
-      status: "checked",
-    });
+    const generalRequestIDs = notifications
+      .filter((notification) => notification.kind === "general")
+      .map((notification) => notification.id);
+    if (generalRequestIDs.length > 0) {
+      bulkMutation.mutate({ ids: generalRequestIDs, status: "checked" });
+    }
     setIsConfirmOpen(false);
   }
 
@@ -160,7 +167,7 @@ export function NotificationBell() {
           <AlertDialogHeader>
             <AlertDialogTitle>{t("markAllConfirmTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
-              {t("markAllConfirmBody", { count: notifications.length })}
+              {t("markAllConfirmBody", { count: generalRequestCount })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
