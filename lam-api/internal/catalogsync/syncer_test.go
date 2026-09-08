@@ -2,6 +2,8 @@ package catalogsync
 
 import (
 	"context"
+	"errors"
+	"sync"
 	"testing"
 
 	"github.com/her9797/lam/lam-api/internal/store"
@@ -48,5 +50,60 @@ func TestSyncMapsPOSCategoriesToCustomerCategories(t *testing.T) {
 	}
 	if got := repository.items[3].CategoryID; got != "cocktail" || repository.items[3].IsVisible {
 		t.Fatalf("cocktail mapping = %+v", repository.items[3])
+	}
+}
+
+// blockingCatalogClient lets a test hold ListCatalogItems open until it
+// chooses to release it, so a second, concurrent Sync() call can be made
+// while the first is still in flight. Only the *first* call blocks — every
+// call after that returns immediately — so a test can also verify the
+// Syncer is usable again once the blocked call completes.
+type blockingCatalogClient struct {
+	entered chan struct{}
+	release chan struct{}
+	blocked bool
+	blockMu sync.Mutex
+}
+
+func (b *blockingCatalogClient) ListCatalogItems(context.Context) ([]tossplace.CatalogItem, error) {
+	b.blockMu.Lock()
+	if b.blocked {
+		b.blockMu.Unlock()
+		return nil, nil
+	}
+	b.blocked = true
+	b.blockMu.Unlock()
+
+	close(b.entered)
+	<-b.release
+	return nil, nil
+}
+
+func TestSync_RejectsAConcurrentCallWhileOneIsAlreadyRunning(t *testing.T) {
+	client := &blockingCatalogClient{entered: make(chan struct{}), release: make(chan struct{})}
+	repository := &fakeCatalogRepository{}
+	syncer := New(client, repository)
+
+	firstErr := make(chan error, 1)
+	go func() {
+		_, err := syncer.Sync(context.Background())
+		firstErr <- err
+	}()
+
+	<-client.entered // wait for the first call to actually be in flight
+
+	if _, err := syncer.Sync(context.Background()); !errors.Is(err, ErrSyncInProgress) {
+		t.Fatalf("second, concurrent Sync() error = %v, want ErrSyncInProgress", err)
+	}
+
+	close(client.release)
+	if err := <-firstErr; err != nil {
+		t.Fatalf("first Sync() error = %v, want nil", err)
+	}
+
+	// The lock must be released once the first call finishes, so a later,
+	// non-concurrent call succeeds normally.
+	if _, err := syncer.Sync(context.Background()); err != nil {
+		t.Fatalf("Sync() after the first call finished error = %v, want nil", err)
 	}
 }

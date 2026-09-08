@@ -1,12 +1,14 @@
 // Package notify sends a best-effort Supabase Realtime Broadcast signal
-// after a customer request is created, so the admin web can react faster
-// than its 60s safety-net poll (see
+// after something the admin web needs to see happens — a customer request
+// is created, or a payment order is completed — so the admin web can react
+// faster than its 60s safety-net poll (see
 // docs/plans/2026-09-04-admin-request-notifications.md section 3-4.3).
 //
 // Broadcast is a public, content-free channel: the signal never carries the
-// request's data, only that something happened. The channel and event
-// names here (RequestsTopic, NewRequestEvent) must match exactly what
-// lam-admin-web's client subscribes to.
+// request's or order's data, only that something happened. The channel and
+// event names here (RequestsTopic/NewRequestEvent, OrdersTopic/
+// NewOrderEvent) must match exactly what lam-admin-web's client subscribes
+// to.
 package notify
 
 import (
@@ -28,11 +30,28 @@ const (
 	// (general or song) is created. Special requests are not part of the
 	// notification feature and never publish this event.
 	NewRequestEvent = "new_request"
+
+	// OrdersTopic is the public Broadcast channel admin clients subscribe
+	// to for completed-payment signals. Deliberately separate from
+	// RequestsTopic: customer requests and payment orders are distinct
+	// flows backed by distinct admin caches, so one channel per flow keeps
+	// each subscriber from being woken by the other's traffic.
+	OrdersTopic = "admin-orders"
+	// NewOrderEvent is the event name sent after a payment order is
+	// completed (payment confirmed and stored). A repeated confirmation of
+	// an already-completed order is idempotent and never republishes it.
+	NewOrderEvent = "new_order"
 )
 
 // NewRequestPayload is intentionally the entire message body: a bare
 // signal with no request data, per the plan's public-channel design (4.2).
 type NewRequestPayload struct {
+	Type string `json:"type"`
+}
+
+// NewOrderPayload is the order-side counterpart of NewRequestPayload: a
+// bare signal with no order data, since the channel is public.
+type NewOrderPayload struct {
 	Type string `json:"type"`
 }
 

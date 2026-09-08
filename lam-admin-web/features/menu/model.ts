@@ -11,6 +11,21 @@
  * `isPrimary`, `displayArea`, `focusX`, `focusY`) — not invented.
  */
 
+import type { AppData } from "@/features/bootstrap/model";
+
+/**
+ * Mirrors `lam-api/internal/lamdata.CatalogSyncResponse` — the manual
+ * "다시 동기화" button's response, wrapping the created/linked/updated
+ * counts around the same refreshed `AppData` tree every other menu
+ * mutation returns.
+ */
+export type CatalogSyncResponse = {
+  created: number;
+  linked: number;
+  updated: number;
+  data: AppData;
+};
+
 export type CreateCategoryInput = {
   id: string;
   label: string;

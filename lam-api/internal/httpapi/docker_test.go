@@ -53,6 +53,12 @@ func TestMain(m *testing.M) {
 		fmt.Println("failed to ensure schema:", err)
 		os.Exit(1)
 	}
+	if err := testRepo.SeedDefaults(ctx); err != nil {
+		pool.Close()
+		stopPostgresContainer(dockerContainerID)
+		fmt.Println("failed to seed defaults:", err)
+		os.Exit(1)
+	}
 
 	testCfg = config.Config{
 		Addr:            ":9090",
@@ -147,5 +153,5 @@ func resetServer(t *testing.T) http.Handler {
 		t.Fatalf("seed store_profile: %v", err)
 	}
 
-	return NewMux(testRepo, testCfg)
+	return NewMux(testRepo, testCfg, nil)
 }

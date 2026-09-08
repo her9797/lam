@@ -8,6 +8,7 @@ import {
   createMenuItem,
   deleteCategory,
   deleteMenuItem,
+  resyncCatalog,
   updateCategoryVisibility,
   updateMenuItemVisibility,
   uploadMenuItemImage,
@@ -82,5 +83,19 @@ export function useUploadMenuItemImageMutation() {
   return useMutation({
     mutationFn: (input: UploadMenuItemImageInput) => uploadMenuItemImage(input),
     onSuccess: applyBootstrapUpdate,
+  });
+}
+
+/**
+ * Unlike the mutations above, `resyncCatalog`'s response isn't `AppData`
+ * directly — it's `{ created, linked, updated, data }` — so this pulls
+ * `.data` out before writing to `bootstrapKeys.all`, same destination,
+ * same reasoning.
+ */
+export function useResyncCatalogMutation() {
+  const applyBootstrapUpdate = useApplyBootstrapUpdate();
+  return useMutation({
+    mutationFn: () => resyncCatalog(),
+    onSuccess: (response) => applyBootstrapUpdate(response.data),
   });
 }

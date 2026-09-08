@@ -49,6 +49,12 @@ func TestMain(m *testing.M) {
 		fmt.Println("failed to ensure schema:", err)
 		os.Exit(1)
 	}
+	if err := testRepo.SeedDefaults(ctx); err != nil {
+		pool.Close()
+		stopPostgresContainer(dockerContainerID)
+		fmt.Println("failed to seed defaults:", err)
+		os.Exit(1)
+	}
 
 	code := m.Run()
 

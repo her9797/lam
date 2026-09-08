@@ -30,10 +30,5 @@ export function CategoryManagementPage() {
 
   const categories = bootstrapQuery.data?.categories ?? [];
 
-  return (
-    <div className="flex flex-col gap-4">
-      <h1 className="text-lg font-semibold text-foreground">{t("categoriesTitle")}</h1>
-      <CategoryPanel categories={categories} />
-    </div>
-  );
+  return <CategoryPanel categories={categories} />;
 }

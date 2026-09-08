@@ -28,6 +28,29 @@ if (typeof window !== "undefined") {
     window.ResizeObserver = ResizeObserverStub as unknown as typeof ResizeObserver;
   }
 
+  // jsdom has no PointerEvent constructor at all, so `fireEvent.pointerDown`
+  // et al. silently fall back to a plain `Event` that drops pointer-specific
+  // init fields (clientX, pointerId, pointerType end up `undefined`) —
+  // components using the Pointer Events API (e.g. the sidebar resize
+  // handle, which needs it for touch support) can't be exercised without
+  // this. MouseEvent already carries clientX/clientY in jsdom, so this only
+  // adds the pointer-specific fields on top of it.
+  if (!window.PointerEvent) {
+    class PointerEventPolyfill extends MouseEvent {
+      pointerId: number;
+      pointerType: string;
+      isPrimary: boolean;
+
+      constructor(type: string, params: PointerEventInit = {}) {
+        super(type, params);
+        this.pointerId = params.pointerId ?? 0;
+        this.pointerType = params.pointerType ?? "mouse";
+        this.isPrimary = params.isPrimary ?? true;
+      }
+    }
+    window.PointerEvent = PointerEventPolyfill as unknown as typeof PointerEvent;
+  }
+
   if (!Element.prototype.scrollIntoView) {
     Element.prototype.scrollIntoView = () => {};
   }

@@ -8,6 +8,7 @@ import { useState, type ComponentType, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import {
   RiArrowDownSLine,
+  RiBarChart2Line,
   RiDashboardLine,
   RiFileTextLine,
   RiFolderLine,
@@ -15,6 +16,7 @@ import {
   RiMusic2Line,
   RiRestaurantLine,
   RiShoppingBag3Line,
+  RiShoppingCart2Line,
   RiStarLine,
   RiUserVoiceLine,
 } from "@remixicon/react";
@@ -57,6 +59,18 @@ const TOP_NAV_ITEMS: NavItem[] = [{ href: "/dashboard", labelKey: "navDashboard"
 
 type NavGroup = { labelKey: string; icon: ComponentType<{ className?: string }>; items: NavItem[] };
 
+// A labeled sub-section rather than its own link — only one screen exists
+// today, but this is its own group (not folded into another) so later
+// order-related screens (e.g. sales summaries) have somewhere to land.
+const ORDER_NAV_GROUP: NavGroup = {
+  labelKey: "navOrdersGroup",
+  icon: RiShoppingCart2Line,
+  items: [
+    { href: "/orders", labelKey: "navOrders", icon: RiShoppingCart2Line },
+    { href: "/orders/stats", labelKey: "navOrderStats", icon: RiBarChart2Line },
+  ],
+};
+
 // A labeled sub-section rather than its own link — "요청 관리" has no page
 // of its own, only the three request screens nested under it.
 const REQUEST_NAV_GROUP: NavGroup = {
@@ -80,7 +94,7 @@ const PRODUCT_NAV_GROUP: NavGroup = {
   ],
 };
 
-const NAV_GROUPS: NavGroup[] = [REQUEST_NAV_GROUP, PRODUCT_NAV_GROUP];
+const NAV_GROUPS: NavGroup[] = [REQUEST_NAV_GROUP, ORDER_NAV_GROUP, PRODUCT_NAV_GROUP];
 
 const BOTTOM_NAV_ITEMS: NavItem[] = [
   { href: "/notices", labelKey: "navNotices", icon: RiMegaphoneLine },

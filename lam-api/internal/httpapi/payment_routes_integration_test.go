@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"sync/atomic"
 	"testing"
+	"time"
 )
 
 func TestRouter_PaymentFlowUsesStoredAmountAndSyncsPOS(t *testing.T) {
@@ -64,7 +65,7 @@ func TestRouter_PaymentFlowUsesStoredAmountAndSyncsPOS(t *testing.T) {
 	cfg.TossPlaceSecretKey = "place-secret"
 	cfg.TossPlaceMerchantID = "merchant"
 	cfg.TossPlaceAPIBaseURL = posServer.URL
-	handler := NewMux(testRepo, cfg)
+	handler := NewMux(testRepo, cfg, nil)
 	headers := map[string]string{"Authorization": "Bearer " + cfg.PaymentAPIToken}
 
 	createBody, _ := json.Marshal(map[string]string{"menuItemId": "house-highball", "tableNumber": "7"})
@@ -113,4 +114,107 @@ func TestRouter_PaymentFlowUsesStoredAmountAndSyncsPOS(t *testing.T) {
 	if paymentCalls.Load() != 1 || posCalls.Load() != 1 {
 		t.Fatalf("provider calls payment=%d pos=%d, want 1 each", paymentCalls.Load(), posCalls.Load())
 	}
+}
+
+// TestRouter_PaymentConfirm_SendsNewOrderBroadcast wires the router to a
+// fake Supabase broadcast endpoint (resetServer's shared testCfg leaves
+// Supabase unconfigured on purpose, so every other payment test exercises
+// the "disabled" no-op path), mirroring
+// TestRouter_CustomerRequests_SendsBroadcastOnCreate.
+func TestRouter_PaymentConfirm_SendsNewOrderBroadcast(t *testing.T) {
+	resetServer(t) // truncates tables; its returned handler isn't used here
+	if _, err := testPool.Exec(t.Context(), `
+		INSERT INTO menu_categories (id, label, sort_order) VALUES ('highball', '하이볼', 1);
+		INSERT INTO menu_items (id, category_id, name, description, price, sort_order, toss_catalog_item_id)
+		VALUES ('house-highball', 'highball', '하우스 하이볼', '테스트 메뉴', '10,000원', 1, 'pos-item-1');
+	`); err != nil {
+		t.Fatalf("seed menu: %v", err)
+	}
+
+	paymentServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var request struct {
+			OrderID string `json:"orderId"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Errorf("decode payment request: %v", err)
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"paymentKey":     "pay_test",
+			"orderId":        request.OrderID,
+			"status":         "DONE",
+			"method":         "카드",
+			"totalAmount":    10000,
+			"suppliedAmount": 9091,
+			"vat":            909,
+			"taxFreeAmount":  0,
+			"approvedAt":     "2026-09-05T12:00:00+09:00",
+		})
+	}))
+	defer paymentServer.Close()
+
+	received := make(chan string, 4)
+	broadcastServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		received <- r.URL.Path
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	defer broadcastServer.Close()
+
+	cfg := testCfg
+	cfg.TossPaymentsSecretKey = "secret"
+	cfg.TossPaymentsAPIBaseURL = paymentServer.URL
+	cfg.SupabaseURL = broadcastServer.URL
+	cfg.SupabaseBroadcastKey = "test-broadcast-key"
+	handler := NewMux(testRepo, cfg, nil)
+	headers := map[string]string{"Authorization": "Bearer " + cfg.PaymentAPIToken}
+
+	createBody, _ := json.Marshal(map[string]string{"menuItemId": "house-highball", "tableNumber": "7"})
+	created := doRequest(t, handler, http.MethodPost, "/api/v1/payments/orders", createBody, headers)
+	if created.Code != http.StatusCreated {
+		t.Fatalf("create status = %d, body = %s", created.Code, created.Body.String())
+	}
+	var order struct {
+		OrderID string `json:"orderId"`
+	}
+	if err := json.Unmarshal(created.Body.Bytes(), &order); err != nil {
+		t.Fatalf("decode created order: %v", err)
+	}
+
+	select {
+	case path := <-received:
+		t.Fatalf("unexpected broadcast for a not-yet-paid order: %q", path)
+	case <-time.After(200 * time.Millisecond):
+		// expected: creating a READY order is not a completed sale
+	}
+
+	confirmBody, _ := json.Marshal(map[string]any{"paymentKey": "pay_test", "orderId": order.OrderID, "amount": 10000})
+
+	t.Run("completing the payment sends a broadcast", func(t *testing.T) {
+		confirmed := doRequest(t, handler, http.MethodPost, "/api/v1/payments/confirm", confirmBody, headers)
+		if confirmed.Code != http.StatusOK {
+			t.Fatalf("confirm status = %d, body = %s", confirmed.Code, confirmed.Body.String())
+		}
+
+		select {
+		case path := <-received:
+			if path != "/realtime/v1/api/broadcast/admin-orders/events/new_order" {
+				t.Errorf("broadcast path = %q, want the admin-orders/new_order path", path)
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatal("timed out waiting for the new-order broadcast")
+		}
+	})
+
+	t.Run("re-confirming an already completed order does not send another broadcast", func(t *testing.T) {
+		again := doRequest(t, handler, http.MethodPost, "/api/v1/payments/confirm", confirmBody, headers)
+		if again.Code != http.StatusOK {
+			t.Fatalf("re-confirm status = %d, body = %s", again.Code, again.Body.String())
+		}
+
+		select {
+		case path := <-received:
+			t.Fatalf("unexpected repeat broadcast on an idempotent re-confirm: %q", path)
+		case <-time.After(200 * time.Millisecond):
+			// expected: the alarm fires once per completed sale
+		}
+	})
 }

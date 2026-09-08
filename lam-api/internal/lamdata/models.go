@@ -68,6 +68,86 @@ type SpecialRequest struct {
 	CreatedAt   string `json:"createdAt"`
 }
 
+// PaymentOrder is the admin-facing read shape for a payment_orders row,
+// deliberately separate from store.PaymentOrder (the customer payment-flow
+// contract lam-web's services/payment-service.ts depends on) even though
+// the fields largely overlap — per AGENTS.md, customer and admin contracts
+// stay decoupled so the two can evolve independently.
+type PaymentOrder struct {
+	OrderID        string `json:"orderId"`
+	MenuItemID     string `json:"menuItemId,omitempty"`
+	MenuItemName   string `json:"menuItemName"`
+	CategoryName   string `json:"categoryName"`
+	TableNumber    string `json:"tableNumber"`
+	Amount         int64  `json:"amount"`
+	VAT            int64  `json:"vat"`
+	SuppliedAmount int64  `json:"suppliedAmount"`
+	TaxFreeAmount  int64  `json:"taxFreeAmount"`
+	Status         string `json:"status"`
+	PaymentMethod  string `json:"paymentMethod,omitempty"`
+	PaymentKey     string `json:"paymentKey,omitempty"`
+	ApprovedAt     string `json:"approvedAt,omitempty"`
+	POSSyncStatus  string `json:"posSyncStatus"`
+	POSOrderID     string `json:"posOrderId,omitempty"`
+	POSSyncError   string `json:"posSyncError,omitempty"`
+	CreatedAt      string `json:"createdAt"`
+}
+
+type PaymentOrderPage struct {
+	Items    []PaymentOrder `json:"items"`
+	Page     int            `json:"page"`
+	PageSize int            `json:"pageSize"`
+	Total    int            `json:"total"`
+}
+
+// PaymentOrderStats is the aggregated response for the admin sales-stats
+// screen (`GET /api/v1/admin/payment-orders/stats`). Every figure is
+// computed over DONE orders only, within the caller-supplied [from, to)
+// range — see `store.Repository.GetPaymentOrderStats`'s doc comment for the
+// bucketing/timezone rules.
+type PaymentOrderStatsSummary struct {
+	TotalRevenue      int64 `json:"totalRevenue"`
+	OrderCount        int   `json:"orderCount"`
+	AverageOrderValue int64 `json:"averageOrderValue"`
+}
+
+type PaymentOrderTrendBucket struct {
+	Bucket     string `json:"bucket"`
+	Revenue    int64  `json:"revenue"`
+	OrderCount int    `json:"orderCount"`
+}
+
+type PaymentOrderTrend struct {
+	Unit    string                    `json:"unit"`
+	Buckets []PaymentOrderTrendBucket `json:"buckets"`
+}
+
+type PaymentOrderCategoryStat struct {
+	CategoryName string `json:"categoryName"`
+	Revenue      int64  `json:"revenue"`
+	OrderCount   int    `json:"orderCount"`
+}
+
+type PaymentOrderPaymentMethodStat struct {
+	PaymentMethod string `json:"paymentMethod"`
+	Revenue       int64  `json:"revenue"`
+	OrderCount    int    `json:"orderCount"`
+}
+
+type PaymentOrderTableStat struct {
+	TableNumber string `json:"tableNumber"`
+	Revenue     int64  `json:"revenue"`
+	OrderCount  int    `json:"orderCount"`
+}
+
+type PaymentOrderStats struct {
+	Summary         PaymentOrderStatsSummary        `json:"summary"`
+	Trend           PaymentOrderTrend               `json:"trend"`
+	ByCategory      []PaymentOrderCategoryStat      `json:"byCategory"`
+	ByPaymentMethod []PaymentOrderPaymentMethodStat `json:"byPaymentMethod"`
+	ByTable         []PaymentOrderTableStat         `json:"byTable"`
+}
+
 type CustomerRequestPage struct {
 	Items    []CustomerRequest `json:"items"`
 	Page     int               `json:"page"`
@@ -94,4 +174,17 @@ type MenuData struct {
 	Store      StoreInfo      `json:"store"`
 	Categories []MenuCategory `json:"categories"`
 	Items      []MenuItem     `json:"items"`
+}
+
+// CatalogSyncResponse is the response for
+// POST /api/v1/admin/catalog-sync — the manual counterpart of
+// cmd/server/main.go's 5-minute background poll. `Data` is the refreshed
+// bootstrap snapshot (mirroring every other admin mutation endpoint's
+// "return the full state" contract) so the admin web can update its menu
+// list in the same round trip that reports the sync counts.
+type CatalogSyncResponse struct {
+	Created int           `json:"created"`
+	Linked  int           `json:"linked"`
+	Updated int           `json:"updated"`
+	Data    BootstrapData `json:"data"`
 }

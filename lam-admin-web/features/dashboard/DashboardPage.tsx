@@ -8,6 +8,7 @@ import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states/PageStates";
 import { useBootstrapQuery } from "@/features/bootstrap/queries";
+import { useOrderCountQuery } from "@/features/orders/queries";
 import { useCustomerRequestsQuery } from "@/features/requests/queries";
 import { useSpecialRequestsQuery } from "@/features/special-requests/queries";
 
@@ -25,8 +26,9 @@ type ShortcutCard = {
 // Every card links to the management route for the data it counts — the
 // three built in this task (`/requests`, `/song-requests`,
 // `/special-requests`) plus the menu/notice routes `AdminShell`'s nav
-// already lists (Task 3) and Tasks 6/7 will implement. Linking ahead here
-// matches the nav, which already does the same.
+// already lists (Task 3) and Tasks 6/7 will implement, and `/orders` for
+// the order-history count. Linking ahead here matches the nav, which
+// already does the same.
 function buildCards(summary: DashboardSummary): ShortcutCard[] {
   return [
     {
@@ -51,6 +53,13 @@ function buildCards(summary: DashboardSummary): ShortcutCard[] {
       value: summary.specialRequestCount,
     },
     {
+      key: "orders",
+      href: "/orders",
+      titleKey: "cardOrdersTitle",
+      descriptionKey: "cardOrdersDescription",
+      value: summary.orderCount,
+    },
+    {
       key: "menu",
       href: "/menu",
       titleKey: "cardMenuTitle",
@@ -72,10 +81,14 @@ export function DashboardPage() {
   const bootstrapQuery = useBootstrapQuery();
   const requestsQuery = useCustomerRequestsQuery();
   const specialRequestsQuery = useSpecialRequestsQuery();
+  const orderCountQuery = useOrderCountQuery();
 
   const isLoading =
-    bootstrapQuery.isLoading || requestsQuery.isLoading || specialRequestsQuery.isLoading;
-  const failedQuery = [bootstrapQuery, requestsQuery, specialRequestsQuery].find(
+    bootstrapQuery.isLoading ||
+    requestsQuery.isLoading ||
+    specialRequestsQuery.isLoading ||
+    orderCountQuery.isLoading;
+  const failedQuery = [bootstrapQuery, requestsQuery, specialRequestsQuery, orderCountQuery].find(
     (query) => query.isError,
   );
 
@@ -89,13 +102,22 @@ export function DashboardPage() {
     if (specialRequestsQuery.isError) {
       void specialRequestsQuery.refetch();
     }
+    if (orderCountQuery.isError) {
+      void orderCountQuery.refetch();
+    }
   }
 
   if (isLoading) {
     return <LoadingState label={t("loading")} />;
   }
 
-  if (failedQuery || !bootstrapQuery.data || !requestsQuery.data || !specialRequestsQuery.data) {
+  if (
+    failedQuery ||
+    !bootstrapQuery.data ||
+    !requestsQuery.data ||
+    !specialRequestsQuery.data ||
+    !orderCountQuery.data
+  ) {
     return (
       <ErrorState
         title={t("errorTitle")}
@@ -111,16 +133,19 @@ export function DashboardPage() {
     bootstrapQuery.data,
     requestsQuery.data,
     specialRequestsQuery.data,
+    orderCountQuery.data.total,
   );
-  // All 3 queries have already succeeded above (the loading/error branches
+  // All 4 queries have already succeeded above (the loading/error branches
   // returned first) — "empty" here means every aggregate count is genuinely
-  // zero: no pending general or song requests, no special requests, no menu
-  // items, no notices. That's the only state where a bare "0" on every card
-  // would otherwise look indistinguishable from a data-loading problem.
+  // zero: no pending general or song requests, no special or order-history
+  // records, no menu items, no notices. That's the only state where a bare
+  // "0" on every card would otherwise look indistinguishable from a
+  // data-loading problem.
   const isEmpty =
     summary.pendingGeneralRequestCount === 0 &&
     summary.pendingSongRequestCount === 0 &&
     summary.specialRequestCount === 0 &&
+    summary.orderCount === 0 &&
     summary.menuItemCount === 0 &&
     summary.noticeCount === 0;
 
