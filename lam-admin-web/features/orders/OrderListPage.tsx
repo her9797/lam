@@ -12,6 +12,7 @@ import { Pagination } from "@/components/list/Pagination";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states/PageStates";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -207,82 +208,100 @@ export function OrderListPage() {
         searchValue={searchInput}
         onSearchChange={setSearchInput}
         searchPlaceholder={t("searchPlaceholder")}
+        className="items-end"
       >
-        <Select
-          value={query.datePreset}
-          onValueChange={(value) => updateQuery({ datePreset: value as DatePreset, page: 1 })}
-        >
-          <SelectTrigger size="sm" aria-label={t("datePresetLabel")}>
-            <SelectValue placeholder={t("datePresetLabel")}>
-              {(value: string) => DATE_PRESET_LABELS[value] ?? value}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="today">{t("datePresetToday")}</SelectItem>
-            <SelectItem value="last7">{t("datePresetLast7")}</SelectItem>
-            <SelectItem value="last30">{t("datePresetLast30")}</SelectItem>
-            <SelectItem value="all">{t("datePresetAll")}</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="order-date-preset">{t("datePresetLabel")}</Label>
+          <Select
+            value={query.datePreset}
+            onValueChange={(value) => updateQuery({ datePreset: value as DatePreset, page: 1 })}
+          >
+            <SelectTrigger id="order-date-preset" size="sm" className="w-32" aria-label={t("datePresetLabel")}>
+              <SelectValue placeholder={t("datePresetLabel")}>
+                {(value: string) => DATE_PRESET_LABELS[value] ?? value}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="today">{t("datePresetToday")}</SelectItem>
+              <SelectItem value="last7">{t("datePresetLast7")}</SelectItem>
+              <SelectItem value="last30">{t("datePresetLast30")}</SelectItem>
+              <SelectItem value="all">{t("datePresetAll")}</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
 
-        <Select
-          value={query.status ?? "all"}
-          onValueChange={(value) =>
-            updateQuery({
-              status: value === "all" ? undefined : (value as PaymentOrderStatus),
-              page: 1,
-            })
-          }
-        >
-          <SelectTrigger size="sm" aria-label={t("statusFilterLabel")}>
-            <SelectValue placeholder={t("statusFilterLabel")}>
-              {(value: string) => STATUS_FILTER_LABELS[value] ?? value}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{t("common:filterAll")}</SelectItem>
-            <SelectItem value="READY">{t("statusReady")}</SelectItem>
-            <SelectItem value="DONE">{t("statusDone")}</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="order-status-filter">{t("statusFilterLabel")}</Label>
+          <Select
+            value={query.status ?? "all"}
+            onValueChange={(value) =>
+              updateQuery({
+                status: value === "all" ? undefined : (value as PaymentOrderStatus),
+                page: 1,
+              })
+            }
+          >
+            <SelectTrigger id="order-status-filter" size="sm" className="w-32" aria-label={t("statusFilterLabel")}>
+              <SelectValue placeholder={t("statusFilterLabel")}>
+                {(value: string) => STATUS_FILTER_LABELS[value] ?? value}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{t("common:filterAll")}</SelectItem>
+              <SelectItem value="READY">{t("statusReady")}</SelectItem>
+              <SelectItem value="DONE">{t("statusDone")}</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
 
-        <Select
-          value={query.posSyncStatus ?? "all"}
-          onValueChange={(value) =>
-            updateQuery({
-              posSyncStatus: value === "all" ? undefined : (value as PaymentOrderPosSyncStatus),
-              page: 1,
-            })
-          }
-        >
-          <SelectTrigger size="sm" aria-label={t("posSyncFilterLabel")}>
-            <SelectValue placeholder={t("posSyncFilterLabel")}>
-              {(value: string) => POS_SYNC_FILTER_LABELS[value] ?? value}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{t("common:filterAll")}</SelectItem>
-            <SelectItem value="PENDING">{t("posSyncPending")}</SelectItem>
-            <SelectItem value="SUCCEEDED">{t("posSyncSucceeded")}</SelectItem>
-            <SelectItem value="FAILED">{t("posSyncFailed")}</SelectItem>
-            <SelectItem value="NOT_CONFIGURED">{t("posSyncNotConfigured")}</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="order-pos-sync-filter">{t("posSyncFilterLabel")}</Label>
+          <Select
+            value={query.posSyncStatus ?? "all"}
+            onValueChange={(value) =>
+              updateQuery({
+                posSyncStatus: value === "all" ? undefined : (value as PaymentOrderPosSyncStatus),
+                page: 1,
+              })
+            }
+          >
+            <SelectTrigger
+              id="order-pos-sync-filter"
+              size="sm"
+              className="w-32"
+              aria-label={t("posSyncFilterLabel")}
+            >
+              <SelectValue placeholder={t("posSyncFilterLabel")}>
+                {(value: string) => POS_SYNC_FILTER_LABELS[value] ?? value}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{t("common:filterAll")}</SelectItem>
+              <SelectItem value="PENDING">{t("posSyncPending")}</SelectItem>
+              <SelectItem value="SUCCEEDED">{t("posSyncSucceeded")}</SelectItem>
+              <SelectItem value="FAILED">{t("posSyncFailed")}</SelectItem>
+              <SelectItem value="NOT_CONFIGURED">{t("posSyncNotConfigured")}</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
 
-        <Select
-          value={query.sort}
-          onValueChange={(value) => updateQuery({ sort: value as PaymentOrderSort, page: 1 })}
-        >
-          <SelectTrigger size="sm" aria-label={t("common:sortLabel")}>
-            <SelectValue placeholder={t("common:sortLabel")}>
-              {(value: string) => SORT_LABELS[value] ?? value}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="createdAt">{t("sortByCreatedAt")}</SelectItem>
-            <SelectItem value="amount">{t("sortByAmount")}</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="order-sort">{t("common:sortLabel")}</Label>
+          <Select
+            value={query.sort}
+            onValueChange={(value) => updateQuery({ sort: value as PaymentOrderSort, page: 1 })}
+          >
+            <SelectTrigger id="order-sort" size="sm" className="w-32" aria-label={t("common:sortLabel")}>
+              <SelectValue placeholder={t("common:sortLabel")}>
+                {(value: string) => SORT_LABELS[value] ?? value}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="createdAt">{t("sortByCreatedAt")}</SelectItem>
+              <SelectItem value="amount">{t("sortByAmount")}</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </ListToolbar>
 
       <ListTotalCount count={total} />
