@@ -2,7 +2,7 @@
 
 `lam-api`는 `laam` QR 메뉴 프로젝트의 백엔드 API 스캐폴드입니다.
 
-메뉴·요청 관리와 손님 결제 승인, 토스플레이스 POS 주문 동기화를 담당합니다.
+메뉴·요청 관리와 손님 주문 등록, 결제 승인, 토스플레이스 POS 동기화를 담당합니다.
 
 ## 기술 스택
 
@@ -26,6 +26,7 @@ lam-api
 
 - `GET /health`
 - `GET /api/v1/menu`
+- `POST /api/v1/orders`
 - `POST /api/v1/payments/orders`
 - `GET /api/v1/payments/orders/{orderId}`
 - `POST /api/v1/payments/confirm`
@@ -45,17 +46,16 @@ go run ./cmd/server
 http://localhost:9090
 ```
 
-결제를 사용하려면 다음 값을 환경변수로 설정합니다. 키는 저장소에 커밋하지 않습니다.
+손님 주문을 토스 POS에 등록하려면 다음 값을 환경변수로 설정합니다. 키는 저장소에 커밋하지 않습니다.
 
 ```bash
 PAYMENT_API_TOKEN=웹과_API가_공유할_긴_임의값
-TOSS_PAYMENTS_SECRET_KEY=토스페이먼츠_시크릿키
 TOSS_PLACE_ACCESS_KEY=토스플레이스_오픈API_액세스키
 TOSS_PLACE_SECRET_KEY=토스플레이스_오픈API_시크릿키
 TOSS_PLACE_MERCHANT_ID=토스플레이스_가맹점_ID
 ```
 
-토스페이먼츠가 실제 결제를 승인하고, 승인 완료 후 토스플레이스 Open API에 결제 완료 주문을 생성합니다. 토스플레이스 전송이 실패해도 이미 승인된 결제 상태는 `DONE`으로 보존됩니다.
+`POST /api/v1/orders`는 결제 내역 없이 후불 주문을 토스 POS에 생성합니다. 손님은 매장에서 별도로 결제합니다. 토스페이먼츠 결제 기능을 별도로 사용할 때만 `TOSS_PAYMENTS_SECRET_KEY`가 필요합니다.
 
 토스플레이스가 설정되어 있으면 API 시작 시와 이후 5분마다 POS 카탈로그를 동기화합니다.
 
@@ -63,7 +63,7 @@ TOSS_PLACE_MERCHANT_ID=토스플레이스_가맹점_ID
 - 기존 `lam` 메뉴와 이름이 일치하면 설명, 이미지, 뱃지를 유지한 채 연결합니다.
 - 신규 POS 상품은 `하이볼 / 위스키 / 칵테일 / 논알콜` 웹 카테고리에 자동 분류합니다.
 - POS에서 사라진 상품, 품절 상품, 0원 상품은 손님 화면에서 숨깁니다.
-- 결제 완료 주문은 임의 상품이 아닌 연결된 POS 상품 ID로 생성합니다.
+- 손님 주문은 임의 상품이 아닌 연결된 POS 상품 ID로 생성합니다.
 
 신청곡 자동 재생을 사용하려면 서버 실행 환경에 YouTube Data API v3 키를 추가합니다. 키는 관리자 웹에 노출하지 않습니다.
 

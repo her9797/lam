@@ -31,6 +31,20 @@ type PaidOrder struct {
 	ApprovedAt        time.Time
 }
 
+// UnpaidOrder represents a postpaid order that should be opened in Toss POS
+// without recording a payment. Payment is completed later at the store.
+type UnpaidOrder struct {
+	OrderID           string
+	OrderNumber       string
+	MenuItemID        string
+	TossCatalogItemID string
+	MenuItemName      string
+	CategoryName      string
+	TableNumber       string
+	Amount            int64
+	OpenedAt          time.Time
+}
+
 type CreateOrderResult struct {
 	OrderID string
 }
@@ -200,6 +214,63 @@ func (c *Client) CreatePaidOrder(ctx context.Context, paid PaidOrder) (CreateOrd
 		}},
 	}
 
+	return c.sendCreateOrder(ctx, body)
+}
+
+func (c *Client) CreateUnpaidOrder(ctx context.Context, unpaid UnpaidOrder) (CreateOrderResult, error) {
+	if c.accessKey == "" || c.secretKey == "" || c.merchantID == "" {
+		return CreateOrderResult{}, ErrNotConfigured
+	}
+
+	lineItem := createLineItem{
+		DiningOption: "HERE",
+		TargetType:   "ITEM",
+		TargetID:     unpaid.TossCatalogItemID,
+		ItemPrice: createItemPrice{
+			Title:        "기본",
+			PriceType:    "FIXED",
+			PriceUnit:    1,
+			PriceValue:   unpaid.Amount,
+			IsTaxFree:    false,
+			TaxInclusive: true,
+		},
+		Quantity: 1,
+	}
+	if unpaid.TossCatalogItemID == "" {
+		lineItem.TargetType = "AD_HOC"
+		lineItem.Item = &createItem{
+			Title:    unpaid.MenuItemName,
+			Code:     unpaid.MenuItemID,
+			Category: createCategory{Title: unpaid.CategoryName},
+		}
+	}
+
+	vat := unpaid.Amount / 11
+	body := createOrderBody{
+		Order: createOrder{
+			OrderKey:    unpaid.OrderID,
+			OrderNumber: unpaid.OrderNumber,
+			LineItems:   []createLineItem{lineItem},
+			ChargePrice: chargePrice{
+				ListPrice:           unpaid.Amount,
+				DiscountAmount:      0,
+				TipAmount:           0,
+				ServiceChargeAmount: 0,
+				TaxAmount:           vat,
+				SupplyAmount:        unpaid.Amount - vat,
+				TaxExemptAmount:     0,
+				TotalAmount:         unpaid.Amount,
+			},
+			Memo:     paymentMemo(unpaid.TableNumber),
+			OpenedAt: unpaid.OpenedAt.UTC().Format(time.RFC3339),
+		},
+		Payments: make([]createPayment, 0),
+	}
+
+	return c.sendCreateOrder(ctx, body)
+}
+
+func (c *Client) sendCreateOrder(ctx context.Context, body createOrderBody) (CreateOrderResult, error) {
 	encoded, err := json.Marshal(body)
 	if err != nil {
 		return CreateOrderResult{}, err

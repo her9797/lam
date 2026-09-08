@@ -116,6 +116,70 @@ func TestRouter_PaymentFlowUsesStoredAmountAndSyncsPOS(t *testing.T) {
 	}
 }
 
+func TestRouter_OrderOnlyFlowCreatesUnpaidPOSOrder(t *testing.T) {
+	resetServer(t)
+	if _, err := testPool.Exec(t.Context(), `
+		INSERT INTO menu_categories (id, label, sort_order) VALUES ('highball', '하이볼', 1);
+		INSERT INTO menu_items (id, category_id, name, description, price, sort_order, toss_catalog_item_id)
+		VALUES ('house-highball', 'highball', '하우스 하이볼', '테스트 메뉴', '10,000원', 1, 'pos-item-1');
+	`); err != nil {
+		t.Fatalf("seed menu: %v", err)
+	}
+
+	var posCalls atomic.Int32
+	posServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		posCalls.Add(1)
+		var body struct {
+			Payments []json.RawMessage `json:"payments"`
+			Order    struct {
+				OrderKey string `json:"orderKey"`
+			} `json:"order"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("decode POS order: %v", err)
+		}
+		if body.Payments == nil || len(body.Payments) != 0 {
+			t.Fatalf("payments = %#v, want empty", body.Payments)
+		}
+		if body.Order.OrderKey == "" {
+			t.Fatal("orderKey is empty")
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"resultType": "SUCCESS",
+			"success":    map[string]string{"id": "pos-order-unpaid"},
+		})
+	}))
+	defer posServer.Close()
+
+	cfg := testCfg
+	cfg.TossPlaceAccessKey = "access"
+	cfg.TossPlaceSecretKey = "place-secret"
+	cfg.TossPlaceMerchantID = "merchant"
+	cfg.TossPlaceAPIBaseURL = posServer.URL
+	handler := NewMux(testRepo, cfg, nil)
+	headers := map[string]string{"Authorization": "Bearer " + cfg.PaymentAPIToken}
+
+	createBody, _ := json.Marshal(map[string]string{"menuItemId": "house-highball", "tableNumber": "7"})
+	created := doRequest(t, handler, http.MethodPost, "/api/v1/orders", createBody, headers)
+	if created.Code != http.StatusCreated {
+		t.Fatalf("create status = %d, body = %s", created.Code, created.Body.String())
+	}
+	var result struct {
+		Status        string `json:"status"`
+		POSSyncStatus string `json:"posSyncStatus"`
+		POSOrderID    string `json:"posOrderId"`
+	}
+	if err := json.Unmarshal(created.Body.Bytes(), &result); err != nil {
+		t.Fatalf("decode order: %v", err)
+	}
+	if result.Status != "READY" || result.POSSyncStatus != "SUCCEEDED" || result.POSOrderID != "pos-order-unpaid" {
+		t.Fatalf("created order = %+v", result)
+	}
+	if posCalls.Load() != 1 {
+		t.Fatalf("POS calls = %d, want 1", posCalls.Load())
+	}
+}
+
 // TestRouter_PaymentConfirm_SendsNewOrderBroadcast wires the router to a
 // fake Supabase broadcast endpoint (resetServer's shared testCfg leaves
 // Supabase unconfigured on purpose, so every other payment test exercises
