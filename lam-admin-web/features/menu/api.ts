@@ -1,10 +1,16 @@
 import { fetchJson } from "@/lib/api/fetch-json";
 import type { AppData } from "@/features/bootstrap/model";
 
-import type { CreateCategoryInput, CreateMenuItemInput, UploadMenuItemImageInput } from "./model";
+import type {
+  CatalogSyncResponse,
+  CreateCategoryInput,
+  CreateMenuItemInput,
+  UploadMenuItemImageInput,
+} from "./model";
 
 const CATEGORIES_PATH = "/api/admin/categories";
 const MENU_ITEMS_PATH = "/api/admin/menu-items";
+const CATALOG_SYNC_PATH = "/api/admin/catalog-sync";
 
 /**
  * Every one of these calls `lam-api`'s admin category/menu-item endpoints
@@ -75,4 +81,16 @@ export function uploadMenuItemImage(input: UploadMenuItemImageInput): Promise<Ap
     method: "POST",
     body: formData,
   });
+}
+
+/**
+ * Manually triggers `lam-api`'s Toss Place catalog sync (the same one the
+ * server already runs on its own 5-minute poll) instead of waiting for it.
+ * Unlike every other call in this module, the response isn't `AppData`
+ * directly — it's `{ created, linked, updated, data }`, so the operator's
+ * "다시 동기화" button can show the counts alongside refreshing the list
+ * (see `CatalogSyncResponse`'s doc comment).
+ */
+export function resyncCatalog(): Promise<CatalogSyncResponse> {
+  return fetchJson<CatalogSyncResponse>(CATALOG_SYNC_PATH, { method: "POST" });
 }

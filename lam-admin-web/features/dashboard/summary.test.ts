@@ -113,13 +113,14 @@ describe("stripSongRequestPrefix", () => {
 });
 
 describe("buildDashboardSummary", () => {
-  it("aggregates pending general, pending song, special request, menu and notice counts", () => {
-    const summary = buildDashboardSummary(appDataFixture, requestsFixture, specialRequestsFixture);
+  it("aggregates pending general, pending song, special request, order, menu and notice counts", () => {
+    const summary = buildDashboardSummary(appDataFixture, requestsFixture, specialRequestsFixture, 7);
 
     expect(summary).toEqual({
       pendingGeneralRequestCount: 1, // r1 only — r2 is completed
       pendingSongRequestCount: 1, // r3 only — r4 is checked
       specialRequestCount: 1,
+      orderCount: 7,
       menuItemCount: 2,
       noticeCount: 1,
     });
@@ -132,12 +133,13 @@ describe("buildDashboardSummary", () => {
       notices: [],
     };
 
-    const summary = buildDashboardSummary(emptyAppData, [], []);
+    const summary = buildDashboardSummary(emptyAppData, [], [], 0);
 
     expect(summary).toEqual({
       pendingGeneralRequestCount: 0,
       pendingSongRequestCount: 0,
       specialRequestCount: 0,
+      orderCount: 0,
       menuItemCount: 0,
       noticeCount: 0,
     });

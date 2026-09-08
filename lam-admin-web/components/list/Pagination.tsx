@@ -4,6 +4,8 @@ import "@/i18n/client";
 
 import { useTranslation } from "react-i18next";
 
+import { RiArrowDownSLine } from "@remixicon/react";
+
 import { Button } from "@/components/ui/button";
 
 export const PAGE_SIZE_OPTIONS = [10, 20, 30] as const;
@@ -26,18 +28,21 @@ export function Pagination({
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-      <select
-        aria-label={t("listPageSizeLabel")}
-        className="h-8 rounded-3xl border border-transparent bg-input/50 px-3 text-sm text-foreground"
-        value={pageSize}
-        onChange={(event) => onPageSizeChange(Number(event.target.value))}
-      >
-        {PAGE_SIZE_OPTIONS.map((size) => (
-          <option key={size} value={size}>
-            {size}
-          </option>
-        ))}
-      </select>
+      <div className="relative inline-flex w-fit items-center">
+        <select
+          aria-label={t("listPageSizeLabel")}
+          className="flex h-8 items-center appearance-none rounded-3xl border border-transparent bg-input/50 pl-3 pr-8 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
+          value={pageSize}
+          onChange={(event) => onPageSizeChange(Number(event.target.value))}
+        >
+          {PAGE_SIZE_OPTIONS.map((size) => (
+            <option key={size} value={size}>
+              {size}
+            </option>
+          ))}
+        </select>
+        <RiArrowDownSLine className="pointer-events-none absolute right-2 size-4 text-muted-foreground" />
+      </div>
       <div className="flex items-center gap-2">
         <Button
           type="button"

@@ -17,9 +17,9 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ListToolbar } from "@/components/list/ListToolbar";
+import { ListTotalCount } from "@/components/list/ListTotalCount";
 import { Pagination } from "@/components/list/Pagination";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states/PageStates";
 import { Label } from "@/components/ui/label";
@@ -199,7 +199,12 @@ export function NoticeManagementPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="text-lg font-semibold text-foreground">{t("title")}</h1>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h1 className="text-lg font-semibold text-foreground">{t("title")}</h1>
+        <Button type="button" size="sm" onClick={openCreateDialog}>
+          {t("addTrigger")}
+        </Button>
+      </div>
 
       {statusMessage ? (
         <p role="status" aria-live="polite" className="text-sm text-emerald-600 dark:text-emerald-400">
@@ -207,117 +212,100 @@ export function NoticeManagementPage() {
         </p>
       ) : null}
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
-          <div className="flex items-center gap-2">
-            <CardTitle>{t("listCardTitle")}</CardTitle>
-            {notices.length > 0 ? (
-              <span className="text-sm text-muted-foreground">
-                {t("common:listTotalCount", { count: visibleTotal })}
-              </span>
-            ) : null}
-          </div>
-          <CardAction>
-            <Button type="button" size="sm" onClick={openCreateDialog}>
-              {t("addTrigger")}
-            </Button>
-          </CardAction>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-3">
-          {deleteMutation.isError ? (
-            <p role="alert" className="text-sm text-destructive">
-              {deleteMutation.error instanceof Error
-                ? deleteMutation.error.message
-                : t("deleteFailed")}
-            </p>
-          ) : null}
-          {visibilityMutation.isError ? (
-            <p role="alert" className="text-sm text-destructive">
-              {visibilityMutation.error instanceof Error
-                ? visibilityMutation.error.message
-                : t("visibilityFailed")}
-            </p>
-          ) : null}
+      {deleteMutation.isError ? (
+        <p role="alert" className="text-sm text-destructive">
+          {deleteMutation.error instanceof Error
+            ? deleteMutation.error.message
+            : t("deleteFailed")}
+        </p>
+      ) : null}
+      {visibilityMutation.isError ? (
+        <p role="alert" className="text-sm text-destructive">
+          {visibilityMutation.error instanceof Error
+            ? visibilityMutation.error.message
+            : t("visibilityFailed")}
+        </p>
+      ) : null}
 
-          {notices.length > 0 ? (
-            <ListToolbar
-              searchValue={listQuery.search}
-              onSearchChange={(search) => setListQuery((prev) => ({ ...prev, search, page: 1 }))}
-              searchPlaceholder={t("searchPlaceholder")}
-            />
-          ) : null}
+      {notices.length > 0 ? (
+        <ListToolbar
+          searchValue={listQuery.search}
+          onSearchChange={(search) => setListQuery((prev) => ({ ...prev, search, page: 1 }))}
+          searchPlaceholder={t("searchPlaceholder")}
+        />
+      ) : null}
 
-          {notices.length === 0 ? (
-            <EmptyState title={t("emptyTitle")} description={t("emptyDescription")} />
-          ) : visibleNotices.length === 0 ? (
-            <EmptyState
-              title={t("common:listNoResultsTitle")}
-              description={t("common:listNoResultsDescription")}
-            />
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t("columnText")}</TableHead>
-                  <TableHead>{t("common:columnVisibility")}</TableHead>
-                  <TableHead>{t("common:columnActions")}</TableHead>
+      <ListTotalCount count={visibleTotal} />
+
+      {notices.length === 0 ? (
+        <EmptyState title={t("emptyTitle")} description={t("emptyDescription")} />
+      ) : visibleNotices.length === 0 ? (
+        <EmptyState
+          title={t("common:listNoResultsTitle")}
+          description={t("common:listNoResultsDescription")}
+        />
+      ) : (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>{t("columnText")}</TableHead>
+              <TableHead>{t("common:columnVisibility")}</TableHead>
+              <TableHead>{t("common:columnActions")}</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {visibleNotices.map((notice) => {
+              return (
+                <TableRow key={notice.id}>
+                  <TableCell className="whitespace-normal">{notice.text}</TableCell>
+                  <TableCell>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={isVisibilityPending(notice.id)}
+                      onClick={() => handleToggleVisibility(notice)}
+                    >
+                      {notice.isVisible ? t("common:visible") : t("common:hidden")}
+                    </Button>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => beginEdit(notice)}
+                      >
+                        {t("common:edit")}
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="destructive"
+                        disabled={isDeletePending(notice.id)}
+                        onClick={() => setPendingDeleteId(notice.id)}
+                      >
+                        {t("common:delete")}
+                      </Button>
+                    </div>
+                  </TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {visibleNotices.map((notice) => {
-                  return (
-                    <TableRow key={notice.id}>
-                      <TableCell className="whitespace-normal">{notice.text}</TableCell>
-                      <TableCell>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          disabled={isVisibilityPending(notice.id)}
-                          onClick={() => handleToggleVisibility(notice)}
-                        >
-                          {notice.isVisible ? t("common:visible") : t("common:hidden")}
-                        </Button>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-2">
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            onClick={() => beginEdit(notice)}
-                          >
-                            {t("common:edit")}
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="destructive"
-                            disabled={isDeletePending(notice.id)}
-                            onClick={() => setPendingDeleteId(notice.id)}
-                          >
-                            {t("common:delete")}
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          )}
+              );
+            })}
+          </TableBody>
+        </Table>
+      )}
 
-          {notices.length > 0 ? (
-            <Pagination
-              page={listQuery.page}
-              pageSize={listQuery.pageSize}
-              total={visibleTotal}
-              onPageChange={(page) => setListQuery((prev) => ({ ...prev, page }))}
-              onPageSizeChange={(pageSize) => setListQuery((prev) => ({ ...prev, pageSize, page: 1 }))}
-            />
-          ) : null}
-        </CardContent>
-      </Card>
+      {notices.length > 0 ? (
+        <Pagination
+          page={listQuery.page}
+          pageSize={listQuery.pageSize}
+          total={visibleTotal}
+          onPageChange={(page) => setListQuery((prev) => ({ ...prev, page }))}
+          onPageSizeChange={(pageSize) => setListQuery((prev) => ({ ...prev, pageSize, page: 1 }))}
+        />
+      ) : null}
 
       <Dialog
         open={isCreateOpen}

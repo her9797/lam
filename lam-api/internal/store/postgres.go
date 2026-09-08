@@ -362,7 +362,119 @@ func (r *Repository) SeedDefaults(ctx context.Context) error {
 		}
 	}
 
+	if err := seedSampleActivity(ctx, tx); err != nil {
+		return err
+	}
+
 	return tx.Commit(ctx)
+}
+
+// seedSampleActivity seeds a handful of sample customer requests, special
+// requests, and payment orders alongside SeedDefaults' menu/notice data —
+// so a freshly started `docker compose` stack has something to look at in
+// the admin web's request/order-history/sales-stats screens without the
+// operator manually creating rows first. Only ever runs as part of
+// SeedDefaults' own "store_profile is empty" guard, so it's exactly as
+// one-shot/idempotent as the rest of that function.
+func seedSampleActivity(ctx context.Context, tx pgx.Tx) error {
+	type sampleRequest struct {
+		id          string
+		tableNumber string
+		text        string
+		status      string
+		createdAgo  string
+		handledAgo  string // "" when not yet handled
+	}
+	requests := []sampleRequest{
+		{id: "sample-request-1", tableNumber: "3", text: "물 좀 더 주세요", status: "pending", createdAgo: "10 minutes"},
+		{id: "sample-request-2", tableNumber: "5", text: "테이블 정리 부탁드려요", status: "checked", createdAgo: "40 minutes", handledAgo: "35 minutes"},
+		{id: "sample-request-3", tableNumber: "2", text: "[노래 신청] Dynamite - BTS", status: "pending", createdAgo: "20 minutes"},
+		{id: "sample-request-4", tableNumber: "7", text: "[노래 신청] Butter - BTS", status: "completed", createdAgo: "2 hours", handledAgo: "1 hour 50 minutes"},
+		{id: "sample-request-5", tableNumber: "1", text: "메뉴 추천 부탁드려요", status: "completed", createdAgo: "3 hours", handledAgo: "2 hours 55 minutes"},
+	}
+	for _, r := range requests {
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO customer_requests (id, table_number, text, status, created_at, handled_at)
+			VALUES ($1, $2, $3, $4, NOW() - $5::interval, NOW() - NULLIF($6, '')::interval)
+		`, r.id, r.tableNumber, r.text, r.status, r.createdAgo, r.handledAgo); err != nil {
+			return err
+		}
+	}
+
+	type sampleSpecialRequest struct {
+		id          string
+		tableNumber string
+		gender      string
+		name        string
+		age         string
+		residence   string
+		instagram   string
+		idealType   string
+		text        string
+		createdAgo  string
+	}
+	specialRequests := []sampleSpecialRequest{
+		{id: "sample-special-1", tableNumber: "4", gender: "male", name: "김민준", age: "20대", residence: "서울", instagram: "@minjun_kim", idealType: "밝고 긍정적인 사람", text: "혹시 옆 테이블 분과 자리 바꿔도 될까요?", createdAgo: "30 minutes"},
+		{id: "sample-special-2", tableNumber: "6", gender: "female", name: "이서연", age: "20대", residence: "인천", instagram: "@seoyeon.lee", idealType: "유머감각 있는 사람", text: "친구들이랑 같이 왔는데 자리 넓혀주실 수 있나요?", createdAgo: "1 hour 15 minutes"},
+	}
+	for _, s := range specialRequests {
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO special_requests (id, table_number, gender, name, age, residence, instagram, ideal_type, text, created_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW() - $10::interval)
+		`, s.id, s.tableNumber, s.gender, s.name, s.age, s.residence, s.instagram, s.idealType, s.text, s.createdAgo); err != nil {
+			return err
+		}
+	}
+
+	type sampleDoneOrder struct {
+		id             string
+		tableNumber    string
+		menuItemName   string
+		categoryName   string
+		amount         int64
+		vat            int64
+		suppliedAmount int64
+		paymentMethod  string
+		posSyncStatus  string
+		posOrderID     string // "" when the sync failed/is unset
+		posSyncError   string // "" when there was no sync error
+		approvedAgo    string
+	}
+	doneOrders := []sampleDoneOrder{
+		{id: "sample-order-1", tableNumber: "3", menuItemName: "하우스 하이볼", categoryName: "하이볼", amount: 9000, vat: 818, suppliedAmount: 8182, paymentMethod: "카드", posSyncStatus: "SUCCEEDED", posOrderID: "sample-pos-1", approvedAgo: "2 hours"},
+		{id: "sample-order-2", tableNumber: "5", menuItemName: "트러플 프라이", categoryName: "대표", amount: 11000, vat: 1000, suppliedAmount: 10000, paymentMethod: "카드", posSyncStatus: "SUCCEEDED", posOrderID: "sample-pos-2", approvedAgo: "1 day 3 hours"},
+		{id: "sample-order-3", tableNumber: "1", menuItemName: "버터 먹태구이", categoryName: "안주", amount: 17000, vat: 1545, suppliedAmount: 15455, paymentMethod: "간편결제", posSyncStatus: "SUCCEEDED", posOrderID: "sample-pos-3", approvedAgo: "2 days 5 hours"},
+		{id: "sample-order-4", tableNumber: "2", menuItemName: "싱글몰트 위스키 1잔", categoryName: "위스키", amount: 15000, vat: 1364, suppliedAmount: 13636, paymentMethod: "카드", posSyncStatus: "SUCCEEDED", posOrderID: "sample-pos-4", approvedAgo: "3 days 1 hours"},
+		{id: "sample-order-5", tableNumber: "4", menuItemName: "하우스 와인", categoryName: "와인", amount: 8000, vat: 727, suppliedAmount: 7273, paymentMethod: "간편결제", posSyncStatus: "SUCCEEDED", posOrderID: "sample-pos-5", approvedAgo: "4 days 6 hours"},
+		{id: "sample-order-6", tableNumber: "3", menuItemName: "유자 하이볼", categoryName: "하이볼", amount: 10000, vat: 909, suppliedAmount: 9091, paymentMethod: "카드", posSyncStatus: "FAILED", posSyncError: "toss place request failed", approvedAgo: "5 days 2 hours"},
+		{id: "sample-order-7", tableNumber: "6", menuItemName: "치즈 플래터", categoryName: "안주", amount: 18000, vat: 1636, suppliedAmount: 16364, paymentMethod: "카드", posSyncStatus: "SUCCEEDED", posOrderID: "sample-pos-7", approvedAgo: "6 days 4 hours"},
+		{id: "sample-order-8", tableNumber: "7", menuItemName: "스파클링 와인", categoryName: "와인", amount: 11000, vat: 1000, suppliedAmount: 10000, paymentMethod: "간편결제", posSyncStatus: "SUCCEEDED", posOrderID: "sample-pos-8", approvedAgo: "8 days 30 minutes"},
+	}
+	for i, o := range doneOrders {
+		paymentKey := fmt.Sprintf("sample-payment-key-%d", i+1)
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO payment_orders (
+				id, menu_item_name, category_name, table_number, amount, vat, supplied_amount,
+				status, payment_method, payment_key, approved_at, pos_sync_status, pos_order_id, pos_sync_error, created_at
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, 'DONE', $8, $9, NOW() - $10::interval, $11, NULLIF($12, ''), NULLIF($13, ''), NOW() - $10::interval)
+		`, o.id, o.menuItemName, o.categoryName, o.tableNumber, o.amount, o.vat, o.suppliedAmount,
+			o.paymentMethod, paymentKey, o.approvedAgo, o.posSyncStatus, o.posOrderID, o.posSyncError); err != nil {
+			return err
+		}
+	}
+
+	// One unpaid/abandoned order — a guest who reached the payment sheet
+	// but never completed it — so the order-history screen's READY/"미결제"
+	// filter has something to show too.
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO payment_orders (
+			id, menu_item_name, category_name, table_number, amount, status, pos_sync_status, created_at
+		) VALUES ('sample-order-9', '콜드브루 하이볼', '하이볼', '8', 12000, 'READY', 'PENDING', NOW() - INTERVAL '15 minutes')
+	`); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (r *Repository) GetMenuData(ctx context.Context) (lamdata.MenuData, error) {

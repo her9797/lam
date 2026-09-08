@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/url"
 	"strconv"
+	"time"
 )
 
 const (
@@ -198,4 +199,147 @@ func parseSpecialRequestListQuery(query url.Values) (specialRequestListQuery, bo
 	}
 
 	return q, hasAnyQueryParam(query, specialRequestListParamKeys), nil
+}
+
+// paymentOrderListQuery is the parsed, validated form of the query
+// parameters accepted by GET /api/v1/admin/payment-orders. Unlike
+// customerRequestListQuery/specialRequestListQuery, there is no legacy
+// unpaginated-array response to preserve for this endpoint, so callers
+// always receive the paginated envelope — no hasParams flag needed.
+type paymentOrderListQuery struct {
+	Page          int
+	PageSize      int
+	Status        string // "" = all | "READY" | "DONE"
+	PosSyncStatus string // "" = all | "PENDING" | "SUCCEEDED" | "FAILED" | "NOT_CONFIGURED"
+	Search        string
+	From          *time.Time // inclusive
+	To            *time.Time // exclusive
+	Sort          string     // "createdAt" | "amount"
+	Order         string     // "asc" | "desc"
+}
+
+func parsePaymentOrderListQuery(query url.Values) (paymentOrderListQuery, error) {
+	q := paymentOrderListQuery{
+		Page:     defaultListPage,
+		PageSize: defaultListPageSize,
+		Sort:     "createdAt",
+		Order:    "desc",
+	}
+
+	page, err := parsePage(query)
+	if err != nil {
+		return q, err
+	}
+	q.Page = page
+
+	pageSize, err := parsePageSize(query)
+	if err != nil {
+		return q, err
+	}
+	q.PageSize = pageSize
+
+	if status := query.Get("status"); status != "" {
+		switch status {
+		case "READY", "DONE":
+			q.Status = status
+		default:
+			return q, fmt.Errorf("invalid status: %q", status)
+		}
+	}
+
+	if posSync := query.Get("posSync"); posSync != "" {
+		switch posSync {
+		case "PENDING", "SUCCEEDED", "FAILED", "NOT_CONFIGURED":
+			q.PosSyncStatus = posSync
+		default:
+			return q, fmt.Errorf("invalid posSync: %q", posSync)
+		}
+	}
+
+	q.Search = query.Get("q")
+
+	if from := query.Get("from"); from != "" {
+		parsed, err := time.Parse(time.RFC3339, from)
+		if err != nil {
+			return q, fmt.Errorf("invalid from: %q", from)
+		}
+		q.From = &parsed
+	}
+
+	if to := query.Get("to"); to != "" {
+		parsed, err := time.Parse(time.RFC3339, to)
+		if err != nil {
+			return q, fmt.Errorf("invalid to: %q", to)
+		}
+		q.To = &parsed
+	}
+
+	if q.From != nil && q.To != nil && !q.From.Before(*q.To) {
+		return q, fmt.Errorf("invalid range: from %q must be before to %q", query.Get("from"), query.Get("to"))
+	}
+
+	if sort := query.Get("sort"); sort != "" {
+		switch sort {
+		case "createdAt", "amount":
+			q.Sort = sort
+		default:
+			return q, fmt.Errorf("invalid sort: %q", sort)
+		}
+	}
+
+	if order := query.Get("order"); order != "" {
+		switch order {
+		case "asc", "desc":
+			q.Order = order
+		default:
+			return q, fmt.Errorf("invalid order: %q", order)
+		}
+	}
+
+	return q, nil
+}
+
+// paymentOrderStatsQuery is the parsed, validated query for
+// GET /api/v1/admin/payment-orders/stats. Unlike paymentOrderListQuery,
+// `from`/`to` are required here (not optional filters) — the sales-stats
+// screen always has an explicit range picked by the operator, so there is
+// no "all time" default to fall back to.
+type paymentOrderStatsQuery struct {
+	From             time.Time
+	To               time.Time
+	BusinessDayBasis bool // dayBasis=business vs the "calendar" default
+}
+
+func parsePaymentOrderStatsQuery(query url.Values) (paymentOrderStatsQuery, error) {
+	fromRaw := query.Get("from")
+	toRaw := query.Get("to")
+	if fromRaw == "" || toRaw == "" {
+		return paymentOrderStatsQuery{}, fmt.Errorf("from and to are required")
+	}
+
+	from, err := time.Parse(time.RFC3339, fromRaw)
+	if err != nil {
+		return paymentOrderStatsQuery{}, fmt.Errorf("invalid from: %q", fromRaw)
+	}
+	to, err := time.Parse(time.RFC3339, toRaw)
+	if err != nil {
+		return paymentOrderStatsQuery{}, fmt.Errorf("invalid to: %q", toRaw)
+	}
+	if !from.Before(to) {
+		return paymentOrderStatsQuery{}, fmt.Errorf("invalid range: from %q must be before to %q", fromRaw, toRaw)
+	}
+
+	businessDayBasis := false
+	if dayBasis := query.Get("dayBasis"); dayBasis != "" {
+		switch dayBasis {
+		case "business":
+			businessDayBasis = true
+		case "calendar":
+			businessDayBasis = false
+		default:
+			return paymentOrderStatsQuery{}, fmt.Errorf("invalid dayBasis: %q", dayBasis)
+		}
+	}
+
+	return paymentOrderStatsQuery{From: from, To: to, BusinessDayBasis: businessDayBasis}, nil
 }

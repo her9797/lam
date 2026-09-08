@@ -133,6 +133,22 @@ describe("NoticeManagementPage", () => {
     expect(screen.getByText("등록된 공지/이벤트가 없습니다.")).toBeInTheDocument();
   });
 
+  it("shows the total count as 0 instead of hiding it when there are no notices", () => {
+    mockBootstrap({ data: { ...FIXTURE, notices: [] } });
+
+    render(<NoticeManagementPage />);
+
+    expect(screen.getByText("총 0건")).toBeInTheDocument();
+  });
+
+  it("keeps the total count out of the title row regardless of header action buttons", () => {
+    render(<NoticeManagementPage />);
+
+    const heading = screen.getByRole("heading", { name: "이벤트·공지" });
+    expect(within(heading.parentElement as HTMLElement).queryByText("총 2건")).not.toBeInTheDocument();
+    expect(screen.getByText("총 2건")).toBeInTheDocument();
+  });
+
   it("opens the create dialog from the trigger button, and closes it on cancel", () => {
     render(<NoticeManagementPage />);
 

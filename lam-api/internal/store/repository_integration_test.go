@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/her9797/lam/lam-api/internal/lamdata"
@@ -49,6 +50,57 @@ func TestRepository_SeedDefaults(t *testing.T) {
 		t.Errorf("expected SeedDefaults to populate categories, items and notices, got %+v", data)
 	}
 
+	// SeedDefaults also seeds sample transactional data (customer requests,
+	// special requests, payment orders) so a fresh local `docker compose up`
+	// has something to look at in the admin web's request/order screens
+	// without the operator manually inserting rows first.
+	requests, err := repo.ListCustomerRequests(ctx)
+	if err != nil {
+		t.Fatalf("ListCustomerRequests() error = %v", err)
+	}
+	if len(requests) == 0 {
+		t.Error("expected SeedDefaults to populate sample customer requests")
+	}
+	hasSongRequest := false
+	for _, r := range requests {
+		if strings.HasPrefix(r.Text, "[노래 신청]") {
+			hasSongRequest = true
+			break
+		}
+	}
+	if !hasSongRequest {
+		t.Error("expected at least one sample customer request to be a song request ([노래 신청] prefix)")
+	}
+
+	specialRequests, err := repo.ListSpecialRequests(ctx)
+	if err != nil {
+		t.Fatalf("ListSpecialRequests() error = %v", err)
+	}
+	if len(specialRequests) == 0 {
+		t.Error("expected SeedDefaults to populate sample special requests")
+	}
+
+	var paymentOrderCount int
+	if err := testPool.QueryRow(ctx, `SELECT COUNT(*) FROM payment_orders`).Scan(&paymentOrderCount); err != nil {
+		t.Fatalf("count payment_orders: %v", err)
+	}
+	if paymentOrderCount == 0 {
+		t.Error("expected SeedDefaults to populate sample payment orders")
+	}
+	var doneOrderCount, readyOrderCount int
+	if err := testPool.QueryRow(ctx, `SELECT COUNT(*) FROM payment_orders WHERE status = 'DONE'`).Scan(&doneOrderCount); err != nil {
+		t.Fatalf("count DONE payment_orders: %v", err)
+	}
+	if err := testPool.QueryRow(ctx, `SELECT COUNT(*) FROM payment_orders WHERE status = 'READY'`).Scan(&readyOrderCount); err != nil {
+		t.Fatalf("count READY payment_orders: %v", err)
+	}
+	if doneOrderCount == 0 {
+		t.Error("expected at least one sample DONE payment order (for order-history/sales-stats screens)")
+	}
+	if readyOrderCount == 0 {
+		t.Error("expected at least one sample READY payment order (an unpaid/abandoned order)")
+	}
+
 	// SeedDefaults must be idempotent once a store_profile row exists.
 	if err := repo.SeedDefaults(ctx); err != nil {
 		t.Fatalf("second SeedDefaults() error = %v", err)
@@ -59,6 +111,13 @@ func TestRepository_SeedDefaults(t *testing.T) {
 	}
 	if len(dataAgain.Categories) != len(data.Categories) {
 		t.Errorf("SeedDefaults should be a no-op when data already exists, got %d categories, want %d", len(dataAgain.Categories), len(data.Categories))
+	}
+	requestsAgain, err := repo.ListCustomerRequests(ctx)
+	if err != nil {
+		t.Fatalf("ListCustomerRequests() after second seed error = %v", err)
+	}
+	if len(requestsAgain) != len(requests) {
+		t.Errorf("SeedDefaults should not duplicate sample customer requests on a second call, got %d, want %d", len(requestsAgain), len(requests))
 	}
 }
 

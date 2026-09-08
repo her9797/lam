@@ -11,20 +11,25 @@ import (
 	"strings"
 	"time"
 
+	"github.com/her9797/lam/lam-api/internal/catalogsync"
 	"github.com/her9797/lam/lam-api/internal/config"
 	"github.com/her9797/lam/lam-api/internal/lamdata"
 	"github.com/her9797/lam/lam-api/internal/notify"
 	"github.com/her9797/lam/lam-api/internal/store"
 )
 
-func NewMux(repository *store.Repository, cfg config.Config) http.Handler {
+// NewMux wires the full admin/customer HTTP API. syncer may be nil — Toss
+// Place catalog sync is optional (see cmd/server/main.go's
+// startTossCatalogSync), in which case the manual resync endpoint below
+// reports 503 instead of panicking on a nil receiver.
+func NewMux(repository *store.Repository, cfg config.Config, syncer *catalogsync.Syncer) http.Handler {
 	mux := http.NewServeMux()
 	broadcaster := notify.NewBroadcaster(cfg.SupabaseURL, cfg.SupabaseBroadcastKey)
 
 	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
-	registerPaymentRoutes(mux, repository, cfg)
+	registerPaymentRoutes(mux, repository, cfg, broadcaster)
 	registerSongRoutes(mux, repository, cfg)
 
 	mux.HandleFunc("/api/v1/bootstrap", withCORS(cfg.AllowedOrigin, func(w http.ResponseWriter, r *http.Request) {
@@ -392,6 +397,47 @@ func NewMux(repository *store.Repository, cfg config.Config) http.Handler {
 		writeJSON(w, http.StatusCreated, bootstrap)
 	}))
 
+	mux.HandleFunc("/api/v1/admin/catalog-sync", withCORS(cfg.AllowedOrigin, func(w http.ResponseWriter, r *http.Request) {
+		if !requireAdminAuth(w, r, cfg.AdminAPIToken) {
+			return
+		}
+
+		if r.Method != http.MethodPost {
+			writeMethodNotAllowed(w)
+			return
+		}
+
+		if syncer == nil {
+			writeError(w, http.StatusServiceUnavailable, errors.New("toss place catalog sync is not configured"))
+			return
+		}
+
+		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+		defer cancel()
+		result, err := syncer.Sync(ctx)
+		if err != nil {
+			if errors.Is(err, catalogsync.ErrSyncInProgress) {
+				writeError(w, http.StatusConflict, err)
+				return
+			}
+			writeError(w, http.StatusBadGateway, err)
+			return
+		}
+
+		bootstrap, err := repository.GetBootstrapData(r.Context())
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+
+		writeJSON(w, http.StatusOK, lamdata.CatalogSyncResponse{
+			Created: result.Created,
+			Linked:  result.Linked,
+			Updated: result.Updated,
+			Data:    bootstrap,
+		})
+	}))
+
 	mux.HandleFunc("/api/v1/admin/customer-requests", withCORS(cfg.AllowedOrigin, func(w http.ResponseWriter, r *http.Request) {
 		if !requireAdminAuth(w, r, cfg.AdminAPIToken) {
 			return
@@ -507,6 +553,71 @@ func NewMux(repository *store.Repository, cfg config.Config) http.Handler {
 			PageSize: query.PageSize,
 			Total:    total,
 		})
+	}))
+
+	mux.HandleFunc("/api/v1/admin/payment-orders", withCORS(cfg.AllowedOrigin, func(w http.ResponseWriter, r *http.Request) {
+		if !requireAdminAuth(w, r, cfg.AdminAPIToken) {
+			return
+		}
+
+		if r.Method != http.MethodGet {
+			writeMethodNotAllowed(w)
+			return
+		}
+
+		query, err := parsePaymentOrderListQuery(r.URL.Query())
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+
+		items, total, err := repository.ListPaymentOrdersPage(r.Context(), store.PaymentOrderFilter{
+			Status:        query.Status,
+			PosSyncStatus: query.PosSyncStatus,
+			Search:        query.Search,
+			From:          query.From,
+			To:            query.To,
+			Sort:          query.Sort,
+			Order:         query.Order,
+			Page:          query.Page,
+			PageSize:      query.PageSize,
+		})
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+
+		writeJSON(w, http.StatusOK, lamdata.PaymentOrderPage{
+			Items:    items,
+			Page:     query.Page,
+			PageSize: query.PageSize,
+			Total:    total,
+		})
+	}))
+
+	mux.HandleFunc("/api/v1/admin/payment-orders/stats", withCORS(cfg.AllowedOrigin, func(w http.ResponseWriter, r *http.Request) {
+		if !requireAdminAuth(w, r, cfg.AdminAPIToken) {
+			return
+		}
+
+		if r.Method != http.MethodGet {
+			writeMethodNotAllowed(w)
+			return
+		}
+
+		query, err := parsePaymentOrderStatsQuery(r.URL.Query())
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+
+		stats, err := repository.GetPaymentOrderStats(r.Context(), query.From, query.To, query.BusinessDayBasis)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+
+		writeJSON(w, http.StatusOK, stats)
 	}))
 
 	mux.HandleFunc("/api/v1/admin/customer-requests/", withCORS(cfg.AllowedOrigin, func(w http.ResponseWriter, r *http.Request) {
@@ -913,6 +1024,22 @@ func sendNewRequestBroadcastAsync(broadcaster *notify.Broadcaster) {
 		defer cancel()
 		if err := broadcaster.Send(ctx, notify.RequestsTopic, notify.NewRequestEvent, notify.NewRequestPayload{Type: notify.NewRequestEvent}); err != nil {
 			log.Printf("notify: failed to send new-request broadcast: %v", err)
+		}
+	}()
+}
+
+// sendNewOrderBroadcastAsync is the payment-order counterpart of
+// sendNewRequestBroadcastAsync, with the same best-effort contract: the
+// signal must never add latency to, or fail, the payment confirmation it
+// follows — a completed sale is already recorded by the time this runs, so
+// a lost alarm is recoverable (the admin web's safety-net poll still
+// catches it) while a failed confirmation response is not.
+func sendNewOrderBroadcastAsync(broadcaster *notify.Broadcaster) {
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := broadcaster.Send(ctx, notify.OrdersTopic, notify.NewOrderEvent, notify.NewOrderPayload{Type: notify.NewOrderEvent}); err != nil {
+			log.Printf("notify: failed to send new-order broadcast: %v", err)
 		}
 	}()
 }

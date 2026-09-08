@@ -5,6 +5,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useState,
   type ReactNode,
@@ -28,6 +29,10 @@ type ThemeContextValue = {
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
+// `useLayoutEffect` warns if it runs during server rendering; aliasing to
+// `useEffect` there is harmless since neither actually runs on the server.
+const useIsomorphicLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
+
 function getPrefersDark(): boolean {
   if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
     return false;
@@ -36,10 +41,29 @@ function getPrefersDark(): boolean {
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>(() =>
-    readStoredTheme(typeof window === "undefined" ? undefined : window.localStorage),
-  );
-  const [prefersDark, setPrefersDark] = useState<boolean>(getPrefersDark);
+  // Both start at the server's defaults ("system", no OS dark preference)
+  // rather than reading `localStorage`/`matchMedia` in the initializer —
+  // that would return the real client-side values on the client's first
+  // render and mismatch the server-rendered HTML (`ThemeMenu`'s icon and
+  // aria-label), breaking hydration. There is no render-time read of
+  // localStorage/matchMedia that both the server and the client's first
+  // render can agree on, so applying the real values after mount is the
+  // fix, not the problem — same exception already taken in `SalesStatsPage`.
+  //
+  // This sync runs in a *layout* effect rather than a plain effect: a plain
+  // effect fires after paint, so the `applyResolvedTheme` effect below would
+  // briefly apply this provider's wrong initial guess to `<html>` before the
+  // correction landed — visibly undoing the very flash `app/layout.tsx`'s
+  // blocking inline script exists to prevent. A layout effect's state update
+  // is flushed synchronously before the browser paints, so the correction
+  // lands first and that effect never observes the wrong guess.
+  const [theme, setThemeState] = useState<Theme>("system");
+  const [prefersDark, setPrefersDark] = useState<boolean>(false);
+
+  useIsomorphicLayoutEffect(() => {
+    setThemeState(readStoredTheme(window.localStorage));
+    setPrefersDark(getPrefersDark());
+  }, []);
 
   const resolvedTheme = resolveTheme(theme, prefersDark);
 

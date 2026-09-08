@@ -86,6 +86,21 @@ describe("useNotificationSound", () => {
     expect(result.current.isBlocked).toBe(false);
   });
 
+  it("resumes automatically on the first user interaction anywhere on the page, not just via enableSound()", async () => {
+    const { resume } = installAudioContextStub("suspended");
+    const { result } = renderHook(() => useNotificationSound());
+
+    expect(result.current.isBlocked).toBe(true);
+
+    await act(async () => {
+      window.dispatchEvent(new Event("pointerdown"));
+      await Promise.resolve();
+    });
+
+    expect(resume).toHaveBeenCalled();
+    expect(result.current.isBlocked).toBe(false);
+  });
+
   it("defaults to unmuted and toggles + persists mute state", () => {
     installAudioContextStub("running");
     const { result } = renderHook(() => useNotificationSound());

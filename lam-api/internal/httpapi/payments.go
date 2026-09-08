@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/her9797/lam/lam-api/internal/config"
+	"github.com/her9797/lam/lam-api/internal/notify"
 	"github.com/her9797/lam/lam-api/internal/payment"
 	"github.com/her9797/lam/lam-api/internal/store"
 	"github.com/her9797/lam/lam-api/internal/tossplace"
@@ -27,7 +28,11 @@ type confirmPaymentRequest struct {
 	Amount     int64  `json:"amount"`
 }
 
-func registerPaymentRoutes(mux *http.ServeMux, repository *store.Repository, cfg config.Config) {
+// registerPaymentRoutes takes broadcaster so a completed sale can signal
+// the admin web the same way a new customer request does (see
+// sendNewOrderBroadcastAsync in router.go). It is safe to pass an
+// unconfigured Broadcaster — sending is then a no-op.
+func registerPaymentRoutes(mux *http.ServeMux, repository *store.Repository, cfg config.Config, broadcaster *notify.Broadcaster) {
 	paymentClient := payment.NewClient(cfg.TossPaymentsAPIBaseURL, cfg.TossPaymentsSecretKey, nil)
 	posClient := tossplace.NewClient(cfg.TossPlaceAPIBaseURL, cfg.TossPlaceAccessKey, cfg.TossPlaceSecretKey, cfg.TossPlaceMerchantID, nil)
 
@@ -148,6 +153,13 @@ func registerPaymentRoutes(mux *http.ServeMux, repository *store.Repository, cfg
 				writeStoreError(w, err)
 				return
 			}
+
+			// Only this branch is a newly completed sale. The `order.Status
+			// == "DONE"` branch above is an idempotent re-confirmation of a
+			// payment that was already recorded (a client retry), so
+			// broadcasting there would replay the admin's alarm for a sale
+			// they have already been told about.
+			sendNewOrderBroadcastAsync(broadcaster)
 		}
 
 		order = syncPaymentOrderToPOS(r, repository, posClient, order)

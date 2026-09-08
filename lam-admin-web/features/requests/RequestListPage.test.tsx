@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { CustomerRequest, CustomerRequestPageResult } from "./model";
@@ -145,6 +145,14 @@ describe("RequestListPage", () => {
     expect(screen.getByText("상태순")).toBeInTheDocument();
     expect(screen.queryByText("all", { selector: "span" })).not.toBeInTheDocument();
     expect(screen.queryByText("status", { selector: "span" })).not.toBeInTheDocument();
+  });
+
+  it("keeps the total count out of the title row", () => {
+    render(<RequestListPage kind="general" />);
+
+    const heading = screen.getByRole("heading", { name: "손님 요청" });
+    expect(within(heading.parentElement as HTMLElement).queryByText("총 2건")).not.toBeInTheDocument();
+    expect(screen.getByText("총 2건")).toBeInTheDocument();
   });
 
   it("requests kind=general for the general screen and kind=song for the song screen", () => {

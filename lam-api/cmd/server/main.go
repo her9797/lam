@@ -30,11 +30,14 @@ func main() {
 	if err := repository.EnsureSchema(ctx); err != nil {
 		log.Fatalf("unable to ensure schema: %v", err)
 	}
-	startTossCatalogSync(repository, cfg)
+	if err := repository.SeedDefaults(ctx); err != nil {
+		log.Fatalf("unable to seed defaults: %v", err)
+	}
+	syncer := startTossCatalogSync(repository, cfg)
 
 	server := &http.Server{
 		Addr:              cfg.Addr,
-		Handler:           httpapi.NewMux(repository, cfg),
+		Handler:           httpapi.NewMux(repository, cfg, syncer),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
@@ -44,10 +47,16 @@ func main() {
 	}
 }
 
-func startTossCatalogSync(repository *store.Repository, cfg config.Config) {
+// startTossCatalogSync returns the Syncer it starts polling with (nil when
+// Toss Place isn't configured), so NewMux's manual "다시 동기화" endpoint
+// shares the exact same Syncer instance as the background poll — sharing
+// the instance is what makes Syncer's in-progress guard (catalogsync.
+// ErrSyncInProgress) also cover the button-vs-scheduled-poll case, not
+// just two button clicks.
+func startTossCatalogSync(repository *store.Repository, cfg config.Config) *catalogsync.Syncer {
 	if cfg.TossPlaceAccessKey == "" || cfg.TossPlaceSecretKey == "" || cfg.TossPlaceMerchantID == "" {
 		log.Printf("catalog sync disabled: Toss Place is not configured")
-		return
+		return nil
 	}
 
 	client := tossplace.NewClient(
@@ -77,4 +86,6 @@ func startTossCatalogSync(repository *store.Repository, cfg config.Config) {
 			run()
 		}
 	}()
+
+	return syncer
 }

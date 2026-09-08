@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 /**
  * `localStorage` key for the mute preference. Follows this app's existing
@@ -110,7 +110,47 @@ export function useNotificationSound(): UseNotificationSoundResult {
     return Ctor ? new Ctor() : null;
   });
   const [isBlocked, setIsBlocked] = useState(() => !context || context.state !== "running");
-  const [isMuted, setIsMuted] = useState(() => readStoredMuted());
+  // Starts unmuted (matching the server, which has no localStorage) rather
+  // than reading `readStoredMuted()` in the initializer — that would return
+  // the real persisted preference on the client's first render and mismatch
+  // the server-rendered HTML (icon, aria-label), breaking hydration. There
+  // is no render-time read of localStorage that both the server and the
+  // client's first render can agree on, so applying the real value after
+  // mount is the fix, not the problem — same exception already taken in
+  // `SalesStatsPage`.
+  const [isMuted, setIsMuted] = useState(false);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setIsMuted(readStoredMuted());
+  }, []);
+
+  // A fresh `AudioContext` starts `suspended` on every page load/refresh —
+  // that's the browser's autoplay policy, not this app's mute preference,
+  // and it can't be avoided by persisting anything. Requiring the operator
+  // to specifically re-click the bell's volume button after every refresh
+  // (even though their real, persisted preference is already "unmuted") is
+  // what made the toggle look like it "reset to off" on reload. Any user
+  // gesture on the page — not just a click on this exact button — is
+  // sufficient to resume an `AudioContext`, so resume on the first such
+  // gesture anywhere and let the button reflect the real preference sooner.
+  useEffect(() => {
+    if (!context) {
+      return;
+    }
+    function resumeOnFirstInteraction() {
+      context
+        ?.resume()
+        .then(() => setIsBlocked(context.state !== "running"))
+        .catch(() => {});
+    }
+    window.addEventListener("pointerdown", resumeOnFirstInteraction, { once: true });
+    window.addEventListener("keydown", resumeOnFirstInteraction, { once: true });
+    return () => {
+      window.removeEventListener("pointerdown", resumeOnFirstInteraction);
+      window.removeEventListener("keydown", resumeOnFirstInteraction);
+    };
+  }, [context]);
 
   const enableSound = useCallback(() => {
     if (!context) {

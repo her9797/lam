@@ -27,10 +27,18 @@ import { RiSideBarLine } from "@remixicon/react"
 
 const SIDEBAR_COOKIE_NAME = "sidebar_state"
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7
-const SIDEBAR_WIDTH = "16rem"
+const SIDEBAR_WIDTH_COOKIE_NAME = "sidebar_width"
+const SIDEBAR_WIDTH_DEFAULT = 256 // 16rem
+const SIDEBAR_WIDTH_MIN = 148 // 9rem
+const SIDEBAR_WIDTH_MAX = 320 // 20rem
+const SIDEBAR_WIDTH_STEP = 16 // 1rem, keyboard resize step
 const SIDEBAR_WIDTH_MOBILE = "18rem"
 const SIDEBAR_WIDTH_ICON = "3rem"
 const SIDEBAR_KEYBOARD_SHORTCUT = "b"
+
+function clampSidebarWidth(value: number) {
+  return Math.min(SIDEBAR_WIDTH_MAX, Math.max(SIDEBAR_WIDTH_MIN, value))
+}
 
 type SidebarContextProps = {
   state: "expanded" | "collapsed"
@@ -40,6 +48,8 @@ type SidebarContextProps = {
   setOpenMobile: (open: boolean) => void
   isMobile: boolean
   toggleSidebar: () => void
+  width: number
+  setWidth: (value: number | ((value: number) => number)) => void
 }
 
 const SidebarContext = React.createContext<SidebarContextProps | null>(null)
@@ -93,6 +103,40 @@ function SidebarProvider({
     return isMobile ? setOpenMobile((open) => !open) : setOpen((open) => !open)
   }, [isMobile, setOpen, setOpenMobile])
 
+  // This is the internal state of the sidebar's (desktop, expanded-only)
+  // drag-resizable width.
+  const [width, _setWidth] = React.useState(SIDEBAR_WIDTH_DEFAULT)
+
+  const setWidth = React.useCallback(
+    (value: number | ((value: number) => number)) => {
+      _setWidth((current) => {
+        const nextWidth = clampSidebarWidth(
+          typeof value === "function" ? value(current) : value
+        )
+        document.cookie = `${SIDEBAR_WIDTH_COOKIE_NAME}=${nextWidth}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`
+        return nextWidth
+      })
+    },
+    []
+  )
+
+  // Restores a width saved on a previous visit. Done in an effect (not a
+  // lazy useState initializer) so the client's first render still matches
+  // the server-rendered default and React doesn't report a hydration
+  // mismatch — this is the one deliberate exception to the lint rule's
+  // advice, same as `SalesStatsPage`'s date-range restore.
+  React.useEffect(() => {
+    const match = document.cookie.match(/(?:^|; )sidebar_width=(\d+)/)
+    if (!match) {
+      return
+    }
+    const stored = Number(match[1])
+    if (!Number.isNaN(stored)) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      _setWidth(clampSidebarWidth(stored))
+    }
+  }, [])
+
   // Adds a keyboard shortcut to toggle the sidebar.
   React.useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -122,8 +166,10 @@ function SidebarProvider({
       openMobile,
       setOpenMobile,
       toggleSidebar,
+      width,
+      setWidth,
     }),
-    [state, open, setOpen, isMobile, openMobile, setOpenMobile, toggleSidebar]
+    [state, open, setOpen, isMobile, openMobile, setOpenMobile, toggleSidebar, width, setWidth]
   )
 
   return (
@@ -132,7 +178,7 @@ function SidebarProvider({
         data-slot="sidebar-wrapper"
         style={
           {
-            "--sidebar-width": SIDEBAR_WIDTH,
+            "--sidebar-width": `${width}px`,
             "--sidebar-width-icon": SIDEBAR_WIDTH_ICON,
             ...style,
           } as React.CSSProperties
@@ -246,8 +292,84 @@ function Sidebar({
         >
           {children}
         </div>
+        {state === "expanded" ? <SidebarResizeHandle /> : null}
       </div>
     </div>
+  )
+}
+
+function SidebarResizeHandle({
+  className,
+  ...props
+}: React.ComponentProps<"div">) {
+  const { width, setWidth } = useSidebar()
+
+  function handlePointerDown(event: React.PointerEvent<HTMLDivElement>) {
+    event.preventDefault()
+    const startX = event.clientX
+    const startWidth = width
+    const target = event.currentTarget
+    // jsdom (this project's test environment) doesn't implement pointer
+    // capture, so this is feature-detected rather than called unguarded.
+    if (typeof target.setPointerCapture === "function") {
+      target.setPointerCapture(event.pointerId)
+    }
+    document.body.style.cursor = "col-resize"
+    document.body.style.userSelect = "none"
+
+    function handlePointerMove(moveEvent: PointerEvent) {
+      setWidth(startWidth + (moveEvent.clientX - startX))
+    }
+
+    function handlePointerUp(upEvent: PointerEvent) {
+      document.body.style.cursor = ""
+      document.body.style.userSelect = ""
+      if (typeof target.releasePointerCapture === "function") {
+        target.releasePointerCapture(upEvent.pointerId)
+      }
+      window.removeEventListener("pointermove", handlePointerMove)
+      window.removeEventListener("pointerup", handlePointerUp)
+    }
+
+    window.addEventListener("pointermove", handlePointerMove)
+    window.addEventListener("pointerup", handlePointerUp)
+  }
+
+  function handleKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+    if (event.key === "ArrowLeft") {
+      event.preventDefault()
+      setWidth((current) => current - SIDEBAR_WIDTH_STEP)
+    } else if (event.key === "ArrowRight") {
+      event.preventDefault()
+      setWidth((current) => current + SIDEBAR_WIDTH_STEP)
+    } else if (event.key === "Home") {
+      event.preventDefault()
+      setWidth(SIDEBAR_WIDTH_MIN)
+    } else if (event.key === "End") {
+      event.preventDefault()
+      setWidth(SIDEBAR_WIDTH_MAX)
+    }
+  }
+
+  return (
+    <div
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="Resize Sidebar"
+      aria-valuenow={width}
+      aria-valuemin={SIDEBAR_WIDTH_MIN}
+      aria-valuemax={SIDEBAR_WIDTH_MAX}
+      tabIndex={0}
+      data-slot="sidebar-resize-handle"
+      data-sidebar="resize-handle"
+      onPointerDown={handlePointerDown}
+      onKeyDown={handleKeyDown}
+      className={cn(
+        "absolute inset-y-0 -right-1 z-20 hidden w-2 cursor-col-resize touch-none after:absolute after:inset-y-0 after:left-1/2 after:w-px after:-translate-x-1/2 after:bg-transparent hover:after:bg-sidebar-ring focus-visible:after:bg-sidebar-ring md:block",
+        className
+      )}
+      {...props}
+    />
   )
 }
 
@@ -720,6 +842,7 @@ export {
   SidebarMenuSubItem,
   SidebarProvider,
   SidebarRail,
+  SidebarResizeHandle,
   SidebarSeparator,
   SidebarTrigger,
   useSidebar,
