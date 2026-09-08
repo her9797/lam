@@ -36,6 +36,33 @@ func registerPaymentRoutes(mux *http.ServeMux, repository *store.Repository, cfg
 	paymentClient := payment.NewClient(cfg.TossPaymentsAPIBaseURL, cfg.TossPaymentsSecretKey, nil)
 	posClient := tossplace.NewClient(cfg.TossPlaceAPIBaseURL, cfg.TossPlaceAccessKey, cfg.TossPlaceSecretKey, cfg.TossPlaceMerchantID, nil)
 
+	mux.HandleFunc("/api/v1/orders", withCORS(cfg.AllowedOrigin, func(w http.ResponseWriter, r *http.Request) {
+		if !requirePaymentAuth(w, r, cfg.PaymentAPIToken) {
+			return
+		}
+		if r.Method != http.MethodPost {
+			writeMethodNotAllowed(w)
+			return
+		}
+
+		var payload createPaymentOrderRequest
+		if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&payload); err != nil {
+			writeError(w, http.StatusBadRequest, errors.New("invalid order request"))
+			return
+		}
+
+		order, err := repository.CreatePaymentOrder(r.Context(), payload.MenuItemID, payload.TableNumber)
+		if err != nil {
+			writeStoreError(w, err)
+			return
+		}
+		order = syncUnpaidOrderToPOS(r, repository, posClient, order)
+		if order.POSSyncStatus == "SUCCEEDED" {
+			sendNewOrderBroadcastAsync(broadcaster)
+		}
+		writeJSON(w, http.StatusCreated, order)
+	}))
+
 	mux.HandleFunc("/api/v1/payments/orders", withCORS(cfg.AllowedOrigin, func(w http.ResponseWriter, r *http.Request) {
 		if !requirePaymentAuth(w, r, cfg.PaymentAPIToken) {
 			return
@@ -216,6 +243,50 @@ func syncPaymentOrderToPOS(r *http.Request, repository *store.Repository, client
 	}
 	if updateErr := repository.UpdatePaymentOrderPOSSync(r.Context(), order.OrderID, status, posOrderID, syncError); updateErr != nil {
 		log.Printf("payments: failed to store POS sync result for order %s: %v", order.OrderID, updateErr)
+		return order
+	}
+	updated, getErr := repository.GetPaymentOrder(r.Context(), order.OrderID)
+	if getErr != nil {
+		return order
+	}
+	return updated
+}
+
+func syncUnpaidOrderToPOS(r *http.Request, repository *store.Repository, client *tossplace.Client, order store.PaymentOrder) store.PaymentOrder {
+	if order.POSSyncStatus == "SUCCEEDED" {
+		return order
+	}
+	openedAt, err := time.Parse(time.RFC3339, order.CreatedAt)
+	if err != nil {
+		log.Printf("orders: invalid stored creation time for order %s", order.OrderID)
+		return order
+	}
+
+	result, err := client.CreateUnpaidOrder(r.Context(), tossplace.UnpaidOrder{
+		OrderID:           order.OrderID,
+		OrderNumber:       paymentOrderNumber(order),
+		MenuItemID:        order.MenuItemID,
+		TossCatalogItemID: order.TossCatalogItemID,
+		MenuItemName:      order.MenuItemName,
+		CategoryName:      order.CategoryName,
+		TableNumber:       order.TableNumber,
+		Amount:            order.Amount,
+		OpenedAt:          openedAt,
+	})
+	status := "SUCCEEDED"
+	posOrderID := result.OrderID
+	syncError := ""
+	if err != nil {
+		status = "FAILED"
+		syncError = "toss place request failed"
+		if errors.Is(err, tossplace.ErrNotConfigured) {
+			status = "NOT_CONFIGURED"
+			syncError = "toss place is not configured"
+		}
+		log.Printf("orders: POS sync failed for order %s: %v", order.OrderID, err)
+	}
+	if updateErr := repository.UpdatePaymentOrderPOSSync(r.Context(), order.OrderID, status, posOrderID, syncError); updateErr != nil {
+		log.Printf("orders: failed to store POS sync result for order %s: %v", order.OrderID, updateErr)
 		return order
 	}
 	updated, getErr := repository.GetPaymentOrder(r.Context(), order.OrderID)
