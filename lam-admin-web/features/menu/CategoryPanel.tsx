@@ -19,6 +19,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ListToolbar } from "@/components/list/ListToolbar";
+import { ListTotalCount } from "@/components/list/ListTotalCount";
 import { EmptyState } from "@/components/states/PageStates";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -70,9 +71,13 @@ export function CategoryPanel({ categories }: { categories: MenuCategory[] }) {
   // it stays on the unfiltered `categories` prop.
   const deleteTarget = categories.find((category) => category.id === pendingDeleteId) ?? null;
   const listQuery: ListQueryState = { search, sort: "", order: "asc", page: 1, pageSize: 1000 };
-  const { items: visibleCategories } = applyListQuery<MenuCategory>(categories, listQuery, {
-    searchText: (category) => `${category.label} ${category.id}`,
-  });
+  const { items: visibleCategories, total: visibleTotal } = applyListQuery<MenuCategory>(
+    categories,
+    listQuery,
+    {
+      searchText: (category) => `${category.label} ${category.id}`,
+    },
+  );
 
   function isVisibilityPending(id: string): boolean {
     return visibilityMutation.isPending && visibilityMutation.variables?.id === id;
@@ -138,6 +143,8 @@ export function CategoryPanel({ categories }: { categories: MenuCategory[] }) {
           searchPlaceholder={t("categorySearchPlaceholder")}
         />
       ) : null}
+
+      <ListTotalCount count={visibleTotal} />
 
       {categories.length === 0 ? (
         <EmptyState

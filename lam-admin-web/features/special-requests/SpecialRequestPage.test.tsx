@@ -125,6 +125,14 @@ describe("SpecialRequestPage", () => {
     expect(screen.getByText("접수된 특별 요청이 없습니다.")).toBeInTheDocument();
   });
 
+  it("keeps the total count out of the title row", () => {
+    render(<SpecialRequestPage />);
+
+    const heading = screen.getByRole("heading", { name: "특별 요청" });
+    expect(within(heading.parentElement as HTMLElement).queryByText("총 1건")).not.toBeInTheDocument();
+    expect(screen.getByText("총 1건")).toBeInTheDocument();
+  });
+
   it("opens a detail dialog showing every field when '상세보기' is clicked", () => {
     render(<SpecialRequestPage />);
 

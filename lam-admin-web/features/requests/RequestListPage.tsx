@@ -7,9 +7,11 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useTranslation } from "react-i18next";
 
 import { ListToolbar } from "@/components/list/ListToolbar";
+import { ListTotalCount } from "@/components/list/ListTotalCount";
 import { Pagination } from "@/components/list/Pagination";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states/PageStates";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -166,58 +168,67 @@ export function RequestListPage({ kind }: { kind: RequestListPageKind }) {
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between gap-3">
         <h1 className="text-lg font-semibold text-foreground">{t(copyKeys.title)}</h1>
-        <span className="text-sm text-muted-foreground">
-          {t("common:listTotalCount", { count: total })}
-        </span>
       </div>
 
       <ListToolbar
         searchValue={searchInput}
         onSearchChange={setSearchInput}
         searchPlaceholder={t("searchPlaceholder")}
+        className="items-end"
       >
-        <Select
-          value={query.status ?? "all"}
-          onValueChange={(value) =>
-            updateQuery({
-              status: value === "all" ? undefined : (value as CustomerRequestStatus),
-              page: 1,
-            })
-          }
-        >
-          <SelectTrigger size="sm" aria-label={t("statusFilterLabel")}>
-            {/* Base UI's <Select.Value> shows the raw string value unless
-                told how to render a label for it — see its own doc comment
-                ("When the item values are objects ... {value, label}").
-                Since these items are plain strings, this render-prop is
-                required or the trigger displays "all"/"pending" literally. */}
-            <SelectValue placeholder={t("statusFilterLabel")}>
-              {(value: string) => STATUS_FILTER_LABELS[value] ?? value}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{t("common:filterAll")}</SelectItem>
-            <SelectItem value="pending">{t("statusPending")}</SelectItem>
-            <SelectItem value="checked">{t("statusChecked")}</SelectItem>
-            <SelectItem value="completed">{t("statusCompleted")}</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="request-status-filter">{t("statusFilterLabel")}</Label>
+          <Select
+            value={query.status ?? "all"}
+            onValueChange={(value) =>
+              updateQuery({
+                status: value === "all" ? undefined : (value as CustomerRequestStatus),
+                page: 1,
+              })
+            }
+          >
+            <SelectTrigger
+              id="request-status-filter"
+              size="sm"
+              className="w-32"
+              aria-label={t("statusFilterLabel")}
+            >
+              {/* Base UI's <Select.Value> shows the raw string value unless
+                  told how to render a label for it — see its own doc comment
+                  ("When the item values are objects ... {value, label}").
+                  Since these items are plain strings, this render-prop is
+                  required or the trigger displays "all"/"pending" literally. */}
+              <SelectValue placeholder={t("statusFilterLabel")}>
+                {(value: string) => STATUS_FILTER_LABELS[value] ?? value}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{t("common:filterAll")}</SelectItem>
+              <SelectItem value="pending">{t("statusPending")}</SelectItem>
+              <SelectItem value="checked">{t("statusChecked")}</SelectItem>
+              <SelectItem value="completed">{t("statusCompleted")}</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
 
-        <Select
-          value={query.sort}
-          onValueChange={(value) => updateQuery({ sort: value as CustomerRequestSort, page: 1 })}
-        >
-          <SelectTrigger size="sm" aria-label={t("common:sortLabel")}>
-            <SelectValue placeholder={t("common:sortLabel")}>
-              {(value: string) => SORT_LABELS[value] ?? value}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="status">{t("sortByStatus")}</SelectItem>
-            <SelectItem value="createdAt">{t("sortByCreatedAt")}</SelectItem>
-            <SelectItem value="tableNumber">{t("sortByTableNumber")}</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="request-sort">{t("common:sortLabel")}</Label>
+          <Select
+            value={query.sort}
+            onValueChange={(value) => updateQuery({ sort: value as CustomerRequestSort, page: 1 })}
+          >
+            <SelectTrigger id="request-sort" size="sm" className="w-32" aria-label={t("common:sortLabel")}>
+              <SelectValue placeholder={t("common:sortLabel")}>
+                {(value: string) => SORT_LABELS[value] ?? value}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="status">{t("sortByStatus")}</SelectItem>
+              <SelectItem value="createdAt">{t("sortByCreatedAt")}</SelectItem>
+              <SelectItem value="tableNumber">{t("sortByTableNumber")}</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </ListToolbar>
 
       {statusMutation.isError ? (
@@ -227,6 +238,8 @@ export function RequestListPage({ kind }: { kind: RequestListPageKind }) {
             : t("statusChangeFailed")}
         </p>
       ) : null}
+
+      <ListTotalCount count={total} />
 
       {requests.length === 0 ? (
         hasActiveFilter ? (

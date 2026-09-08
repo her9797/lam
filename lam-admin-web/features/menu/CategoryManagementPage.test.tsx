@@ -128,6 +128,22 @@ describe("CategoryManagementPage", () => {
     expect(screen.getByText("등록된 카테고리가 없습니다.")).toBeInTheDocument();
   });
 
+  it("shows the total count as 0 instead of hiding it when there are no categories", () => {
+    mockBootstrap({ data: { ...FIXTURE, categories: [] } });
+
+    render(<CategoryManagementPage />);
+
+    expect(screen.getByText("총 0건")).toBeInTheDocument();
+  });
+
+  it("keeps the total count out of the title row regardless of header action buttons", () => {
+    render(<CategoryManagementPage />);
+
+    const heading = screen.getByRole("heading", { name: "카테고리 관리" });
+    expect(within(heading.parentElement as HTMLElement).queryByText("총 1건")).not.toBeInTheDocument();
+    expect(screen.getByText("총 1건")).toBeInTheDocument();
+  });
+
   it("renders the catalog resync button alongside the category form trigger", () => {
     render(<CategoryManagementPage />);
 

@@ -112,6 +112,14 @@ describe("OrderListPage", () => {
     expect(screen.getByText("주문 내역이 없습니다.")).toBeInTheDocument();
   });
 
+  it("keeps the total count out of the title row", () => {
+    render(<OrderListPage />);
+
+    const heading = screen.getByRole("heading", { name: "주문 내역" });
+    expect(within(heading.parentElement as HTMLElement).queryByText("총 2건")).not.toBeInTheDocument();
+    expect(screen.getByText("총 2건")).toBeInTheDocument();
+  });
+
   it("renders order rows with table number, menu item, amount, status, and POS sync state", () => {
     render(<OrderListPage />);
 

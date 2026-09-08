@@ -18,8 +18,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ListToolbar } from "@/components/list/ListToolbar";
+import { ListTotalCount } from "@/components/list/ListTotalCount";
 import { Pagination } from "@/components/list/Pagination";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states/PageStates";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -206,14 +208,7 @@ export function MenuManagementPage() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <h1 className="text-lg font-semibold text-foreground">{t("title")}</h1>
-          {items.length > 0 ? (
-            <span className="text-sm text-muted-foreground">
-              {t("common:listTotalCount", { count: visibleTotal })}
-            </span>
-          ) : null}
-        </div>
+        <h1 className="text-lg font-semibold text-foreground">{t("title")}</h1>
         <div className="flex items-center gap-2">
           <CatalogResyncButton />
           <MenuItemForm categories={categories} items={items} />
@@ -241,33 +236,39 @@ export function MenuManagementPage() {
           searchValue={listQuery.search}
           onSearchChange={(search) => setListQuery((prev) => ({ ...prev, search, page: 1 }))}
           searchPlaceholder={t("itemSearchPlaceholder")}
+          className="items-end"
         >
-          <Select
-            value={listQuery.sort || "none"}
-            onValueChange={(value) =>
-              setListQuery((prev) => ({
-                ...prev,
-                sort: value === "none" ? "" : String(value),
-                page: 1,
-              }))
-            }
-          >
-            <SelectTrigger size="sm" aria-label={t("common:sortLabel")}>
-              {/* Base UI's <Select.Value> shows the raw string value
-                  unless told how to render a label for it — required
-                  here since these items are plain strings. */}
-              <SelectValue placeholder={t("common:sortLabel")}>
-                {(value: string) => ITEM_SORT_LABELS[value] ?? value}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">{t("common:filterAll")}</SelectItem>
-              <SelectItem value="name">{t("itemSortByName")}</SelectItem>
-              <SelectItem value="price">{t("itemSortByPrice")}</SelectItem>
-            </SelectContent>
-          </Select>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="menu-sort">{t("common:sortLabel")}</Label>
+            <Select
+              value={listQuery.sort || "none"}
+              onValueChange={(value) =>
+                setListQuery((prev) => ({
+                  ...prev,
+                  sort: value === "none" ? "" : String(value),
+                  page: 1,
+                }))
+              }
+            >
+              <SelectTrigger id="menu-sort" size="sm" className="w-32" aria-label={t("common:sortLabel")}>
+                {/* Base UI's <Select.Value> shows the raw string value
+                    unless told how to render a label for it — required
+                    here since these items are plain strings. */}
+                <SelectValue placeholder={t("common:sortLabel")}>
+                  {(value: string) => ITEM_SORT_LABELS[value] ?? value}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">{t("common:filterAll")}</SelectItem>
+                <SelectItem value="name">{t("itemSortByName")}</SelectItem>
+                <SelectItem value="price">{t("itemSortByPrice")}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </ListToolbar>
       ) : null}
+
+      <ListTotalCount count={visibleTotal} />
 
       {items.length === 0 ? (
         <EmptyState title={t("itemEmptyTitle")} description={t("itemEmptyDescription")} />

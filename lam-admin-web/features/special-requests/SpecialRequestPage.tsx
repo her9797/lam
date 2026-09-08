@@ -18,8 +18,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ListToolbar } from "@/components/list/ListToolbar";
+import { ListTotalCount } from "@/components/list/ListTotalCount";
 import { Pagination } from "@/components/list/Pagination";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states/PageStates";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -153,54 +155,63 @@ export function SpecialRequestPage() {
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between gap-3">
         <h1 className="text-lg font-semibold text-foreground">{t("title")}</h1>
-        <span className="text-sm text-muted-foreground">
-          {t("common:listTotalCount", { count: total })}
-        </span>
       </div>
 
       <ListToolbar
         searchValue={searchInput}
         onSearchChange={setSearchInput}
         searchPlaceholder={t("searchPlaceholder")}
+        className="items-end"
       >
-        <Select
-          value={query.gender ?? "all"}
-          onValueChange={(value) =>
-            setQuery((prev) => ({
-              ...prev,
-              gender: value === "all" ? undefined : (value as SpecialRequestGender),
-              page: 1,
-            }))
-          }
-        >
-          <SelectTrigger size="sm" aria-label={t("genderFilterLabel")}>
-            <SelectValue placeholder={t("genderFilterLabel")}>
-              {(value: string) => GENDER_FILTER_LABELS[value] ?? value}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{t("common:filterAll")}</SelectItem>
-            <SelectItem value="male">{t("genderMale")}</SelectItem>
-            <SelectItem value="female">{t("genderFemale")}</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="special-request-gender-filter">{t("genderFilterLabel")}</Label>
+          <Select
+            value={query.gender ?? "all"}
+            onValueChange={(value) =>
+              setQuery((prev) => ({
+                ...prev,
+                gender: value === "all" ? undefined : (value as SpecialRequestGender),
+                page: 1,
+              }))
+            }
+          >
+            <SelectTrigger
+              id="special-request-gender-filter"
+              size="sm"
+              className="w-32"
+              aria-label={t("genderFilterLabel")}
+            >
+              <SelectValue placeholder={t("genderFilterLabel")}>
+                {(value: string) => GENDER_FILTER_LABELS[value] ?? value}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{t("common:filterAll")}</SelectItem>
+              <SelectItem value="male">{t("genderMale")}</SelectItem>
+              <SelectItem value="female">{t("genderFemale")}</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
 
-        <Select
-          value={query.sort}
-          onValueChange={(value) =>
-            setQuery((prev) => ({ ...prev, sort: value as SpecialRequestSort, page: 1 }))
-          }
-        >
-          <SelectTrigger size="sm" aria-label={t("common:sortLabel")}>
-            <SelectValue placeholder={t("common:sortLabel")}>
-              {(value: string) => SORT_LABELS[value] ?? value}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="createdAt">{t("sortByCreatedAt")}</SelectItem>
-            <SelectItem value="name">{t("sortByName")}</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="special-request-sort">{t("common:sortLabel")}</Label>
+          <Select
+            value={query.sort}
+            onValueChange={(value) =>
+              setQuery((prev) => ({ ...prev, sort: value as SpecialRequestSort, page: 1 }))
+            }
+          >
+            <SelectTrigger id="special-request-sort" size="sm" className="w-32" aria-label={t("common:sortLabel")}>
+              <SelectValue placeholder={t("common:sortLabel")}>
+                {(value: string) => SORT_LABELS[value] ?? value}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="createdAt">{t("sortByCreatedAt")}</SelectItem>
+              <SelectItem value="name">{t("sortByName")}</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </ListToolbar>
 
       {deleteMutation.isError ? (
@@ -210,6 +221,8 @@ export function SpecialRequestPage() {
             : t("deleteFailed")}
         </p>
       ) : null}
+
+      <ListTotalCount count={total} />
 
       {requests.length === 0 ? (
         hasActiveFilter ? (

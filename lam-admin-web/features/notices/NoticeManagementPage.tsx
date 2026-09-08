@@ -19,6 +19,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ListToolbar } from "@/components/list/ListToolbar";
+import { ListTotalCount } from "@/components/list/ListTotalCount";
 import { Pagination } from "@/components/list/Pagination";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states/PageStates";
 import { Label } from "@/components/ui/label";
@@ -199,14 +200,7 @@ export function NoticeManagementPage() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <h1 className="text-lg font-semibold text-foreground">{t("title")}</h1>
-          {notices.length > 0 ? (
-            <span className="text-sm text-muted-foreground">
-              {t("common:listTotalCount", { count: visibleTotal })}
-            </span>
-          ) : null}
-        </div>
+        <h1 className="text-lg font-semibold text-foreground">{t("title")}</h1>
         <Button type="button" size="sm" onClick={openCreateDialog}>
           {t("addTrigger")}
         </Button>
@@ -240,6 +234,8 @@ export function NoticeManagementPage() {
           searchPlaceholder={t("searchPlaceholder")}
         />
       ) : null}
+
+      <ListTotalCount count={visibleTotal} />
 
       {notices.length === 0 ? (
         <EmptyState title={t("emptyTitle")} description={t("emptyDescription")} />

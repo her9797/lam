@@ -610,6 +610,22 @@ describe("MenuManagementPage", () => {
       expect(screen.getByText("총 2건")).toBeInTheDocument();
     });
 
+    it("shows the total count as 0 instead of hiding it when there are no items", () => {
+      mockBootstrap({ data: { ...FIXTURE, items: [] } });
+
+      render(<MenuManagementPage />);
+
+      expect(screen.getByText("총 0건")).toBeInTheDocument();
+    });
+
+    it("keeps the total count out of the title row regardless of header action buttons", () => {
+      render(<MenuManagementPage />);
+
+      const heading = screen.getByRole("heading", { name: "메뉴 관리" });
+      expect(within(heading.parentElement as HTMLElement).queryByText("총 1건")).not.toBeInTheDocument();
+      expect(screen.getByText("총 1건")).toBeInTheDocument();
+    });
+
     it("paginates when there are more items than one page", () => {
       const manyItems = Array.from({ length: 11 }, (_, index) => ({
         id: `menu-${index}`,

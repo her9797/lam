@@ -7,6 +7,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useTranslation } from "react-i18next";
 
 import { ListToolbar } from "@/components/list/ListToolbar";
+import { ListTotalCount } from "@/components/list/ListTotalCount";
 import { Pagination } from "@/components/list/Pagination";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states/PageStates";
 import { Button } from "@/components/ui/button";
@@ -200,9 +201,6 @@ export function OrderListPage() {
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between gap-3">
         <h1 className="text-lg font-semibold text-foreground">{t("title")}</h1>
-        <span className="text-sm text-muted-foreground">
-          {t("common:listTotalCount", { count: total })}
-        </span>
       </div>
 
       <ListToolbar
@@ -286,6 +284,8 @@ export function OrderListPage() {
           </SelectContent>
         </Select>
       </ListToolbar>
+
+      <ListTotalCount count={total} />
 
       {orders.length === 0 ? (
         hasActiveFilter ? (
