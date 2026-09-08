@@ -51,6 +51,12 @@ type CreateMenuImageInput struct {
 	FocusY      int
 }
 
+type QueueSongRequestInput struct {
+	YouTubeVideoID      string
+	YouTubeTitle        string
+	YouTubeChannelTitle string
+}
+
 type MenuImageContent struct {
 	Filename string
 	MimeType string
@@ -159,6 +165,18 @@ CREATE TABLE IF NOT EXISTS customer_requests (
   handled_at TIMESTAMPTZ
 );
 
+CREATE TABLE IF NOT EXISTS song_playback_queue (
+  id TEXT PRIMARY KEY,
+  customer_request_id TEXT NOT NULL UNIQUE REFERENCES customer_requests(id) ON DELETE CASCADE,
+  youtube_video_id TEXT NOT NULL,
+  youtube_title TEXT NOT NULL,
+  youtube_channel_title TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'queued' CHECK (status IN ('queued', 'playing', 'completed')),
+  queued_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  started_at TIMESTAMPTZ,
+  completed_at TIMESTAMPTZ
+);
+
 CREATE TABLE IF NOT EXISTS special_requests (
   id TEXT PRIMARY KEY,
   table_number TEXT NOT NULL DEFAULT '',
@@ -189,6 +207,7 @@ ALTER TABLE payment_orders ADD COLUMN IF NOT EXISTS tax_free_amount BIGINT NOT N
 ALTER TABLE payment_orders ADD COLUMN IF NOT EXISTS toss_catalog_item_id TEXT;
 CREATE INDEX IF NOT EXISTS idx_customer_requests_created_at ON customer_requests (created_at DESC, id DESC);
 CREATE INDEX IF NOT EXISTS idx_customer_requests_status ON customer_requests (status);
+CREATE INDEX IF NOT EXISTS idx_song_playback_queue_active ON song_playback_queue (status, queued_at, id);
 CREATE INDEX IF NOT EXISTS idx_special_requests_created_at ON special_requests (created_at DESC, id DESC);
 CREATE INDEX IF NOT EXISTS idx_payment_orders_created_at ON payment_orders (created_at DESC, id DESC);
 CREATE INDEX IF NOT EXISTS idx_payment_orders_status ON payment_orders (status, pos_sync_status);
@@ -698,6 +717,231 @@ func (r *Repository) CreateCustomerRequest(ctx context.Context, tableNumber stri
 		VALUES ($1, $2, $3, 'pending')
 	`, id, tableNumber, text)
 	return classifyError(err)
+}
+
+func (r *Repository) GetSongRequestQuery(ctx context.Context, id string) (string, error) {
+	if strings.TrimSpace(id) == "" {
+		return "", ErrInvalidInput
+	}
+
+	var text string
+	if err := r.pool.QueryRow(ctx, `SELECT text FROM customer_requests WHERE id = $1`, id).Scan(&text); err != nil {
+		return "", classifyError(err)
+	}
+	if !strings.HasPrefix(text, songRequestPrefix) {
+		return "", ErrInvalidInput
+	}
+	query := strings.TrimSpace(strings.TrimPrefix(text, songRequestPrefix))
+	if query == "" {
+		return "", ErrInvalidInput
+	}
+	return query, nil
+}
+
+func (r *Repository) QueueSongRequest(ctx context.Context, requestID string, input QueueSongRequestInput) (lamdata.SongQueueItem, error) {
+	if strings.TrimSpace(requestID) == "" ||
+		strings.TrimSpace(input.YouTubeVideoID) == "" ||
+		strings.TrimSpace(input.YouTubeTitle) == "" {
+		return lamdata.SongQueueItem{}, ErrInvalidInput
+	}
+
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return lamdata.SongQueueItem{}, err
+	}
+	defer tx.Rollback(ctx)
+
+	var tableNumber, requestText, requestStatus string
+	if err := tx.QueryRow(ctx, `
+		SELECT COALESCE(table_number, ''), text, status
+		FROM customer_requests
+		WHERE id = $1
+		FOR UPDATE
+	`, requestID).Scan(&tableNumber, &requestText, &requestStatus); err != nil {
+		return lamdata.SongQueueItem{}, classifyError(err)
+	}
+	if !strings.HasPrefix(requestText, songRequestPrefix) || requestStatus == "completed" {
+		return lamdata.SongQueueItem{}, ErrInvalidInput
+	}
+
+	if existing, found, err := getSongQueueItemByRequestID(ctx, tx, requestID); err != nil {
+		return lamdata.SongQueueItem{}, err
+	} else if found {
+		if err := tx.Commit(ctx); err != nil {
+			return lamdata.SongQueueItem{}, err
+		}
+		return existing, nil
+	}
+
+	id := nextID("song-queue")
+	var item lamdata.SongQueueItem
+	var queuedAt time.Time
+	err = tx.QueryRow(ctx, `
+		INSERT INTO song_playback_queue (
+			id, customer_request_id, youtube_video_id, youtube_title, youtube_channel_title
+		)
+		VALUES ($1, $2, $3, $4, $5)
+		RETURNING id, customer_request_id, youtube_video_id, youtube_title, youtube_channel_title, status, queued_at
+	`, id, requestID, strings.TrimSpace(input.YouTubeVideoID), strings.TrimSpace(input.YouTubeTitle), strings.TrimSpace(input.YouTubeChannelTitle)).Scan(
+		&item.ID,
+		&item.CustomerRequestID,
+		&item.YouTubeVideoID,
+		&item.YouTubeTitle,
+		&item.YouTubeChannelTitle,
+		&item.Status,
+		&queuedAt,
+	)
+	if err != nil {
+		return lamdata.SongQueueItem{}, classifyError(err)
+	}
+	item.TableNumber = tableNumber
+	item.RequestText = requestText
+	item.QueuedAt = formatTimestamp(queuedAt)
+
+	if _, err := tx.Exec(ctx, `
+		UPDATE customer_requests
+		SET status = 'checked', updated_at = NOW(), handled_at = NULL
+		WHERE id = $1
+	`, requestID); err != nil {
+		return lamdata.SongQueueItem{}, classifyError(err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return lamdata.SongQueueItem{}, err
+	}
+	return item, nil
+}
+
+type songQueueQuerier interface {
+	QueryRow(context.Context, string, ...any) pgx.Row
+}
+
+func getSongQueueItemByRequestID(ctx context.Context, q songQueueQuerier, requestID string) (lamdata.SongQueueItem, bool, error) {
+	item, err := scanSongQueueItem(q.QueryRow(ctx, `
+		SELECT
+			q.id,
+			q.customer_request_id,
+			COALESCE(r.table_number, ''),
+			r.text,
+			q.youtube_video_id,
+			q.youtube_title,
+			q.youtube_channel_title,
+			q.status,
+			q.queued_at,
+			q.started_at,
+			q.completed_at
+		FROM song_playback_queue q
+		JOIN customer_requests r ON r.id = q.customer_request_id
+		WHERE q.customer_request_id = $1
+	`, requestID))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return lamdata.SongQueueItem{}, false, nil
+	}
+	return item, err == nil, err
+}
+
+func (r *Repository) ListActiveSongQueue(ctx context.Context) ([]lamdata.SongQueueItem, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT
+			q.id,
+			q.customer_request_id,
+			COALESCE(r.table_number, ''),
+			r.text,
+			q.youtube_video_id,
+			q.youtube_title,
+			q.youtube_channel_title,
+			q.status,
+			q.queued_at,
+			q.started_at,
+			q.completed_at
+		FROM song_playback_queue q
+		JOIN customer_requests r ON r.id = q.customer_request_id
+		WHERE q.status IN ('queued', 'playing')
+		ORDER BY CASE q.status WHEN 'playing' THEN 0 ELSE 1 END, q.queued_at, q.id
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	items := make([]lamdata.SongQueueItem, 0)
+	for rows.Next() {
+		item, err := scanSongQueueItem(rows)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
+}
+
+type songQueueScanner interface {
+	Scan(...any) error
+}
+
+func scanSongQueueItem(row songQueueScanner) (lamdata.SongQueueItem, error) {
+	var item lamdata.SongQueueItem
+	var queuedAt time.Time
+	var startedAt, completedAt *time.Time
+	err := row.Scan(
+		&item.ID,
+		&item.CustomerRequestID,
+		&item.TableNumber,
+		&item.RequestText,
+		&item.YouTubeVideoID,
+		&item.YouTubeTitle,
+		&item.YouTubeChannelTitle,
+		&item.Status,
+		&queuedAt,
+		&startedAt,
+		&completedAt,
+	)
+	if err != nil {
+		return lamdata.SongQueueItem{}, err
+	}
+	item.QueuedAt = formatTimestamp(queuedAt)
+	if startedAt != nil {
+		item.StartedAt = formatTimestamp(*startedAt)
+	}
+	if completedAt != nil {
+		item.CompletedAt = formatTimestamp(*completedAt)
+	}
+	return item, nil
+}
+
+func (r *Repository) UpdateSongQueueStatus(ctx context.Context, id string, status string) error {
+	if strings.TrimSpace(id) == "" || !isValidSongPlaybackStatus(status) {
+		return ErrInvalidInput
+	}
+
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	var requestID string
+	if err := tx.QueryRow(ctx, `
+		UPDATE song_playback_queue
+		SET status = $2,
+			started_at = CASE WHEN $2 = 'playing' THEN COALESCE(started_at, NOW()) ELSE started_at END,
+			completed_at = CASE WHEN $2 = 'completed' THEN NOW() ELSE NULL END
+		WHERE id = $1
+		RETURNING customer_request_id
+	`, id, status).Scan(&requestID); err != nil {
+		return classifyError(err)
+	}
+
+	if status == "completed" {
+		if _, err := tx.Exec(ctx, `
+			UPDATE customer_requests
+			SET status = 'completed', updated_at = NOW(), handled_at = NOW()
+			WHERE id = $1
+		`, requestID); err != nil {
+			return classifyError(err)
+		}
+	}
+
+	return tx.Commit(ctx)
 }
 
 func (r *Repository) ListSpecialRequests(ctx context.Context) ([]lamdata.SpecialRequest, error) {
@@ -1371,6 +1615,10 @@ func isValidCustomerRequestStatus(status string) bool {
 	default:
 		return false
 	}
+}
+
+func isValidSongPlaybackStatus(status string) bool {
+	return status == "playing" || status == "completed"
 }
 
 func isValidCustomerRequestGender(gender string) bool {

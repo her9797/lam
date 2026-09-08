@@ -30,6 +30,7 @@ func NewMux(repository *store.Repository, cfg config.Config, syncer *catalogsync
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
 	registerPaymentRoutes(mux, repository, cfg, broadcaster)
+	registerSongRoutes(mux, repository, cfg)
 
 	mux.HandleFunc("/api/v1/bootstrap", withCORS(cfg.AllowedOrigin, func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {

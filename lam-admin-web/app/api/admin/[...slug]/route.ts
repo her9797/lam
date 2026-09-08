@@ -72,7 +72,9 @@ async function forward(request: NextRequest, slug: string[]) {
     },
   );
 
-  const responseBody = await upstreamResponse.arrayBuffer();
+  const responseBody = upstreamResponse.status === 204
+    ? null
+    : await upstreamResponse.arrayBuffer();
   const nextResponse = new NextResponse(responseBody, {
     status: upstreamResponse.status,
   });

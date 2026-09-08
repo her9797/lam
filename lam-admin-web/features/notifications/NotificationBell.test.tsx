@@ -189,17 +189,17 @@ describe("NotificationBell", () => {
     expect(pushMock).toHaveBeenCalledWith("/requests");
   });
 
-  it("clicking a song notification marks it checked and navigates to /song-requests", () => {
+  it("clicking a song notification keeps it pending and navigates to explicit approval", () => {
     mockNotifications(NOTIFICATIONS);
     render(<NotificationBell />);
 
     fireEvent.click(screen.getByRole("button", { name: /아무 노래/ }));
 
-    expect(singleMutateMock).toHaveBeenCalledWith({ id: "r2", status: "checked" });
+    expect(singleMutateMock).not.toHaveBeenCalled();
     expect(pushMock).toHaveBeenCalledWith("/song-requests");
   });
 
-  it("'모두 확인' asks for confirmation before bulk-checking every pending id", async () => {
+  it("'모두 확인' asks for confirmation and bulk-checks only general requests", async () => {
     mockNotifications(NOTIFICATIONS);
     render(<NotificationBell />);
 
@@ -210,7 +210,14 @@ describe("NotificationBell", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "확인" }));
 
-    expect(bulkMutateMock).toHaveBeenCalledWith({ ids: ["r1", "r2"], status: "checked" });
+    expect(bulkMutateMock).toHaveBeenCalledWith({ ids: ["r1"], status: "checked" });
+  });
+
+  it("does not show the bulk-check action when only song approvals are pending", () => {
+    mockNotifications([R2]);
+    render(<NotificationBell />);
+
+    expect(screen.queryByRole("button", { name: "모두 확인" })).not.toBeInTheDocument();
   });
 
   it("shows an error message when the notifications query fails", () => {

@@ -48,12 +48,13 @@ export function NotificationPanel({
   onOrderItemClick,
 }: NotificationPanelProps) {
   const { t, i18n } = useTranslation("notifications");
+  const hasGeneralRequest = notifications.some((notification) => notification.kind === "general");
 
   return (
     <div className="flex max-h-[28rem] flex-col">
       <div className="flex items-center justify-between gap-2 border-b border-foreground/5 px-4 py-3">
         <span className="font-heading text-sm font-medium">{t("panelTitle")}</span>
-        {notifications.length > 0 ? (
+        {hasGeneralRequest ? (
           <Button
             type="button"
             variant="ghost"

@@ -14,6 +14,7 @@ import {
   RiFolderLine,
   RiMegaphoneLine,
   RiMusic2Line,
+  RiPlayCircleLine,
   RiRestaurantLine,
   RiShoppingBag3Line,
   RiShoppingCart2Line,
@@ -55,7 +56,10 @@ type NavItem = {
   icon: ComponentType<{ className?: string }>;
 };
 
-const TOP_NAV_ITEMS: NavItem[] = [{ href: "/dashboard", labelKey: "navDashboard", icon: RiDashboardLine }];
+const TOP_NAV_ITEMS: NavItem[] = [
+  { href: "/dashboard", labelKey: "navDashboard", icon: RiDashboardLine },
+  { href: "/player", labelKey: "navPlayer", icon: RiPlayCircleLine },
+];
 
 type NavGroup = { labelKey: string; icon: ComponentType<{ className?: string }>; items: NavItem[] };
 

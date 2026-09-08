@@ -25,7 +25,7 @@
    gcloud auth login
    gcloud config set project lam-production
    ```
-2. 아래 Secret Manager 시크릿이 미리 생성되어 있어야 한다.
+2. 아래 Secret Manager 시크릿이 미리 생성되어 있어야 한다. `lam-youtube-api-key`만 선택 항목이며, 없으면 배포는 계속되지만 신청곡 승인은 비활성화된다.
 
    | 시크릿 | 사용하는 서비스 |
    | --- | --- |
@@ -33,6 +33,7 @@
    | `lam-admin-api-token` | lam-api, lam-admin-web (두 곳 값이 동일해야 함) |
    | `lam-supabase-secret-key` | lam-api |
    | `lam-supabase-url` | lam-api |
+   | `lam-youtube-api-key` | lam-api (YouTube Data API v3 서버 키) |
    | `lam-payment-api-token` | lam-web (lam-api에 설정된 값과 동일해야 함) |
    | `lam-web-session-secret` | lam-web |
    | `lam-staff-entry-token` | lam-web |

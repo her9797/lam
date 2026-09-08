@@ -143,6 +143,18 @@ http://localhost:9090
 - `ADMIN_API_TOKEN=lam-admin-api-token`
 - `PAYMENT_API_TOKEN=lam-payment-api-token` (로컬 기본값, 운영에서는 반드시 교체)
 
+저장소 루트 `.env`에 `DATABASE_URL`을 설정하면 Docker Compose의 `lam-api`도 해당 외부 PostgreSQL을 사용합니다. 값이 없으면 기존 로컬 PostgreSQL 컨테이너를 사용합니다.
+
+`go run`으로 API만 직접 실행할 때는 루트 `.env`를 먼저 셸에 불러옵니다.
+
+```bash
+cd lam-api
+set -a
+source ../.env
+set +a
+go run ./cmd/server
+```
+
 실제 결제를 사용하려면 `lam-api` 실행 환경에 `TOSS_PAYMENTS_SECRET_KEY`, `TOSS_PLACE_ACCESS_KEY`, `TOSS_PLACE_SECRET_KEY`, `TOSS_PLACE_MERCHANT_ID`를 추가합니다.
 
 ### 2. 웹 실행
@@ -218,6 +230,7 @@ TOSS_PAYMENTS_SECRET_KEY=토스페이먼츠_시크릿키
 TOSS_PLACE_ACCESS_KEY=토스플레이스_오픈API_액세스키
 TOSS_PLACE_SECRET_KEY=토스플레이스_오픈API_시크릿키
 TOSS_PLACE_MERCHANT_ID=토스플레이스_가맹점_ID
+YOUTUBE_API_KEY=서버용_YouTube_Data_API_v3_키
 EOF
 # 또는: export ADMIN_PASSWORD=... SESSION_SECRET=...
 
@@ -239,6 +252,7 @@ docker compose ps
 - **필수(기본값 없음, 미설정 시 compose 실패)**: `ADMIN_PASSWORD`, `SESSION_SECRET` (`lam-admin-web` 로그인을 통과시키는 값)
 - **선택(기본값 빈 문자열, 미설정 시 기능 비활성화)**: `STAFF_ENTRY_TOKEN`, `CUSTOMER_TEST_ENTRY_TOKEN` (`lam-web`)
 - **결제 연동 시 필수**: `NEXT_PUBLIC_TOSS_CLIENT_KEY`, `TOSS_PAYMENTS_SECRET_KEY`, `TOSS_PLACE_ACCESS_KEY`, `TOSS_PLACE_SECRET_KEY`, `TOSS_PLACE_MERCHANT_ID`
+- **신청곡 승인·재생 시 필수**: `YOUTUBE_API_KEY` (YouTube Data API v3 서버 키, 웹에는 넣지 않음)
 - **로컬 개발용 기본값 있음(운영 배포 전 반드시 교체)**: `ADMIN_API_TOKEN`, `PAYMENT_API_TOKEN` (각 웹과 API에 동일한 값을 설정)
 
 필수 값을 포함해 셸 환경변수로 덮어쓸 수 있습니다.

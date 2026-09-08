@@ -41,6 +41,7 @@ import { AdminShell } from "./AdminShell";
 
 const NAV_LABELS = [
   "대시보드",
+  "매장 플레이어",
   "손님 요청",
   "노래 신청",
   "특별 요청",

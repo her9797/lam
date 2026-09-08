@@ -14,6 +14,8 @@ type Config struct {
 	TossPlaceSecretKey     string
 	TossPlaceMerchantID    string
 	TossPlaceAPIBaseURL    string
+	YouTubeAPIKey          string
+	YouTubeAPIBaseURL      string
 	// SupabaseURL and SupabaseBroadcastKey configure the best-effort
 	// Realtime Broadcast signal sent after a customer request is created
 	// (see internal/notify.Broadcaster). Both are empty by default so
@@ -61,6 +63,10 @@ func Load() Config {
 	if tossPlaceAPIBaseURL == "" {
 		tossPlaceAPIBaseURL = "https://open-api.tossplace.com"
 	}
+	youTubeAPIBaseURL := os.Getenv("YOUTUBE_API_BASE_URL")
+	if youTubeAPIBaseURL == "" {
+		youTubeAPIBaseURL = "https://www.googleapis.com/youtube/v3"
+	}
 
 	return Config{
 		Addr:                   addr,
@@ -74,6 +80,8 @@ func Load() Config {
 		TossPlaceSecretKey:     os.Getenv("TOSS_PLACE_SECRET_KEY"),
 		TossPlaceMerchantID:    os.Getenv("TOSS_PLACE_MERCHANT_ID"),
 		TossPlaceAPIBaseURL:    tossPlaceAPIBaseURL,
+		YouTubeAPIKey:          os.Getenv("YOUTUBE_API_KEY"),
+		YouTubeAPIBaseURL:      youTubeAPIBaseURL,
 		SupabaseURL:            os.Getenv("SUPABASE_URL"),
 		SupabaseBroadcastKey:   os.Getenv("SUPABASE_BROADCAST_KEY"),
 	}

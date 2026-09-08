@@ -5,6 +5,23 @@ import "@testing-library/jest-dom/vitest";
 // system reads `matchMedia` directly to resolve `system` theme / subscribe
 // to OS scheme changes.
 if (typeof window !== "undefined") {
+  if (!window.localStorage) {
+    const values = new Map<string, string>();
+    Object.defineProperty(window, "localStorage", {
+      configurable: true,
+      value: {
+        getItem: (key: string) => values.get(key) ?? null,
+        setItem: (key: string, value: string) => values.set(key, String(value)),
+        removeItem: (key: string) => values.delete(key),
+        clear: () => values.clear(),
+        key: (index: number) => [...values.keys()][index] ?? null,
+        get length() {
+          return values.size;
+        },
+      } satisfies Storage,
+    });
+  }
+
   if (!window.matchMedia) {
     window.matchMedia = (query: string) =>
       ({
