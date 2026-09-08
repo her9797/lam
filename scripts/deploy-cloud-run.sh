@@ -61,7 +61,7 @@ esac
 PROJECT_ID="${GOOGLE_CLOUD_PROJECT:-lam-production}"
 API_REGION="${CLOUD_RUN_API_REGION:-asia-northeast3}"
 WEB_REGION="${CLOUD_RUN_WEB_REGION:-asia-northeast1}"
-ADMIN_WEB_REGION="${CLOUD_RUN_ADMIN_WEB_REGION:-asia-northeast1}"
+ADMIN_WEB_REGION="${CLOUD_RUN_ADMIN_WEB_REGION:-asia-northeast3}"
 WEB_DOMAIN="${CLOUD_RUN_WEB_DOMAIN-www.barlaam.store}"
 WEB_SERVICE_ACCOUNT="${CLOUD_RUN_WEB_SERVICE_ACCOUNT:-lam-cloud-run@${PROJECT_ID}.iam.gserviceaccount.com}"
 NEXT_PUBLIC_SUPABASE_URL="${CLOUD_RUN_NEXT_PUBLIC_SUPABASE_URL:-https://escntlunkvcoiylczijh.supabase.co}"
