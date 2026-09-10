@@ -47,12 +47,10 @@ func main() {
 	}
 }
 
-// startTossCatalogSync returns the Syncer it starts polling with (nil when
-// Toss Place isn't configured), so NewMux's manual "다시 동기화" endpoint
-// shares the exact same Syncer instance as the background poll — sharing
-// the instance is what makes Syncer's in-progress guard (catalogsync.
-// ErrSyncInProgress) also cover the button-vs-scheduled-poll case, not
-// just two button clicks.
+// startTossCatalogSync creates the Syncer used by NewMux's manual
+// "다시 동기화" endpoint and performs one initial sync. Catalog updates
+// after startup are intentionally manual so idle API instances do not poll
+// Toss Place on a fixed schedule.
 func startTossCatalogSync(repository *store.Repository, cfg config.Config) *catalogsync.Syncer {
 	if cfg.TossPlaceAccessKey == "" || cfg.TossPlaceSecretKey == "" || cfg.TossPlaceMerchantID == "" {
 		log.Printf("catalog sync disabled: Toss Place is not configured")
@@ -79,13 +77,6 @@ func startTossCatalogSync(repository *store.Repository, cfg config.Config) *cata
 	}
 
 	run()
-	go func() {
-		ticker := time.NewTicker(5 * time.Minute)
-		defer ticker.Stop()
-		for range ticker.C {
-			run()
-		}
-	}()
 
 	return syncer
 }
