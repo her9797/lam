@@ -19,6 +19,7 @@ function order(orderId: string, overrides: Partial<OrderPageResult["items"][numb
     menuItemName: "하우스 하이볼",
     categoryName: "하이볼",
     tableNumber: "7",
+    requestNote: "",
     amount: 10000,
     vat: 909,
     suppliedAmount: 9091,

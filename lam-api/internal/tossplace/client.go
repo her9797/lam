@@ -23,6 +23,7 @@ type PaidOrder struct {
 	MenuItemName      string
 	CategoryName      string
 	TableNumber       string
+	RequestNote       string
 	Amount            int64
 	VAT               int64
 	SuppliedAmount    int64
@@ -41,6 +42,7 @@ type UnpaidOrder struct {
 	MenuItemName      string
 	CategoryName      string
 	TableNumber       string
+	RequestNote       string
 	Amount            int64
 	OpenedAt          time.Time
 }
@@ -197,7 +199,7 @@ func (c *Client) CreatePaidOrder(ctx context.Context, paid PaidOrder) (CreateOrd
 				TaxExemptAmount:     paid.TaxFreeAmount,
 				TotalAmount:         paid.Amount,
 			},
-			Memo:     paymentMemo(paid.TableNumber),
+			Memo:     paymentMemo(paid.TableNumber, paid.RequestNote),
 			OpenedAt: timestamp,
 		},
 		Payments: []createPayment{{
@@ -261,7 +263,7 @@ func (c *Client) CreateUnpaidOrder(ctx context.Context, unpaid UnpaidOrder) (Cre
 				TaxExemptAmount:     0,
 				TotalAmount:         unpaid.Amount,
 			},
-			Memo:     paymentMemo(unpaid.TableNumber),
+			Memo:     paymentMemo(unpaid.TableNumber, unpaid.RequestNote),
 			OpenedAt: unpaid.OpenedAt.UTC().Format(time.RFC3339),
 		},
 		Payments: make([]createPayment, 0),
@@ -316,10 +318,16 @@ func (c *Client) sendCreateOrder(ctx context.Context, body createOrderBody) (Cre
 	return CreateOrderResult{OrderID: envelope.Success.ID}, nil
 }
 
-func paymentMemo(tableNumber string) string {
+func paymentMemo(tableNumber string, requestNote string) string {
 	tableNumber = strings.TrimSpace(tableNumber)
-	if tableNumber == "" {
-		return "lam 웹 주문"
+	requestNote = strings.TrimSpace(requestNote)
+	parts := make([]string, 0, 3)
+	if tableNumber != "" {
+		parts = append(parts, "테이블 "+tableNumber)
 	}
-	return "테이블 " + tableNumber + " · lam 웹 주문"
+	if requestNote != "" {
+		parts = append(parts, "요청사항: "+requestNote)
+	}
+	parts = append(parts, "lam 웹 주문")
+	return strings.Join(parts, " · ")
 }

@@ -4,6 +4,7 @@ export type CustomerOrder = {
   menuItemName: string;
   categoryName: string;
   tableNumber: string;
+  requestNote: string;
   amount: number;
   status: "READY" | "DONE";
   posSyncStatus: "PENDING" | "SUCCEEDED" | "FAILED" | "NOT_CONFIGURED";
@@ -11,7 +12,7 @@ export type CustomerOrder = {
   createdAt: string;
 };
 
-export async function createOrder(input: { menuItemId: string; tableNumber: string }) {
+export async function createOrder(input: { menuItemId: string; tableNumber: string; requestNote: string }) {
   const response = await fetch("/api/orders", {
     method: "POST",
     headers: { "Content-Type": "application/json" },

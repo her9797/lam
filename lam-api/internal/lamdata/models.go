@@ -93,6 +93,7 @@ type PaymentOrder struct {
 	MenuItemName   string `json:"menuItemName"`
 	CategoryName   string `json:"categoryName"`
 	TableNumber    string `json:"tableNumber"`
+	RequestNote    string `json:"requestNote"`
 	Amount         int64  `json:"amount"`
 	VAT            int64  `json:"vat"`
 	SuppliedAmount int64  `json:"suppliedAmount"`

@@ -74,6 +74,7 @@ const DETAIL_FIELDS: Array<{ key: keyof PaymentOrder; labelKey: string }> = [
   { key: "tableNumber", labelKey: "fieldTableNumber" },
   { key: "menuItemName", labelKey: "fieldMenuItem" },
   { key: "categoryName", labelKey: "fieldCategory" },
+  { key: "requestNote", labelKey: "fieldRequestNote" },
   { key: "amount", labelKey: "fieldAmount" },
   { key: "vat", labelKey: "fieldVat" },
   { key: "suppliedAmount", labelKey: "fieldSuppliedAmount" },
