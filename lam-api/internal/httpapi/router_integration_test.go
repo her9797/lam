@@ -6,6 +6,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -383,6 +384,107 @@ func TestRouter_AdminMenuItems_CreateUpdateDelete(t *testing.T) {
 		rec := doRequest(t, handler, http.MethodDelete, "/api/v1/admin/menu-items/"+itemID, nil, adminHeaders())
 		if rec.Code != http.StatusOK {
 			t.Fatalf("status = %d, want %d, body = %s", rec.Code, http.StatusOK, rec.Body.String())
+		}
+	})
+}
+
+func TestRouter_AdminMenuItemRecipe_GetAndUpdate(t *testing.T) {
+	handler := resetServer(t)
+
+	catBody, _ := json.Marshal(map[string]any{"id": "food", "label": "Food", "isVisible": true})
+	doRequest(t, handler, http.MethodPost, "/api/v1/admin/categories", catBody, adminHeaders())
+
+	itemBody, _ := json.Marshal(map[string]any{
+		"categoryId": "food", "name": "Fries", "description": "crispy", "price": "5000", "isVisible": true,
+	})
+	rec := doRequest(t, handler, http.MethodPost, "/api/v1/admin/menu-items", itemBody, adminHeaders())
+	var bootstrap struct {
+		Items []struct {
+			ID string `json:"id"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &bootstrap); err != nil {
+		t.Fatalf("decode bootstrap: %v", err)
+	}
+	itemID := bootstrap.Items[0].ID
+
+	t.Run("GET without auth is rejected", func(t *testing.T) {
+		rec := doRequest(t, handler, http.MethodGet, "/api/v1/admin/menu-items/"+itemID+"/recipe", nil, nil)
+		if rec.Code != http.StatusUnauthorized {
+			t.Errorf("status = %d, want %d", rec.Code, http.StatusUnauthorized)
+		}
+	})
+
+	t.Run("PATCH without auth is rejected", func(t *testing.T) {
+		body, _ := json.Marshal(map[string]string{"ingredients": "a", "instructions": "b"})
+		rec := doRequest(t, handler, http.MethodPatch, "/api/v1/admin/menu-items/"+itemID+"/recipe", body, nil)
+		if rec.Code != http.StatusUnauthorized {
+			t.Errorf("status = %d, want %d", rec.Code, http.StatusUnauthorized)
+		}
+	})
+
+	t.Run("GET returns empty recipe for a new item", func(t *testing.T) {
+		rec := doRequest(t, handler, http.MethodGet, "/api/v1/admin/menu-items/"+itemID+"/recipe", nil, adminHeaders())
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d, body = %s", rec.Code, http.StatusOK, rec.Body.String())
+		}
+		var recipe struct {
+			MenuItemID   string `json:"menuItemId"`
+			Ingredients  string `json:"ingredients"`
+			Instructions string `json:"instructions"`
+		}
+		if err := json.Unmarshal(rec.Body.Bytes(), &recipe); err != nil {
+			t.Fatalf("decode recipe: %v", err)
+		}
+		if recipe.MenuItemID != itemID || recipe.Ingredients != "" || recipe.Instructions != "" {
+			t.Errorf("recipe = %+v, want empty ingredients/instructions for %q", recipe, itemID)
+		}
+	})
+
+	t.Run("PATCH then GET reflects the update", func(t *testing.T) {
+		body, _ := json.Marshal(map[string]string{"ingredients": "감자 200g", "instructions": "180도에서 5분"})
+		patchRec := doRequest(t, handler, http.MethodPatch, "/api/v1/admin/menu-items/"+itemID+"/recipe", body, adminHeaders())
+		if patchRec.Code != http.StatusOK {
+			t.Fatalf("PATCH status = %d, want %d, body = %s", patchRec.Code, http.StatusOK, patchRec.Body.String())
+		}
+
+		getRec := doRequest(t, handler, http.MethodGet, "/api/v1/admin/menu-items/"+itemID+"/recipe", nil, adminHeaders())
+		var recipe struct {
+			Ingredients  string `json:"ingredients"`
+			Instructions string `json:"instructions"`
+		}
+		if err := json.Unmarshal(getRec.Body.Bytes(), &recipe); err != nil {
+			t.Fatalf("decode recipe: %v", err)
+		}
+		if recipe.Ingredients != "감자 200g" || recipe.Instructions != "180도에서 5분" {
+			t.Errorf("recipe = %+v, want the updated ingredients/instructions", recipe)
+		}
+	})
+
+	t.Run("unknown item id is not found", func(t *testing.T) {
+		rec := doRequest(t, handler, http.MethodGet, "/api/v1/admin/menu-items/missing/recipe", nil, adminHeaders())
+		if rec.Code != http.StatusNotFound {
+			t.Errorf("GET status = %d, want %d", rec.Code, http.StatusNotFound)
+		}
+
+		body, _ := json.Marshal(map[string]string{"ingredients": "a", "instructions": "b"})
+		patchRec := doRequest(t, handler, http.MethodPatch, "/api/v1/admin/menu-items/missing/recipe", body, adminHeaders())
+		if patchRec.Code != http.StatusNotFound {
+			t.Errorf("PATCH status = %d, want %d", patchRec.Code, http.StatusNotFound)
+		}
+	})
+
+	t.Run("public bootstrap never includes recipe fields", func(t *testing.T) {
+		body, _ := json.Marshal(map[string]string{"ingredients": "감자 200g", "instructions": "180도에서 5분"})
+		doRequest(t, handler, http.MethodPatch, "/api/v1/admin/menu-items/"+itemID+"/recipe", body, adminHeaders())
+
+		rec := doRequest(t, handler, http.MethodGet, "/api/v1/bootstrap", nil, nil)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("bootstrap status = %d, want %d", rec.Code, http.StatusOK)
+		}
+		respBody := rec.Body.String()
+		if strings.Contains(respBody, "ingredients") || strings.Contains(respBody, "recipe") {
+			t.Errorf("bootstrap response leaks recipe fields: %s", respBody)
 		}
 	})
 }

@@ -372,6 +372,13 @@ describe("MenuManagementPage", () => {
     expect(uploadMenuItemImageMutate).not.toHaveBeenCalled();
   });
 
+  it("links the item name to its detail page", () => {
+    render(<MenuManagementPage />);
+
+    const nameLink = screen.getByRole("link", { name: "아메리카노" });
+    expect(nameLink).toHaveAttribute("href", "/menu/menu-1");
+  });
+
   it("toggles menu item visibility", () => {
     render(<MenuManagementPage />);
 
