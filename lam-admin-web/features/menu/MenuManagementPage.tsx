@@ -3,6 +3,7 @@
 import "@/i18n/client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -294,7 +295,14 @@ export function MenuManagementPage() {
               const category = categories.find((candidate) => candidate.id === item.categoryId);
               return (
                 <TableRow key={item.id}>
-                  <TableCell>{item.name}</TableCell>
+                  <TableCell>
+                    <Link
+                      href={`/menu/${item.id}`}
+                      className="text-primary underline-offset-4 hover:underline"
+                    >
+                      {item.name}
+                    </Link>
+                  </TableCell>
                   <TableCell>{category?.label ?? item.categoryId}</TableCell>
                   <TableCell>{item.price}</TableCell>
                   <TableCell>

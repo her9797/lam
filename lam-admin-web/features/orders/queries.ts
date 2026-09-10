@@ -78,8 +78,8 @@ export function useOrderNotificationsQuery() {
 /**
  * Dashboard's order-history aggregate: total READY (미결제/unpaid) orders,
  * all-time — surfaces orders still awaiting payment, unlike `/orders`'s own
- * default filter (see `list-query-url.ts`'s `DEFAULT_STATUS`), which
- * defaults to `DONE`. `pageSize: 1` keeps the request cheap; only `total`
+ * default filter (see `list-query-url.ts`'s `DEFAULT_STATUS`), which shows
+ * every status. `pageSize: 1` keeps the request cheap; only `total`
  * from the paginated envelope is read, never `items`.
  */
 const DASHBOARD_ORDER_COUNT_QUERY: OrderListQuery = {

@@ -206,6 +206,8 @@ ALTER TABLE payment_orders ADD COLUMN IF NOT EXISTS supplied_amount BIGINT NOT N
 ALTER TABLE payment_orders ADD COLUMN IF NOT EXISTS tax_free_amount BIGINT NOT NULL DEFAULT 0;
 ALTER TABLE payment_orders ADD COLUMN IF NOT EXISTS toss_catalog_item_id TEXT;
 ALTER TABLE payment_orders ADD COLUMN IF NOT EXISTS request_note TEXT NOT NULL DEFAULT '';
+ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS recipe_ingredients TEXT NOT NULL DEFAULT '';
+ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS recipe_instructions TEXT NOT NULL DEFAULT '';
 CREATE INDEX IF NOT EXISTS idx_customer_requests_created_at ON customer_requests (created_at DESC, id DESC);
 CREATE INDEX IF NOT EXISTS idx_customer_requests_status ON customer_requests (status);
 CREATE INDEX IF NOT EXISTS idx_song_playback_queue_active ON song_playback_queue (status, queued_at, id);
@@ -1395,6 +1397,33 @@ func (r *Repository) UpdateCategoryVisibility(ctx context.Context, id string, is
 
 func (r *Repository) UpdateMenuItemVisibility(ctx context.Context, id string, isVisible bool) error {
 	tag, err := r.pool.Exec(ctx, `UPDATE menu_items SET is_visible = $2 WHERE id = $1`, id, isVisible)
+	if err != nil {
+		return classifyError(err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// GetMenuItemRecipe returns the admin-only ingredients/method text for a
+// menu item. It is not part of the public bootstrap/menu responses.
+func (r *Repository) GetMenuItemRecipe(ctx context.Context, id string) (lamdata.MenuItemRecipe, error) {
+	recipe := lamdata.MenuItemRecipe{MenuItemID: id}
+	err := r.pool.QueryRow(ctx, `SELECT recipe_ingredients, recipe_instructions FROM menu_items WHERE id = $1`, id).Scan(
+		&recipe.Ingredients, &recipe.Instructions,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return lamdata.MenuItemRecipe{}, ErrNotFound
+	}
+	if err != nil {
+		return lamdata.MenuItemRecipe{}, err
+	}
+	return recipe, nil
+}
+
+func (r *Repository) UpdateMenuItemRecipe(ctx context.Context, id string, ingredients string, instructions string) error {
+	tag, err := r.pool.Exec(ctx, `UPDATE menu_items SET recipe_ingredients = $2, recipe_instructions = $3 WHERE id = $1`, id, ingredients, instructions)
 	if err != nil {
 		return classifyError(err)
 	}

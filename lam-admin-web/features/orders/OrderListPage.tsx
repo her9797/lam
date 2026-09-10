@@ -150,7 +150,7 @@ export function OrderListPage() {
   const orders = ordersQuery.data?.items ?? [];
   const total = ordersQuery.data?.total ?? 0;
   const hasActiveFilter =
-    Boolean(query.status && query.status !== "DONE") ||
+    Boolean(query.status) ||
     Boolean(query.posSyncStatus) ||
     query.datePreset !== "all" ||
     query.search.trim().length > 0;

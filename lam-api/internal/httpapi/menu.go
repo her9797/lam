@@ -45,6 +45,11 @@ type updateVisibilityRequest struct {
 	IsVisible bool `json:"isVisible"`
 }
 
+type updateMenuItemRecipeRequest struct {
+	Ingredients  string `json:"ingredients"`
+	Instructions string `json:"instructions"`
+}
+
 type updateCustomerRequestStatusRequest struct {
 	Status string `json:"status"`
 }

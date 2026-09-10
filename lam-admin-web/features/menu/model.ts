@@ -42,6 +42,23 @@ export type CreateMenuItemInput = {
   isVisible: boolean;
 };
 
+/**
+ * Mirrors `lam-api/internal/lamdata.MenuItemRecipe` — admin-only ingredient
+ * and method text for a menu item. Deliberately kept out of `AppData`
+ * (`features/bootstrap/model.ts`): it is never part of the public
+ * bootstrap/menu response, only the dedicated admin recipe endpoint.
+ */
+export type MenuItemRecipe = {
+  menuItemId: string;
+  ingredients: string;
+  instructions: string;
+};
+
+export type UpdateMenuItemRecipeInput = {
+  ingredients: string;
+  instructions: string;
+};
+
 export type MenuImageDisplayArea = "home" | "menu" | "both";
 
 export type UploadMenuItemImageInput = {

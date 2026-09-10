@@ -4,12 +4,12 @@ import { buildOrderListSearchParams, parseOrderListQuery } from "./list-query-ur
 import type { OrderListQuery } from "./model";
 
 describe("parseOrderListQuery", () => {
-  it("defaults to page 1, pageSize 10, status DONE, no posSync filter, no search, datePreset all, sort createdAt desc", () => {
+  it("defaults to page 1, pageSize 10, no status filter, no posSync filter, no search, datePreset all, sort createdAt desc", () => {
     const query = parseOrderListQuery(new URLSearchParams());
     expect(query).toEqual({
       page: 1,
       pageSize: 10,
-      status: "DONE",
+      status: undefined,
       posSyncStatus: undefined,
       search: "",
       datePreset: "all",
@@ -45,7 +45,7 @@ describe("parseOrderListQuery", () => {
     const query = parseOrderListQuery(
       new URLSearchParams("status=CANCELED&posSync=UNKNOWN&datePreset=yesterday&sort=tableNumber&order=random"),
     );
-    expect(query.status).toBe("DONE");
+    expect(query.status).toBeUndefined();
     expect(query.posSyncStatus).toBeUndefined();
     expect(query.datePreset).toBe("all");
     expect(query.sort).toBe("createdAt");
@@ -63,7 +63,7 @@ describe("buildOrderListSearchParams", () => {
   const DEFAULT_QUERY: OrderListQuery = {
     page: 1,
     pageSize: 10,
-    status: "DONE",
+    status: undefined,
     posSyncStatus: undefined,
     search: "",
     datePreset: "all",
@@ -90,8 +90,8 @@ describe("buildOrderListSearchParams", () => {
     expect(parseOrderListQuery(params)).toEqual(query);
   });
 
-  it("serializes an explicit 'no status filter' as status=all", () => {
-    const params = buildOrderListSearchParams({ ...DEFAULT_QUERY, status: undefined });
-    expect(params.get("status")).toBe("all");
+  it("omits the status param entirely for the default 'no status filter' query", () => {
+    const params = buildOrderListSearchParams(DEFAULT_QUERY);
+    expect(params.has("status")).toBe(false);
   });
 });

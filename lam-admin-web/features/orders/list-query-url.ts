@@ -22,7 +22,8 @@ import type {
  * means "today" whenever it's opened, not the calendar day it was created.
  */
 const DEFAULT_PAGE_SIZE = 10;
-const DEFAULT_STATUS: PaymentOrderStatus = "DONE";
+// No status filter (all statuses) is the default view of `/orders`.
+const DEFAULT_STATUS: PaymentOrderStatus | undefined = undefined;
 const DEFAULT_DATE_PRESET: DatePreset = "all";
 const DEFAULT_SORT: PaymentOrderSort = "createdAt";
 
@@ -64,7 +65,7 @@ export function parseOrderListQuery(searchParams: URLSearchParams): OrderListQue
   const page = Number.isInteger(pageRaw) && pageRaw > 0 ? pageRaw : 1;
 
   const statusRaw = searchParams.get("status");
-  const status = statusRaw === "all" ? undefined : isValidStatus(statusRaw) ? statusRaw : DEFAULT_STATUS;
+  const status = isValidStatus(statusRaw) ? statusRaw : DEFAULT_STATUS;
 
   const posSyncRaw = searchParams.get("posSync");
   const posSyncStatus = isValidPosSyncStatus(posSyncRaw) ? posSyncRaw : undefined;
@@ -92,10 +93,7 @@ export function parseOrderListQuery(searchParams: URLSearchParams): OrderListQue
 
 /**
  * Serializes only what departs from the default, so the URL for the
- * default view of the list stays a bare pathname. "No status filter" is
- * the one exception: it must be written explicitly as `status=all` (not
- * omitted), since an absent `status` param means the *default* filter
- * (`DONE`), not "all statuses".
+ * default view of the list (no status filter) stays a bare pathname.
  */
 export function buildOrderListSearchParams(query: OrderListQuery): URLSearchParams {
   const params = new URLSearchParams();
