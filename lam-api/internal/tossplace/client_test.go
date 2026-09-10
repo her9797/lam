@@ -96,3 +96,52 @@ func TestClientCreatePaidOrderUsesCatalogItemWhenMapped(t *testing.T) {
 		t.Fatalf("CreatePaidOrder() error = %v", err)
 	}
 }
+
+func TestClientCreateUnpaidOrderOmitsPayments(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/api-public/openapi/v1/merchants/merchant-123/order/orders" {
+			t.Fatalf("request = %s %s", r.Method, r.URL.Path)
+		}
+
+		var body createOrderBody
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		if body.Payments == nil || len(body.Payments) != 0 {
+			t.Fatalf("payments = %#v, want an empty array", body.Payments)
+		}
+		if body.Order.OpenedAt != "2026-09-05T03:34:56Z" {
+			t.Fatalf("openedAt = %q", body.Order.OpenedAt)
+		}
+		if body.Order.ChargePrice.TotalAmount != 10000 || body.Order.ChargePrice.TaxAmount != 909 || body.Order.ChargePrice.SupplyAmount != 9091 {
+			t.Fatalf("chargePrice = %+v", body.Order.ChargePrice)
+		}
+		if body.Order.Memo != "테이블 3 · 요청사항: 얼음은 적게 주세요 · lam 웹 주문" {
+			t.Fatalf("memo = %q", body.Order.Memo)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"resultType":"SUCCESS","success":{"id":"pos-order-unpaid"}}`))
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "access", "secret", "merchant-123", server.Client())
+	result, err := client.CreateUnpaidOrder(context.Background(), UnpaidOrder{
+		OrderID:           "order-123456",
+		OrderNumber:       "테이블 3",
+		MenuItemID:        "local-item-1",
+		TossCatalogItemID: "pos-item-1",
+		MenuItemName:      "하우스 하이볼",
+		CategoryName:      "하이볼",
+		TableNumber:       "3",
+		RequestNote:       "얼음은 적게 주세요",
+		Amount:            10000,
+		OpenedAt:          time.Date(2026, 9, 5, 3, 34, 56, 0, time.UTC),
+	})
+	if err != nil {
+		t.Fatalf("CreateUnpaidOrder() error = %v", err)
+	}
+	if result.OrderID != "pos-order-unpaid" {
+		t.Fatalf("OrderID = %q", result.OrderID)
+	}
+}

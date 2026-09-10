@@ -739,7 +739,9 @@ a {
 }
 
 .table-session-modal.menu-detail-modal {
+  max-height: calc(100dvh - 40px);
   border: 0;
+  overflow-y: auto;
 }
 
 body:has(.menu-detail-modal) .content-card {
@@ -761,6 +763,25 @@ body:has(.menu-detail-modal) .content-card {
   margin: 12px 0 0;
   color: var(--muted-strong);
   line-height: 1.65;
+}
+
+.menu-detail-request-field {
+  margin-top: 18px;
+}
+
+.menu-detail-request-field textarea {
+  min-height: 88px;
+}
+
+.menu-detail-order-success {
+  margin: 16px 0 0;
+  color: #86efac;
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+.menu-detail-modal:has(.menu-detail-order-success) .menu-detail-actions {
+  grid-template-columns: 1fr;
 }
 
 .menu-detail-actions {
