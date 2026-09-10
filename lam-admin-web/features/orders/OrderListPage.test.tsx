@@ -128,18 +128,15 @@ describe("OrderListPage", () => {
     expect(screen.getByText("5")).toBeInTheDocument();
     expect(screen.getByText("Beer")).toBeInTheDocument();
     expect(screen.getByText("₩8,000")).toBeInTheDocument();
-    // "결제완료" also appears in the status-filter Select's own current
-    // value (default filter is DONE), so this only asserts the row's cell
-    // exists somewhere on the page, not uniqueness.
-    expect(screen.getAllByText("결제완료").length).toBeGreaterThan(0);
+    expect(screen.getByText("결제완료")).toBeInTheDocument();
     expect(screen.getByText("6")).toBeInTheDocument();
     expect(screen.getByText("Cider")).toBeInTheDocument();
     expect(screen.getByText("미결제")).toBeInTheDocument();
   });
 
-  it("defaults to requesting status=DONE (via the URL query parser's own default)", () => {
+  it("defaults to requesting no status filter (via the URL query parser's own default)", () => {
     render(<OrderListPage />);
-    expect(useOrdersPageQueryMock).toHaveBeenCalledWith(expect.objectContaining({ status: "DONE" }));
+    expect(useOrdersPageQueryMock).toHaveBeenCalledWith(expect.objectContaining({ status: undefined }));
   });
 
   it("opens a detail dialog with payment/POS fields when a row's detail button is clicked", () => {
