@@ -133,6 +133,7 @@ func TestRouter_OrderOnlyFlowCreatesUnpaidPOSOrder(t *testing.T) {
 			Payments []json.RawMessage `json:"payments"`
 			Order    struct {
 				OrderKey string `json:"orderKey"`
+				Memo     string `json:"memo"`
 			} `json:"order"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -143,6 +144,9 @@ func TestRouter_OrderOnlyFlowCreatesUnpaidPOSOrder(t *testing.T) {
 		}
 		if body.Order.OrderKey == "" {
 			t.Fatal("orderKey is empty")
+		}
+		if body.Order.Memo != "테이블 7 · 요청사항: 얼음 적게 · lam 웹 주문" {
+			t.Fatalf("memo = %q", body.Order.Memo)
 		}
 		writeJSON(w, http.StatusOK, map[string]any{
 			"resultType": "SUCCESS",
@@ -159,20 +163,21 @@ func TestRouter_OrderOnlyFlowCreatesUnpaidPOSOrder(t *testing.T) {
 	handler := NewMux(testRepo, cfg, nil)
 	headers := map[string]string{"Authorization": "Bearer " + cfg.PaymentAPIToken}
 
-	createBody, _ := json.Marshal(map[string]string{"menuItemId": "house-highball", "tableNumber": "7"})
+	createBody, _ := json.Marshal(map[string]string{"menuItemId": "house-highball", "tableNumber": "7", "requestNote": "  얼음 적게  "})
 	created := doRequest(t, handler, http.MethodPost, "/api/v1/orders", createBody, headers)
 	if created.Code != http.StatusCreated {
 		t.Fatalf("create status = %d, body = %s", created.Code, created.Body.String())
 	}
 	var result struct {
 		Status        string `json:"status"`
+		RequestNote   string `json:"requestNote"`
 		POSSyncStatus string `json:"posSyncStatus"`
 		POSOrderID    string `json:"posOrderId"`
 	}
 	if err := json.Unmarshal(created.Body.Bytes(), &result); err != nil {
 		t.Fatalf("decode order: %v", err)
 	}
-	if result.Status != "READY" || result.POSSyncStatus != "SUCCEEDED" || result.POSOrderID != "pos-order-unpaid" {
+	if result.Status != "READY" || result.RequestNote != "얼음 적게" || result.POSSyncStatus != "SUCCEEDED" || result.POSOrderID != "pos-order-unpaid" {
 		t.Fatalf("created order = %+v", result)
 	}
 	if posCalls.Load() != 1 {

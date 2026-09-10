@@ -17,6 +17,7 @@ export function MenuItemCard({ item, imageArea = "menu" }: MenuItemCardProps) {
   const [isOrdering, setIsOrdering] = useState(false);
   const [orderError, setOrderError] = useState("");
   const [isOrderComplete, setIsOrderComplete] = useState(false);
+  const [requestNote, setRequestNote] = useState("");
   const titleId = useId();
   const descriptionId = useId();
   const detail = getMenuItemDetail(item);
@@ -58,6 +59,7 @@ export function MenuItemCard({ item, imageArea = "menu" }: MenuItemCardProps) {
       await createOrder({
         menuItemId: item.id,
         tableNumber: getStoredTableNumber(),
+        requestNote,
       });
       setIsOrderComplete(true);
     } catch (error) {
@@ -70,6 +72,7 @@ export function MenuItemCard({ item, imageArea = "menu" }: MenuItemCardProps) {
   function openDetail() {
     setOrderError("");
     setIsOrderComplete(false);
+    setRequestNote("");
     setIsOpen(true);
   }
 
@@ -129,6 +132,18 @@ export function MenuItemCard({ item, imageArea = "menu" }: MenuItemCardProps) {
             <p className="menu-detail-description" id={descriptionId}>
               {detail.description || "메뉴 설명이 준비 중입니다."}
             </p>
+            {!isOrderComplete ? (
+              <label className="request-compose-field menu-detail-request-field">
+                <span>요청사항 (선택)</span>
+                <textarea
+                  value={requestNote}
+                  maxLength={200}
+                  placeholder="예: 얼음은 적게 주세요"
+                  disabled={isOrdering}
+                  onChange={(event) => setRequestNote(event.target.value)}
+                />
+              </label>
+            ) : null}
             {isOrderComplete ? (
               <p className="menu-detail-order-success" role="status">
                 주문이 접수됐어요. 매장에서 결제해 주세요.

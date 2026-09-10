@@ -116,6 +116,9 @@ func TestClientCreateUnpaidOrderOmitsPayments(t *testing.T) {
 		if body.Order.ChargePrice.TotalAmount != 10000 || body.Order.ChargePrice.TaxAmount != 909 || body.Order.ChargePrice.SupplyAmount != 9091 {
 			t.Fatalf("chargePrice = %+v", body.Order.ChargePrice)
 		}
+		if body.Order.Memo != "테이블 3 · 요청사항: 얼음은 적게 주세요 · lam 웹 주문" {
+			t.Fatalf("memo = %q", body.Order.Memo)
+		}
 
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"resultType":"SUCCESS","success":{"id":"pos-order-unpaid"}}`))
@@ -131,6 +134,7 @@ func TestClientCreateUnpaidOrderOmitsPayments(t *testing.T) {
 		MenuItemName:      "하우스 하이볼",
 		CategoryName:      "하이볼",
 		TableNumber:       "3",
+		RequestNote:       "얼음은 적게 주세요",
 		Amount:            10000,
 		OpenedAt:          time.Date(2026, 9, 5, 3, 34, 56, 0, time.UTC),
 	})

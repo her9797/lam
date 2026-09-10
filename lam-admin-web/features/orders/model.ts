@@ -18,6 +18,7 @@ export type PaymentOrder = {
   menuItemName: string;
   categoryName: string;
   tableNumber: string;
+  requestNote: string;
   amount: number;
   vat: number;
   suppliedAmount: number;

@@ -1,6 +1,9 @@
 package store
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestParsePaymentAmount(t *testing.T) {
 	tests := []struct {
@@ -36,4 +39,29 @@ func TestParsePaymentAmount(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestNormalizePaymentOrderRequestNote(t *testing.T) {
+	t.Run("trims optional note", func(t *testing.T) {
+		got, err := normalizePaymentOrderRequestNote("  얼음은 적게 주세요  ")
+		if err != nil {
+			t.Fatalf("normalizePaymentOrderRequestNote() error = %v", err)
+		}
+		if got != "얼음은 적게 주세요" {
+			t.Fatalf("normalizePaymentOrderRequestNote() = %q", got)
+		}
+	})
+
+	t.Run("allows empty note", func(t *testing.T) {
+		got, err := normalizePaymentOrderRequestNote("   ")
+		if err != nil || got != "" {
+			t.Fatalf("normalizePaymentOrderRequestNote() = %q, %v", got, err)
+		}
+	})
+
+	t.Run("rejects more than 200 characters", func(t *testing.T) {
+		if _, err := normalizePaymentOrderRequestNote(strings.Repeat("가", 201)); err == nil {
+			t.Fatal("normalizePaymentOrderRequestNote() error = nil, want ErrInvalidInput")
+		}
+	})
 }

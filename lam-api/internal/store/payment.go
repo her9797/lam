@@ -21,6 +21,7 @@ type PaymentOrder struct {
 	MenuItemName      string `json:"menuItemName"`
 	CategoryName      string `json:"categoryName"`
 	TableNumber       string `json:"tableNumber"`
+	RequestNote       string `json:"requestNote"`
 	Amount            int64  `json:"amount"`
 	Status            string `json:"status"`
 	PaymentKey        string `json:"paymentKey,omitempty"`
@@ -33,6 +34,16 @@ type PaymentOrder struct {
 	POSOrderID        string `json:"posOrderId,omitempty"`
 	POSSyncError      string `json:"posSyncError,omitempty"`
 	CreatedAt         string `json:"createdAt"`
+}
+
+const paymentOrderRequestNoteMaxLength = 200
+
+func normalizePaymentOrderRequestNote(note string) (string, error) {
+	note = strings.TrimSpace(note)
+	if len([]rune(note)) > paymentOrderRequestNoteMaxLength {
+		return "", ErrInvalidInput
+	}
+	return note, nil
 }
 
 func parsePaymentAmount(price string) (int64, error) {
@@ -50,17 +61,21 @@ func parsePaymentAmount(price string) (int64, error) {
 	return amount, nil
 }
 
-func (r *Repository) CreatePaymentOrder(ctx context.Context, menuItemID string, tableNumber string) (PaymentOrder, error) {
+func (r *Repository) CreatePaymentOrder(ctx context.Context, menuItemID string, tableNumber string, requestNote string) (PaymentOrder, error) {
 	menuItemID = strings.TrimSpace(menuItemID)
 	if menuItemID == "" {
 		return PaymentOrder{}, ErrInvalidInput
+	}
+	requestNote, err := normalizePaymentOrderRequestNote(requestNote)
+	if err != nil {
+		return PaymentOrder{}, err
 	}
 
 	var itemName string
 	var categoryName string
 	var price string
 	var tossCatalogItemID string
-	err := r.pool.QueryRow(ctx, `
+	err = r.pool.QueryRow(ctx, `
 		SELECT mi.name, mc.label, mi.price, mi.toss_catalog_item_id
 		FROM menu_items mi
 		JOIN menu_categories mc ON mc.id = mi.category_id
@@ -81,9 +96,9 @@ func (r *Repository) CreatePaymentOrder(ctx context.Context, menuItemID string, 
 	orderID := nextID("order")
 	_, err = r.pool.Exec(ctx, `
 		INSERT INTO payment_orders (
-			id, menu_item_id, toss_catalog_item_id, menu_item_name, category_name, table_number, amount
-		) VALUES ($1, $2, $3, $4, $5, $6, $7)
-	`, orderID, menuItemID, tossCatalogItemID, itemName, categoryName, strings.TrimSpace(tableNumber), amount)
+			id, menu_item_id, toss_catalog_item_id, menu_item_name, category_name, table_number, request_note, amount
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+	`, orderID, menuItemID, tossCatalogItemID, itemName, categoryName, strings.TrimSpace(tableNumber), requestNote, amount)
 	if err != nil {
 		return PaymentOrder{}, classifyError(err)
 	}
@@ -103,6 +118,7 @@ func (r *Repository) GetPaymentOrder(ctx context.Context, orderID string) (Payme
 			menu_item_name,
 			category_name,
 			table_number,
+			request_note,
 			amount,
 			status,
 			COALESCE(payment_key, ''),
@@ -124,6 +140,7 @@ func (r *Repository) GetPaymentOrder(ctx context.Context, orderID string) (Payme
 		&order.MenuItemName,
 		&order.CategoryName,
 		&order.TableNumber,
+		&order.RequestNote,
 		&order.Amount,
 		&order.Status,
 		&order.PaymentKey,
@@ -265,6 +282,7 @@ func (r *Repository) ListPaymentOrdersPage(ctx context.Context, filter PaymentOr
 			menu_item_name,
 			category_name,
 			table_number,
+			request_note,
 			amount,
 			vat,
 			supplied_amount,
@@ -300,6 +318,7 @@ func (r *Repository) ListPaymentOrdersPage(ctx context.Context, filter PaymentOr
 			&item.MenuItemName,
 			&item.CategoryName,
 			&item.TableNumber,
+			&item.RequestNote,
 			&item.Amount,
 			&item.VAT,
 			&item.SuppliedAmount,

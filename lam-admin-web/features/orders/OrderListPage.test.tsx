@@ -28,6 +28,7 @@ const ORDERS: PaymentOrder[] = [
     menuItemName: "Beer",
     categoryName: "Drinks",
     tableNumber: "5",
+    requestNote: "얼음은 적게 주세요",
     amount: 8000,
     vat: 727,
     suppliedAmount: 7273,
@@ -45,6 +46,7 @@ const ORDERS: PaymentOrder[] = [
     menuItemName: "Cider",
     categoryName: "Drinks",
     tableNumber: "6",
+    requestNote: "",
     amount: 5000,
     vat: 0,
     suppliedAmount: 5000,
@@ -149,5 +151,7 @@ describe("OrderListPage", () => {
     expect(within(dialog).getByText("pk_123")).toBeInTheDocument();
     expect(within(dialog).getByText("pos-1")).toBeInTheDocument();
     expect(within(dialog).getByText("카드")).toBeInTheDocument();
+    expect(within(dialog).getByText("요청사항")).toBeInTheDocument();
+    expect(within(dialog).getByText("얼음은 적게 주세요")).toBeInTheDocument();
   });
 });

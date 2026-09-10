@@ -205,6 +205,7 @@ ALTER TABLE payment_orders ADD COLUMN IF NOT EXISTS vat BIGINT NOT NULL DEFAULT 
 ALTER TABLE payment_orders ADD COLUMN IF NOT EXISTS supplied_amount BIGINT NOT NULL DEFAULT 0;
 ALTER TABLE payment_orders ADD COLUMN IF NOT EXISTS tax_free_amount BIGINT NOT NULL DEFAULT 0;
 ALTER TABLE payment_orders ADD COLUMN IF NOT EXISTS toss_catalog_item_id TEXT;
+ALTER TABLE payment_orders ADD COLUMN IF NOT EXISTS request_note TEXT NOT NULL DEFAULT '';
 CREATE INDEX IF NOT EXISTS idx_customer_requests_created_at ON customer_requests (created_at DESC, id DESC);
 CREATE INDEX IF NOT EXISTS idx_customer_requests_status ON customer_requests (status);
 CREATE INDEX IF NOT EXISTS idx_song_playback_queue_active ON song_playback_queue (status, queued_at, id);

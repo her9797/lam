@@ -13,9 +13,13 @@ test("메뉴 주문은 결제 화면 없이 토스 POS 주문을 등록하고 �
   );
 
   assert.match(card, /createOrder/);
+  assert.match(card, /요청사항/);
+  assert.match(card, /maxLength=\{200\}/);
+  assert.match(card, /requestNote/);
   assert.match(card, /주문이 접수됐어요/);
   assert.doesNotMatch(card, /\/checkout/);
   assert.match(service, /fetch\("\/api\/orders"/);
+  assert.match(service, /requestNote/);
 });
 
 test("결제 API 프록시는 QR 세션과 서버 전용 토큰을 확인한다", async () => {
