@@ -295,7 +295,8 @@ func NewMux(repository *store.Repository, cfg config.Config, syncer *catalogsync
 			return
 		}
 
-		if r.Method != http.MethodPost &&
+		if r.Method != http.MethodGet &&
+			r.Method != http.MethodPost &&
 			r.Method != http.MethodPatch &&
 			r.Method != http.MethodDelete {
 			writeMethodNotAllowed(w)
@@ -303,6 +304,55 @@ func NewMux(repository *store.Repository, cfg config.Config, syncer *catalogsync
 		}
 
 		path := strings.TrimPrefix(r.URL.Path, "/api/v1/admin/menu-items/")
+
+		// Recipe is an admin-only subresource: it returns just the recipe
+		// object (never the full bootstrap tree, which is the public
+		// contract lam-web also consumes) and is the only subresource here
+		// that supports GET.
+		if strings.HasSuffix(path, "/recipe") {
+			menuItemID := strings.TrimSuffix(path, "/recipe")
+			menuItemID = strings.Trim(menuItemID, "/")
+			if menuItemID == "" {
+				http.NotFound(w, r)
+				return
+			}
+
+			switch r.Method {
+			case http.MethodGet:
+				recipe, err := repository.GetMenuItemRecipe(r.Context(), menuItemID)
+				if err != nil {
+					writeStoreError(w, err)
+					return
+				}
+				writeJSON(w, http.StatusOK, recipe)
+			case http.MethodPatch:
+				var payload updateMenuItemRecipeRequest
+				if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+					writeError(w, http.StatusBadRequest, err)
+					return
+				}
+
+				if err := repository.UpdateMenuItemRecipe(r.Context(), menuItemID, payload.Ingredients, payload.Instructions); err != nil {
+					writeStoreError(w, err)
+					return
+				}
+
+				recipe, err := repository.GetMenuItemRecipe(r.Context(), menuItemID)
+				if err != nil {
+					writeStoreError(w, err)
+					return
+				}
+				writeJSON(w, http.StatusOK, recipe)
+			default:
+				writeMethodNotAllowed(w)
+			}
+			return
+		}
+
+		if r.Method == http.MethodGet {
+			http.NotFound(w, r)
+			return
+		}
 
 		if r.Method == http.MethodDelete {
 			id, ok := parseResourceID(r.URL.Path, "/api/v1/admin/menu-items/")

@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import type { AppData } from "@/features/bootstrap/model";
 import { bootstrapKeys } from "@/features/bootstrap/queries";
@@ -8,12 +8,19 @@ import {
   createMenuItem,
   deleteCategory,
   deleteMenuItem,
+  getMenuItemRecipe,
   resyncCatalog,
   updateCategoryVisibility,
+  updateMenuItemRecipe,
   updateMenuItemVisibility,
   uploadMenuItemImage,
 } from "./api";
-import type { CreateCategoryInput, CreateMenuItemInput, UploadMenuItemImageInput } from "./model";
+import type {
+  CreateCategoryInput,
+  CreateMenuItemInput,
+  UpdateMenuItemRecipeInput,
+  UploadMenuItemImageInput,
+} from "./model";
 
 /**
  * Every mutation here touches categories/menu items, which live in the
@@ -97,5 +104,32 @@ export function useResyncCatalogMutation() {
   return useMutation({
     mutationFn: () => resyncCatalog(),
     onSuccess: (response) => applyBootstrapUpdate(response.data),
+  });
+}
+
+/**
+ * Recipe text is admin-only and never part of the `AppData` bootstrap tree
+ * (see `MenuItemRecipe`'s doc comment in `./model`), so it gets its own
+ * query key here rather than living under `bootstrapKeys.all`.
+ */
+export const menuItemRecipeKeys = {
+  detail: (menuItemId: string) => ["menu-item-recipe", menuItemId] as const,
+};
+
+export function useMenuItemRecipeQuery(menuItemId: string) {
+  return useQuery({
+    queryKey: menuItemRecipeKeys.detail(menuItemId),
+    queryFn: () => getMenuItemRecipe(menuItemId),
+    enabled: menuItemId.length > 0,
+  });
+}
+
+export function useUpdateMenuItemRecipeMutation(menuItemId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: UpdateMenuItemRecipeInput) => updateMenuItemRecipe(menuItemId, input),
+    onSuccess: (recipe) => {
+      queryClient.setQueryData(menuItemRecipeKeys.detail(menuItemId), recipe);
+    },
   });
 }

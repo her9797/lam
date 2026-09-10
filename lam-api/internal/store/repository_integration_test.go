@@ -845,3 +845,53 @@ func TestRepository_GetMenuData_MirrorsBootstrapSubset(t *testing.T) {
 		t.Errorf("GetMenuData().Categories length = %d, want %d", len(menuData.Categories), len(bootstrap.Categories))
 	}
 }
+
+func TestRepository_MenuItemRecipeLifecycle(t *testing.T) {
+	repo := resetDB(t)
+	ctx := context.Background()
+
+	if err := repo.CreateCategory(ctx, "food", "Food", true); err != nil {
+		t.Fatalf("CreateCategory() error = %v", err)
+	}
+	if err := repo.CreateMenuItem(ctx, CreateMenuItemInput{CategoryID: "food", Name: "Fries", Description: "d", Price: "1"}); err != nil {
+		t.Fatalf("CreateMenuItem() error = %v", err)
+	}
+	data, err := repo.GetBootstrapData(ctx)
+	if err != nil {
+		t.Fatalf("GetBootstrapData() error = %v", err)
+	}
+	itemID := data.Items[0].ID
+
+	t.Run("defaults to empty strings", func(t *testing.T) {
+		recipe, err := repo.GetMenuItemRecipe(ctx, itemID)
+		if err != nil {
+			t.Fatalf("GetMenuItemRecipe() error = %v", err)
+		}
+		if recipe.Ingredients != "" || recipe.Instructions != "" {
+			t.Errorf("GetMenuItemRecipe() = %+v, want empty ingredients/instructions", recipe)
+		}
+	})
+
+	t.Run("update then get reflects the change", func(t *testing.T) {
+		if err := repo.UpdateMenuItemRecipe(ctx, itemID, "감자 200g, 소금", "180도에서 5분 튀긴다"); err != nil {
+			t.Fatalf("UpdateMenuItemRecipe() error = %v", err)
+		}
+
+		recipe, err := repo.GetMenuItemRecipe(ctx, itemID)
+		if err != nil {
+			t.Fatalf("GetMenuItemRecipe() error = %v", err)
+		}
+		if recipe.Ingredients != "감자 200g, 소금" || recipe.Instructions != "180도에서 5분 튀긴다" {
+			t.Errorf("GetMenuItemRecipe() = %+v, want updated ingredients/instructions", recipe)
+		}
+	})
+
+	t.Run("unknown id is not found", func(t *testing.T) {
+		if _, err := repo.GetMenuItemRecipe(ctx, "missing"); !errors.Is(err, ErrNotFound) {
+			t.Errorf("GetMenuItemRecipe(missing id) error = %v, want ErrNotFound", err)
+		}
+		if err := repo.UpdateMenuItemRecipe(ctx, "missing", "a", "b"); !errors.Is(err, ErrNotFound) {
+			t.Errorf("UpdateMenuItemRecipe(missing id) error = %v, want ErrNotFound", err)
+		}
+	})
+}

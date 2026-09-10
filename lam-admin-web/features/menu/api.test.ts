@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { fetchJson } from "@/lib/api/fetch-json";
 
-import { resyncCatalog } from "./api";
+import { getMenuItemRecipe, resyncCatalog, updateMenuItemRecipe } from "./api";
 
 vi.mock("@/lib/api/fetch-json", () => ({ fetchJson: vi.fn() }));
 
@@ -20,5 +20,37 @@ describe("resyncCatalog", () => {
     await resyncCatalog();
 
     expect(fetchJson).toHaveBeenCalledWith("/api/admin/catalog-sync", { method: "POST" });
+  });
+});
+
+describe("getMenuItemRecipe", () => {
+  beforeEach(() => {
+    vi.mocked(fetchJson)
+      .mockReset()
+      .mockResolvedValue({ menuItemId: "menu-1", ingredients: "", instructions: "" });
+  });
+
+  it("GETs the admin menu item recipe endpoint", async () => {
+    await getMenuItemRecipe("menu-1");
+
+    expect(fetchJson).toHaveBeenCalledWith("/api/admin/menu-items/menu-1/recipe");
+  });
+});
+
+describe("updateMenuItemRecipe", () => {
+  beforeEach(() => {
+    vi.mocked(fetchJson)
+      .mockReset()
+      .mockResolvedValue({ menuItemId: "menu-1", ingredients: "a", instructions: "b" });
+  });
+
+  it("PATCHes the admin menu item recipe endpoint with ingredients/instructions", async () => {
+    await updateMenuItemRecipe("menu-1", { ingredients: "a", instructions: "b" });
+
+    expect(fetchJson).toHaveBeenCalledWith("/api/admin/menu-items/menu-1/recipe", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ingredients: "a", instructions: "b" }),
+    });
   });
 });

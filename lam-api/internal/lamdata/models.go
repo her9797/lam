@@ -27,6 +27,15 @@ type MenuItem struct {
 	Images      []MenuImage `json:"images,omitempty"`
 }
 
+// MenuItemRecipe is the admin-only ingredients/method text for a menu item.
+// It is never included in MenuItem or the public bootstrap/menu responses —
+// only the dedicated admin recipe endpoint returns it.
+type MenuItemRecipe struct {
+	MenuItemID   string `json:"menuItemId"`
+	Ingredients  string `json:"ingredients"`
+	Instructions string `json:"instructions"`
+}
+
 type MenuImage struct {
 	ID          string `json:"id"`
 	Filename    string `json:"filename"`

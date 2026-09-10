@@ -5,6 +5,8 @@ import type {
   CatalogSyncResponse,
   CreateCategoryInput,
   CreateMenuItemInput,
+  MenuItemRecipe,
+  UpdateMenuItemRecipeInput,
   UploadMenuItemImageInput,
 } from "./model";
 
@@ -80,6 +82,28 @@ export function uploadMenuItemImage(input: UploadMenuItemImageInput): Promise<Ap
   return fetchJson<AppData>(`${MENU_ITEMS_PATH}/${input.menuItemId}/images`, {
     method: "POST",
     body: formData,
+  });
+}
+
+/**
+ * GETs `lam-api`'s admin-only recipe subresource for a menu item
+ * (`GET /api/v1/admin/menu-items/{id}/recipe`). Unlike every mutation
+ * above, this — and `updateMenuItemRecipe` below — return just the
+ * `MenuItemRecipe` object, not the full `AppData` bootstrap tree: recipe
+ * text is never part of the public bootstrap/menu contract.
+ */
+export function getMenuItemRecipe(menuItemId: string): Promise<MenuItemRecipe> {
+  return fetchJson<MenuItemRecipe>(`${MENU_ITEMS_PATH}/${menuItemId}/recipe`);
+}
+
+export function updateMenuItemRecipe(
+  menuItemId: string,
+  input: UpdateMenuItemRecipeInput,
+): Promise<MenuItemRecipe> {
+  return fetchJson<MenuItemRecipe>(`${MENU_ITEMS_PATH}/${menuItemId}/recipe`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
   });
 }
 
