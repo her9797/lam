@@ -41,10 +41,23 @@ export type TableStat = {
   orderCount: number;
 };
 
+/**
+ * Mirrors `lam-api/internal/lamdata.PaymentOrderMenuItemStat` — grouped by
+ * `menuItemName` (a snapshot taken at purchase time), not a menu item id,
+ * so a deleted product's past sales stay attributable. See that Go type's
+ * doc comment.
+ */
+export type MenuItemStat = {
+  menuItemName: string;
+  revenue: number;
+  orderCount: number;
+};
+
 export type SalesStats = {
   summary: SalesStatsSummary;
   trend: SalesTrend;
   byCategory: CategoryStat[];
   byPaymentMethod: PaymentMethodStat[];
   byTable: TableStat[];
+  byMenuItem: MenuItemStat[];
 };

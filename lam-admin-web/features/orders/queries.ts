@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 
-import { fetchOrdersPage } from "./api";
+import { fetchOrder, fetchOrdersPage } from "./api";
 import type { OrderListQuery } from "./model";
 
 /**
@@ -24,10 +24,18 @@ export const orderKeys = {
   count: ["orders", "count"] as const,
 };
 
-export function useOrdersPageQuery(query: OrderListQuery) {
+/**
+ * `enabled` defaults to true for direct callers, but `OrderListPage` passes
+ * `false` while its date-range fields are still blank/invalid (see that
+ * component's mount effect and `../orders/order-date-range.ts`) — without
+ * this, a query would fire once against an unbounded or unresolved range
+ * before the real default settles in.
+ */
+export function useOrdersPageQuery(query: OrderListQuery, enabled: boolean = true) {
   return useQuery({
     queryKey: orderKeys.list(query),
     queryFn: () => fetchOrdersPage(query),
+    enabled,
   });
 }
 
@@ -43,11 +51,12 @@ const SAFETY_NET_POLL_INTERVAL_MS = 60_000;
  * The bell's fixed view of `payment_orders`: the most recent paid orders,
  * newest first.
  *
- * `datePreset: "all"` on purpose. The order-history screen's "today" means
- * the venue's buffered business day, which is a forward-looking window
- * when the clock is outside it — a sale rung up at an odd hour would fall
- * outside that window and never alarm. An unbounded, server-limited "last
- * N sales" query has no such boundary, and costs the same.
+ * `dateFrom`/`dateTo` left blank (unbounded) on purpose. The order-history
+ * screen's own date filter means the venue's buffered business day, which
+ * is a forward-looking window when the clock is outside it — a sale rung
+ * up at an odd hour would fall outside that window and never alarm. An
+ * unbounded, server-limited "last N sales" query has no such boundary, and
+ * costs the same.
  *
  * `pageSize` only has to cover how many sales can complete between two
  * refreshes; it is the arrival-detection window, not a list the operator
@@ -58,7 +67,8 @@ const NOTIFICATION_QUERY: OrderListQuery = {
   pageSize: 20,
   status: "DONE",
   search: "",
-  datePreset: "all",
+  dateFrom: "",
+  dateTo: "",
   sort: "createdAt",
   order: "desc",
 };
@@ -87,7 +97,8 @@ const DASHBOARD_ORDER_COUNT_QUERY: OrderListQuery = {
   pageSize: 1,
   status: "READY",
   search: "",
-  datePreset: "all",
+  dateFrom: "",
+  dateTo: "",
   sort: "createdAt",
   order: "desc",
 };
@@ -96,5 +107,18 @@ export function useOrderCountQuery() {
   return useQuery({
     queryKey: orderKeys.count,
     queryFn: () => fetchOrdersPage(DASHBOARD_ORDER_COUNT_QUERY),
+  });
+}
+
+/**
+ * The order-detail screen's single-order fetch (`/orders/{orderId}`). A
+ * separate cache entry per id, not part of the `list`/`notifications`
+ * prefixes above — those are pages of many orders, this is one order read
+ * directly (e.g. a refreshed or bookmarked detail URL).
+ */
+export function useOrderQuery(orderId: string) {
+  return useQuery({
+    queryKey: ["orders", "detail", orderId] as const,
+    queryFn: () => fetchOrder(orderId),
   });
 }

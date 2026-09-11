@@ -9,7 +9,8 @@ const mutateMock = vi.fn();
 const refetchMock = vi.fn();
 
 vi.mock("./queries", () => ({
-  useSpecialRequestsPageQuery: (query: unknown) => useSpecialRequestsPageQueryMock(query),
+  useSpecialRequestsPageQuery: (query: unknown, enabled: unknown) =>
+    useSpecialRequestsPageQueryMock(query, enabled),
   useDeleteSpecialRequestMutation: () => useDeleteSpecialRequestMutationMock(),
 }));
 
@@ -104,17 +105,23 @@ describe("SpecialRequestPage", () => {
     expect(refetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it("requests the default query (no gender, empty search, createdAt desc, page 1) on first render", () => {
+  it("requests the default query (no gender, empty search, createdAt desc, page 1, a 7-day date range) on first render", () => {
     render(<SpecialRequestPage />);
 
-    expect(useSpecialRequestsPageQueryMock).toHaveBeenCalledWith({
-      page: 1,
-      pageSize: 10,
-      gender: undefined,
-      search: "",
-      sort: "createdAt",
-      order: "desc",
-    });
+    expect(useSpecialRequestsPageQueryMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        page: 1,
+        pageSize: 10,
+        gender: undefined,
+        search: "",
+        sort: "createdAt",
+        order: "desc",
+      }),
+      true,
+    );
+    const [lastQuery] = useSpecialRequestsPageQueryMock.mock.calls.at(-1) as [{ dateFrom: string; dateTo: string }];
+    expect(lastQuery.dateFrom).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(lastQuery.dateTo).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 
   it("shows the original empty state when the result is empty with no active filter", () => {
@@ -238,6 +245,7 @@ describe("SpecialRequestPage", () => {
 
     expect(useSpecialRequestsPageQueryMock).toHaveBeenLastCalledWith(
       expect.objectContaining({ search: "홍길동", page: 1 }),
+      true,
     );
     expect(window.location.search).not.toContain("홍길동");
     expect(pushStateSpy).not.toHaveBeenCalled();
@@ -275,6 +283,7 @@ describe("SpecialRequestPage", () => {
 
     expect(useSpecialRequestsPageQueryMock).toHaveBeenLastCalledWith(
       expect.objectContaining({ page: 2 }),
+      true,
     );
   });
 });

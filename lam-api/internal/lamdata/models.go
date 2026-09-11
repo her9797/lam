@@ -164,12 +164,25 @@ type PaymentOrderTableStat struct {
 	OrderCount  int    `json:"orderCount"`
 }
 
+// PaymentOrderMenuItemStat is the sales-stats screen's per-product
+// breakdown. Grouped by menu_item_name (a snapshot on the order row taken
+// at purchase time), not menu_item_id: a deleted menu item sets its
+// referencing orders' menu_item_id to NULL (ON DELETE SET NULL), but the
+// name snapshot survives, so past sales stay attributable after the
+// product itself is gone.
+type PaymentOrderMenuItemStat struct {
+	MenuItemName string `json:"menuItemName"`
+	Revenue      int64  `json:"revenue"`
+	OrderCount   int    `json:"orderCount"`
+}
+
 type PaymentOrderStats struct {
 	Summary         PaymentOrderStatsSummary        `json:"summary"`
 	Trend           PaymentOrderTrend               `json:"trend"`
 	ByCategory      []PaymentOrderCategoryStat      `json:"byCategory"`
 	ByPaymentMethod []PaymentOrderPaymentMethodStat `json:"byPaymentMethod"`
 	ByTable         []PaymentOrderTableStat         `json:"byTable"`
+	ByMenuItem      []PaymentOrderMenuItemStat      `json:"byMenuItem"`
 }
 
 type CustomerRequestPage struct {

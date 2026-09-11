@@ -12,14 +12,18 @@ describe("parseRequestListQuery", () => {
       status: undefined,
       kind: "general",
       search: "",
+      dateFrom: "",
+      dateTo: "",
       sort: "status",
       order: "asc",
     });
   });
 
-  it("reads page/pageSize/status/q/sort/order from the given search params", () => {
+  it("reads page/pageSize/status/q/dateFrom/dateTo/sort/order from the given search params", () => {
     const query = parseRequestListQuery(
-      new URLSearchParams("page=3&pageSize=30&status=checked&q=napkin&sort=createdAt&order=asc"),
+      new URLSearchParams(
+        "page=3&pageSize=30&status=checked&q=napkin&dateFrom=2026-01-01&dateTo=2026-01-08&sort=createdAt&order=asc",
+      ),
       "song",
     );
 
@@ -29,6 +33,8 @@ describe("parseRequestListQuery", () => {
       status: "checked",
       kind: "song",
       search: "napkin",
+      dateFrom: "2026-01-01",
+      dateTo: "2026-01-08",
       sort: "createdAt",
       order: "asc",
     });
@@ -81,6 +87,8 @@ describe("buildRequestListSearchParams", () => {
       status: undefined,
       kind: "general",
       search: "",
+      dateFrom: "",
+      dateTo: "",
       sort: "status",
       order: "asc",
     });
@@ -89,6 +97,8 @@ describe("buildRequestListSearchParams", () => {
     expect(params.has("pageSize")).toBe(false);
     expect(params.has("status")).toBe(false);
     expect(params.has("q")).toBe(false);
+    expect(params.has("dateFrom")).toBe(false);
+    expect(params.has("dateTo")).toBe(false);
   });
 
   it("includes pageSize when it departs from the default", () => {
@@ -98,10 +108,29 @@ describe("buildRequestListSearchParams", () => {
       status: undefined,
       kind: "general",
       search: "",
+      dateFrom: "",
+      dateTo: "",
       sort: "status",
       order: "asc",
     });
 
     expect(params.get("pageSize")).toBe("30");
+  });
+
+  it("serializes dateFrom/dateTo whenever set, since there is no fixed default", () => {
+    const params = buildRequestListSearchParams({
+      page: 1,
+      pageSize: 10,
+      status: undefined,
+      kind: "general",
+      search: "",
+      dateFrom: "2026-01-01",
+      dateTo: "2026-01-08",
+      sort: "status",
+      order: "asc",
+    });
+
+    expect(params.get("dateFrom")).toBe("2026-01-01");
+    expect(params.get("dateTo")).toBe("2026-01-08");
   });
 });

@@ -1011,8 +1011,10 @@ type CustomerRequestFilter struct {
 	Status   string // "" = all statuses
 	Kind     string // "all" | "general" | "song"
 	Search   string
-	Sort     string // "status" | "createdAt" | "tableNumber"
-	Order    string // "asc" | "desc"
+	From     *time.Time // inclusive; nil = no lower bound
+	To       *time.Time // exclusive; nil = no upper bound
+	Sort     string     // "status" | "createdAt" | "tableNumber"
+	Order    string     // "asc" | "desc"
 	Page     int
 	PageSize int
 }
@@ -1022,8 +1024,10 @@ type CustomerRequestFilter struct {
 type SpecialRequestFilter struct {
 	Gender   string // "" = both genders
 	Search   string
-	Sort     string // "createdAt" | "name"
-	Order    string // "asc" | "desc"
+	From     *time.Time // inclusive; nil = no lower bound
+	To       *time.Time // exclusive; nil = no upper bound
+	Sort     string     // "createdAt" | "name"
+	Order    string     // "asc" | "desc"
 	Page     int
 	PageSize int
 }
@@ -1106,6 +1110,8 @@ const customerRequestFilterWhere = `
 	    OR ($2 = 'general' AND NOT starts_with(text, $3))
 	  )
 	  AND ($4 = '' OR text ILIKE $4 ESCAPE '\' OR table_number ILIKE $4 ESCAPE '\')
+	  AND ($5::timestamptz IS NULL OR created_at >= $5)
+	  AND ($6::timestamptz IS NULL OR created_at < $6)
 `
 
 // ListCustomerRequestsPage applies filter/search/sort/pagination server-side
@@ -1126,7 +1132,7 @@ func (r *Repository) ListCustomerRequestsPage(ctx context.Context, filter Custom
 
 	var total int
 	countSQL := "SELECT COUNT(*) FROM customer_requests" + customerRequestFilterWhere
-	if err := r.pool.QueryRow(ctx, countSQL, filter.Status, filter.Kind, songRequestPrefix, searchPattern).Scan(&total); err != nil {
+	if err := r.pool.QueryRow(ctx, countSQL, filter.Status, filter.Kind, songRequestPrefix, searchPattern, filter.From, filter.To).Scan(&total); err != nil {
 		return nil, 0, err
 	}
 
@@ -1135,10 +1141,10 @@ func (r *Repository) ListCustomerRequestsPage(ctx context.Context, filter Custom
 		FROM customer_requests
 	` + customerRequestFilterWhere + `
 		ORDER BY ` + orderBy + `
-		LIMIT $5 OFFSET $6
+		LIMIT $7 OFFSET $8
 	`
 	offset := (page - 1) * pageSize
-	rows, err := r.pool.Query(ctx, listSQL, filter.Status, filter.Kind, songRequestPrefix, searchPattern, pageSize, offset)
+	rows, err := r.pool.Query(ctx, listSQL, filter.Status, filter.Kind, songRequestPrefix, searchPattern, filter.From, filter.To, pageSize, offset)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -1182,6 +1188,8 @@ const specialRequestFilterWhere = `
 	    OR residence ILIKE $2 ESCAPE '\'
 	    OR text ILIKE $2 ESCAPE '\'
 	  )
+	  AND ($3::timestamptz IS NULL OR created_at >= $3)
+	  AND ($4::timestamptz IS NULL OR created_at < $4)
 `
 
 // ListSpecialRequestsPage is the special_requests equivalent of
@@ -1199,7 +1207,7 @@ func (r *Repository) ListSpecialRequestsPage(ctx context.Context, filter Special
 
 	var total int
 	countSQL := "SELECT COUNT(*) FROM special_requests" + specialRequestFilterWhere
-	if err := r.pool.QueryRow(ctx, countSQL, filter.Gender, searchPattern).Scan(&total); err != nil {
+	if err := r.pool.QueryRow(ctx, countSQL, filter.Gender, searchPattern, filter.From, filter.To).Scan(&total); err != nil {
 		return nil, 0, err
 	}
 
@@ -1208,10 +1216,10 @@ func (r *Repository) ListSpecialRequestsPage(ctx context.Context, filter Special
 		FROM special_requests
 	` + specialRequestFilterWhere + `
 		ORDER BY ` + orderBy + `
-		LIMIT $3 OFFSET $4
+		LIMIT $5 OFFSET $6
 	`
 	offset := (page - 1) * pageSize
-	rows, err := r.pool.Query(ctx, listSQL, filter.Gender, searchPattern, pageSize, offset)
+	rows, err := r.pool.Query(ctx, listSQL, filter.Gender, searchPattern, filter.From, filter.To, pageSize, offset)
 	if err != nil {
 		return nil, 0, err
 	}

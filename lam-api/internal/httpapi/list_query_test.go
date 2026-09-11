@@ -71,6 +71,29 @@ func TestParseCustomerRequestListQuery_ValidValues(t *testing.T) {
 	}
 }
 
+func TestParseCustomerRequestListQuery_FromTo(t *testing.T) {
+	query := url.Values{
+		"from": {"2026-01-01T00:00:00Z"},
+		"to":   {"2026-01-08T00:00:00Z"},
+	}
+
+	q, hasParams, err := parseCustomerRequestListQuery(query)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !hasParams {
+		t.Error("hasParams = false, want true when from/to is present")
+	}
+	wantFrom := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	wantTo := time.Date(2026, 1, 8, 0, 0, 0, 0, time.UTC)
+	if q.From == nil || !q.From.Equal(wantFrom) {
+		t.Errorf("From = %v, want %v", q.From, wantFrom)
+	}
+	if q.To == nil || !q.To.Equal(wantTo) {
+		t.Errorf("To = %v, want %v", q.To, wantTo)
+	}
+}
+
 func TestParseCustomerRequestListQuery_DefaultOrderDependsOnSort(t *testing.T) {
 	t.Run("sort=status defaults to asc", func(t *testing.T) {
 		q, _, err := parseCustomerRequestListQuery(url.Values{"sort": {"status"}})
@@ -106,6 +129,12 @@ func TestParseCustomerRequestListQuery_InvalidValuesRejected(t *testing.T) {
 		{"unknown kind", url.Values{"kind": {"birthday"}}},
 		{"unknown sort", url.Values{"sort": {"id"}}},
 		{"unknown order", url.Values{"order": {"random"}}},
+		{"unparseable from", url.Values{"from": {"not-a-date"}}},
+		{"unparseable to", url.Values{"to": {"not-a-date"}}},
+		{"from not before to", url.Values{
+			"from": {"2026-01-08T00:00:00Z"},
+			"to":   {"2026-01-01T00:00:00Z"},
+		}},
 	}
 
 	for _, tc := range cases {
@@ -154,6 +183,29 @@ func TestParseSpecialRequestListQuery_ValidValues(t *testing.T) {
 	}
 }
 
+func TestParseSpecialRequestListQuery_FromTo(t *testing.T) {
+	query := url.Values{
+		"from": {"2026-01-01T00:00:00Z"},
+		"to":   {"2026-01-08T00:00:00Z"},
+	}
+
+	q, hasParams, err := parseSpecialRequestListQuery(query)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !hasParams {
+		t.Error("hasParams = false, want true when from/to is present")
+	}
+	wantFrom := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	wantTo := time.Date(2026, 1, 8, 0, 0, 0, 0, time.UTC)
+	if q.From == nil || !q.From.Equal(wantFrom) {
+		t.Errorf("From = %v, want %v", q.From, wantFrom)
+	}
+	if q.To == nil || !q.To.Equal(wantTo) {
+		t.Errorf("To = %v, want %v", q.To, wantTo)
+	}
+}
+
 func TestParseSpecialRequestListQuery_InvalidValuesRejected(t *testing.T) {
 	cases := []struct {
 		name  string
@@ -163,6 +215,12 @@ func TestParseSpecialRequestListQuery_InvalidValuesRejected(t *testing.T) {
 		{"unknown sort", url.Values{"sort": {"age"}}},
 		{"unknown order", url.Values{"order": {"random"}}},
 		{"pageSize over max", url.Values{"pageSize": {"101"}}},
+		{"unparseable from", url.Values{"from": {"not-a-date"}}},
+		{"unparseable to", url.Values{"to": {"not-a-date"}}},
+		{"from not before to", url.Values{
+			"from": {"2026-01-08T00:00:00Z"},
+			"to":   {"2026-01-01T00:00:00Z"},
+		}},
 	}
 
 	for _, tc := range cases {

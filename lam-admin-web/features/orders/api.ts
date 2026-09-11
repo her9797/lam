@@ -1,7 +1,7 @@
 import { fetchJson } from "@/lib/api/fetch-json";
 
-import { getDatePresetRange } from "./business-day";
-import type { OrderListQuery, OrderPageResult } from "./model";
+import type { OrderListQuery, OrderPageResult, PaymentOrder } from "./model";
+import { resolveOrderDateRange } from "./order-date-range";
 
 const PAYMENT_ORDERS_PATH = "/api/admin/payment-orders";
 
@@ -11,11 +11,14 @@ const PAYMENT_ORDERS_PATH = "/api/admin/payment-orders";
  * except this endpoint has no legacy unpaginated-array response to
  * preserve — it's new, so it always returns the envelope.
  *
- * `datePreset` is resolved to absolute `from`/`to` bounds here, at fetch
- * time (see `business-day.ts`), rather than when the URL was parsed — so a
- * "today" query re-evaluates to the actual current business day on every
- * fetch (a refetch an hour later, or reopening a bookmarked link, means
- * "today" *then*, not whatever it meant when the link was created).
+ * `dateFrom`/`dateTo` (date-only strings) are resolved to absolute
+ * business-day-bounded `from`/`to` bounds here, at fetch time (see
+ * `./order-date-range.ts`), rather than when the URL was parsed — so a
+ * bookmarked/shared link's picked dates re-resolve to the actual business
+ * day on every fetch, not a stale instant computed when the link was
+ * created. When either is blank or the pair is invalid (e.g. from after
+ * to), no bound is sent — used by `./queries.ts`'s fixed internal queries,
+ * which intentionally want every order regardless of date.
  */
 export function fetchOrdersPage(query: OrderListQuery): Promise<OrderPageResult> {
   const params = new URLSearchParams({
@@ -34,15 +37,25 @@ export function fetchOrdersPage(query: OrderListQuery): Promise<OrderPageResult>
     params.set("q", query.search.trim());
   }
 
-  const { from, to } = getDatePresetRange(query.datePreset);
-  if (from) {
-    params.set("from", from.toISOString());
-  }
-  if (to) {
-    params.set("to", to.toISOString());
+  const range = resolveOrderDateRange(query.dateFrom, query.dateTo);
+  if (range.ok) {
+    params.set("from", range.from.toISOString());
+    params.set("to", range.to.toISOString());
   }
 
   return fetchJson<OrderPageResult>(`${PAYMENT_ORDERS_PATH}?${params.toString()}`, {
+    method: "GET",
+  });
+}
+
+/**
+ * Fetches a single order for the order-detail screen (`/orders/{id}`).
+ * `lam-api` returns 404 when the id doesn't match any row, which
+ * `fetchJson` surfaces as a rejected promise (see that module for the
+ * error-shape contract).
+ */
+export function fetchOrder(orderId: string): Promise<PaymentOrder> {
+  return fetchJson<PaymentOrder>(`${PAYMENT_ORDERS_PATH}/${encodeURIComponent(orderId)}`, {
     method: "GET",
   });
 }

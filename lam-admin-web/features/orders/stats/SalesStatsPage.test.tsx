@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { SalesStats } from "./model";
@@ -29,6 +29,10 @@ const STATS: SalesStats = {
   byTable: [
     { tableNumber: "2", revenue: 15000, orderCount: 1 },
     { tableNumber: "1", revenue: 8000, orderCount: 1 },
+  ],
+  byMenuItem: [
+    { menuItemName: "Pizza", revenue: 12000, orderCount: 1 },
+    { menuItemName: "Beer", revenue: 6000, orderCount: 1 },
   ],
 };
 
@@ -83,6 +87,7 @@ describe("SalesStatsPage", () => {
         byCategory: [],
         byPaymentMethod: [],
         byTable: [],
+        byMenuItem: [],
       },
     });
 
@@ -106,6 +111,21 @@ describe("SalesStatsPage", () => {
 
     expect(screen.getByText("₩15,000")).toBeInTheDocument();
     expect(screen.getByText("₩8,000")).toBeInTheDocument();
+  });
+
+  it("renders the per-product breakdown ranked by revenue as a table, inside a scrollable container", () => {
+    render(<SalesStatsPage />);
+
+    const title = screen.getByText("상품별 매출");
+    const card = title.closest('[data-slot="card"]') as HTMLElement;
+    const scrollArea = within(card).getByRole("table").closest(".overflow-y-auto");
+    expect(scrollArea).not.toBeNull();
+
+    const rows = within(card).getAllByRole("row");
+    // rows[0] is the header row.
+    expect(within(rows[1]).getByText("Pizza")).toBeInTheDocument();
+    expect(within(rows[1]).getByText("₩12,000")).toBeInTheDocument();
+    expect(within(rows[2]).getByText("Beer")).toBeInTheDocument();
   });
 
   it("defaults the aggregation basis to '영업일' (business day)", () => {

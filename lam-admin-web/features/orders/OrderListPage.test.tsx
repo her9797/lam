@@ -16,7 +16,7 @@ const useOrdersPageQueryMock = vi.fn();
 const refetchMock = vi.fn();
 
 vi.mock("./queries", () => ({
-  useOrdersPageQuery: (query: unknown) => useOrdersPageQueryMock(query),
+  useOrdersPageQuery: (query: unknown, enabled: unknown) => useOrdersPageQueryMock(query, enabled),
 }));
 
 import { OrderListPage } from "./OrderListPage";
@@ -75,17 +75,31 @@ function defaultQueryResult() {
   };
 }
 
+// A populated date range so the screen renders its data view instead of
+// the "resolving the default range" loading state (see `OrderListPage`'s
+// mount effect / `dateFrom`/`dateTo` handling).
+const DATED_SEARCH_PARAMS = new URLSearchParams("dateFrom=2026-01-01&dateTo=2026-01-10");
+
 describe("OrderListPage", () => {
   beforeEach(() => {
     refetchMock.mockClear();
     replaceMock.mockClear();
     useOrdersPageQueryMock.mockClear();
-    currentSearchParams = new URLSearchParams();
+    currentSearchParams = new URLSearchParams(DATED_SEARCH_PARAMS);
     mockQuery();
   });
 
   afterEach(() => {
     cleanup();
+  });
+
+  it("shows a loading state while the date range hasn't resolved yet", () => {
+    currentSearchParams = new URLSearchParams();
+    mockQuery({ data: undefined, isLoading: true });
+
+    render(<OrderListPage />);
+
+    expect(screen.getByRole("status")).toBeInTheDocument();
   });
 
   it("shows a loading state while the order page is loading", () => {
@@ -136,19 +150,23 @@ describe("OrderListPage", () => {
 
   it("defaults to requesting no status filter (via the URL query parser's own default)", () => {
     render(<OrderListPage />);
-    expect(useOrdersPageQueryMock).toHaveBeenCalledWith(expect.objectContaining({ status: undefined }));
+    expect(useOrdersPageQueryMock).toHaveBeenCalledWith(expect.objectContaining({ status: undefined }), true);
   });
 
-  it("opens a detail dialog with payment/POS fields when a row's detail button is clicked", () => {
+  it("links each row's menu item name to the order-detail route, underlined by default so it reads as clickable", () => {
     render(<OrderListPage />);
 
-    fireEvent.click(screen.getAllByRole("button", { name: "상세보기" })[0]);
+    const beerLink = screen.getByRole("link", { name: "Beer" });
+    expect(beerLink).toHaveAttribute("href", "/orders/order-1");
+    expect(beerLink).toHaveClass("underline");
+    expect(beerLink).toHaveClass("hover:font-bold");
+    expect(screen.getByRole("link", { name: "Cider" })).toHaveAttribute("href", "/orders/order-2");
+  });
 
-    const dialog = screen.getByRole("dialog");
-    expect(within(dialog).getByText("pk_123")).toBeInTheDocument();
-    expect(within(dialog).getByText("pos-1")).toBeInTheDocument();
-    expect(within(dialog).getByText("카드")).toBeInTheDocument();
-    expect(within(dialog).getByText("요청사항")).toBeInTheDocument();
-    expect(within(dialog).getByText("얼음은 적게 주세요")).toBeInTheDocument();
+  it("renders the from/to date inputs seeded from the URL", () => {
+    render(<OrderListPage />);
+
+    expect(screen.getByLabelText("시작일")).toHaveValue("2026-01-01");
+    expect(screen.getByLabelText("종료일")).toHaveValue("2026-01-10");
   });
 });

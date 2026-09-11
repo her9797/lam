@@ -4,7 +4,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AppData } from "@/features/bootstrap/model";
 
 import { UPLOAD_FOCUS_CENTER, createInitialCropTransform, type CropTransform } from "./crop";
-import { validateImageFile, validateMenuItemForm } from "./model";
+import { filterItemsByCategory, validateImageFile, validateMenuItemForm } from "./model";
+
+const replaceMock = vi.fn();
+let currentSearchParams = new URLSearchParams();
+
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/menu",
+  useRouter: () => ({ replace: replaceMock }),
+  useSearchParams: () => currentSearchParams,
+}));
 
 const useBootstrapQueryMock = vi.fn();
 
@@ -14,7 +23,6 @@ vi.mock("@/features/bootstrap/queries", () => ({
 
 const createMenuItemMutate = vi.fn();
 const updateMenuItemVisibilityMutate = vi.fn();
-const deleteMenuItemMutate = vi.fn();
 const uploadMenuItemImageMutate = vi.fn();
 
 function idleMutation(mutate: ReturnType<typeof vi.fn>) {
@@ -23,18 +31,16 @@ function idleMutation(mutate: ReturnType<typeof vi.fn>) {
 
 const createMenuItemMutationState = { current: idleMutation(createMenuItemMutate) };
 const updateMenuItemVisibilityMutationState = { current: idleMutation(updateMenuItemVisibilityMutate) };
-const deleteMenuItemMutationState = { current: idleMutation(deleteMenuItemMutate) };
 const uploadMenuItemImageMutationState = { current: idleMutation(uploadMenuItemImageMutate) };
 // CatalogResyncButton reads this too — not under test here, just needs a
 // non-throwing default so this page's own tests keep exercising menu item
-// create/update/delete/upload only.
+// create/update/upload only.
 const resyncCatalogMutate = vi.fn();
 const resyncCatalogMutationState = { current: idleMutation(resyncCatalogMutate) };
 
 vi.mock("./queries", () => ({
   useCreateMenuItemMutation: () => createMenuItemMutationState.current,
   useUpdateMenuItemVisibilityMutation: () => updateMenuItemVisibilityMutationState.current,
-  useDeleteMenuItemMutation: () => deleteMenuItemMutationState.current,
   useUploadMenuItemImageMutation: () => uploadMenuItemImageMutationState.current,
   useResyncCatalogMutation: () => resyncCatalogMutationState.current,
 }));
@@ -109,9 +115,10 @@ function mockBootstrap(overrides: Partial<ReturnType<typeof defaultBootstrapResu
 beforeEach(() => {
   createMenuItemMutate.mockClear();
   updateMenuItemVisibilityMutate.mockClear();
-  deleteMenuItemMutate.mockClear();
   uploadMenuItemImageMutate.mockClear();
   refetchMock.mockClear();
+  replaceMock.mockClear();
+  currentSearchParams = new URLSearchParams();
   loadImageNaturalSizeMock.mockReset();
   loadImageNaturalSizeMock.mockResolvedValue({ naturalWidth: 400, naturalHeight: 200 });
   cropImageFileToSquareMock.mockReset();
@@ -119,7 +126,6 @@ beforeEach(() => {
 
   createMenuItemMutationState.current = idleMutation(createMenuItemMutate);
   updateMenuItemVisibilityMutationState.current = idleMutation(updateMenuItemVisibilityMutate);
-  deleteMenuItemMutationState.current = idleMutation(deleteMenuItemMutate);
   uploadMenuItemImageMutationState.current = idleMutation(uploadMenuItemImageMutate);
 
   mockBootstrap();
@@ -173,6 +179,25 @@ describe("pure validators", () => {
   });
 });
 
+describe("filterItemsByCategory", () => {
+  const ITEMS = [
+    { id: "menu-1", categoryId: "drinks", name: "아메리카노", description: "", price: "4000", isVisible: true },
+    { id: "menu-2", categoryId: "food", name: "감자튀김", description: "", price: "5000", isVisible: true },
+  ];
+
+  it("returns only items matching the given category id", () => {
+    expect(filterItemsByCategory(ITEMS, "food")).toEqual([ITEMS[1]]);
+  });
+
+  it("returns every item unfiltered when categoryId is blank", () => {
+    expect(filterItemsByCategory(ITEMS, "")).toEqual(ITEMS);
+  });
+
+  it("returns an empty array for a category with no matching items", () => {
+    expect(filterItemsByCategory(ITEMS, "does-not-exist")).toEqual([]);
+  });
+});
+
 describe("MenuManagementPage", () => {
   it("shows a loading state while bootstrap data is loading", () => {
     mockBootstrap({ data: undefined, isLoading: true });
@@ -211,27 +236,6 @@ describe("MenuManagementPage", () => {
 
     expect(screen.getByText("등록된 메뉴가 없습니다.")).toBeInTheDocument();
     expect(screen.getByText("먼저 카테고리를 추가하세요.")).toBeInTheDocument();
-  });
-
-  it("surfaces a failed menu item delete inside the still-open confirm dialog", () => {
-    deleteMenuItemMutationState.current = {
-      ...idleMutation(deleteMenuItemMutate),
-      isError: true,
-      error: new Error("메뉴를 삭제할 수 없습니다. (500)"),
-    };
-
-    render(<MenuManagementPage />);
-
-    const menuRow = screen.getByText("아메리카노").closest("tr");
-    if (!menuRow) {
-      throw new Error("menu row not found");
-    }
-    fireEvent.click(within(menuRow).getByRole("button", { name: "삭제" }));
-
-    const confirmDialog = screen.getByRole("alertdialog");
-    expect(within(confirmDialog).getByRole("alert")).toHaveTextContent(
-      "메뉴를 삭제할 수 없습니다. (500)",
-    );
   });
 
   it("opens the menu item dialog from the trigger button, and closes it on cancel", () => {
@@ -372,11 +376,13 @@ describe("MenuManagementPage", () => {
     expect(uploadMenuItemImageMutate).not.toHaveBeenCalled();
   });
 
-  it("links the item name to its detail page", () => {
+  it("links the item name to its detail page, underlined by default so it reads as clickable", () => {
     render(<MenuManagementPage />);
 
     const nameLink = screen.getByRole("link", { name: "아메리카노" });
     expect(nameLink).toHaveAttribute("href", "/menu/menu-1");
+    expect(nameLink).toHaveClass("underline");
+    expect(nameLink).toHaveClass("hover:font-bold");
   });
 
   it("toggles menu item visibility", () => {
@@ -408,24 +414,10 @@ describe("MenuManagementPage", () => {
     expect(within(menuRow).getByRole("button", { name: "공개" })).toBeDisabled();
   });
 
-  it("asks for confirmation before deleting a menu item, and only mutates after confirming", () => {
+  it("does not show a delete action in the list (removed from this screen's UI)", () => {
     render(<MenuManagementPage />);
 
-    const menuRow = screen.getByText("아메리카노").closest("tr");
-    if (!menuRow) {
-      throw new Error("menu row not found");
-    }
-
-    fireEvent.click(within(menuRow).getByRole("button", { name: "삭제" }));
-    const confirmDialog = screen.getByRole("alertdialog");
-    fireEvent.click(within(confirmDialog).getByRole("button", { name: "삭제" }));
-
-    expect(deleteMenuItemMutate).toHaveBeenCalledWith("menu-1", expect.anything());
-    expect(screen.getByRole("alertdialog")).toBeInTheDocument();
-
-    const onSuccess = deleteMenuItemMutate.mock.calls[0][1].onSuccess as () => void;
-    act(() => onSuccess());
-    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "삭제" })).not.toBeInTheDocument();
   });
 
   it("rejects a disallowed image type without opening the crop editor", async () => {
@@ -591,7 +583,28 @@ describe("MenuManagementPage", () => {
       ],
     };
 
-    it("filters the item table by name/description without touching the create form's category list", () => {
+    const TWO_CATEGORY_FIXTURE: AppData = {
+      ...FIXTURE,
+      categories: [
+        { id: "drinks", label: "음료", isVisible: true },
+        { id: "food", label: "안주", isVisible: true },
+      ],
+      items: [
+        FIXTURE.items[0],
+        {
+          id: "menu-2",
+          categoryId: "food",
+          name: "감자튀김",
+          description: "바삭한 감자튀김",
+          price: "5000",
+          isVisible: true,
+        },
+      ],
+    };
+
+    it("debounces a typed search into the URL and resets to page 1", async () => {
+      vi.useFakeTimers();
+      currentSearchParams = new URLSearchParams("page=3");
       mockBootstrap({ data: TWO_ITEM_FIXTURE });
 
       render(<MenuManagementPage />);
@@ -599,12 +612,57 @@ describe("MenuManagementPage", () => {
       fireEvent.change(screen.getByPlaceholderText("메뉴 이름, 설명으로 검색"), {
         target: { value: "라떼" },
       });
+      expect(replaceMock).not.toHaveBeenCalled();
+
+      await act(async () => {
+        vi.advanceTimersByTime(300);
+      });
+
+      const [calledUrl] = replaceMock.mock.calls[0] as [string];
+      const url = new URL(calledUrl, "http://localhost");
+      expect(url.pathname).toBe("/menu");
+      expect(url.searchParams.get("q")).toBe("라떼");
+      expect(url.searchParams.has("page")).toBe(false);
+      vi.useRealTimers();
+    });
+
+    it("shows only items matching a q param already in the URL, without touching the create form's category list", () => {
+      currentSearchParams = new URLSearchParams("q=라떼");
+      mockBootstrap({ data: TWO_ITEM_FIXTURE });
+
+      render(<MenuManagementPage />);
 
       expect(screen.getByText("카페라떼")).toBeInTheDocument();
       expect(screen.queryByText("아메리카노")).not.toBeInTheDocument();
       // The create form's category <select> must still offer every
       // category regardless of the table's own search filter.
       expect(screen.getByText("음료")).toBeInTheDocument();
+    });
+
+    it("renders a category filter control in the toolbar, defaulting to every category", () => {
+      mockBootstrap({ data: TWO_CATEGORY_FIXTURE });
+
+      render(<MenuManagementPage />);
+
+      // Both items show by default (no category filter applied yet). The
+      // Select's own open/select interaction isn't exercised here — no
+      // other filter Select in this suite is either, since this codebase's
+      // custom (Base UI) Select popup isn't reliably driven via jsdom
+      // `fireEvent`; behavior beyond the default state is a manual/E2E
+      // concern instead.
+      expect(screen.getByLabelText("카테고리")).toBeInTheDocument();
+      expect(screen.getByText("아메리카노")).toBeInTheDocument();
+      expect(screen.getByText("감자튀김")).toBeInTheDocument();
+    });
+
+    it("shows only items in the given category when a category param is already in the URL", () => {
+      currentSearchParams = new URLSearchParams("category=food");
+      mockBootstrap({ data: TWO_CATEGORY_FIXTURE });
+
+      render(<MenuManagementPage />);
+
+      expect(screen.getByText("감자튀김")).toBeInTheDocument();
+      expect(screen.queryByText("아메리카노")).not.toBeInTheDocument();
     });
 
     it("shows every item, on one page, when there is no active search", () => {
@@ -633,7 +691,7 @@ describe("MenuManagementPage", () => {
       expect(screen.getByText("총 1건")).toBeInTheDocument();
     });
 
-    it("paginates when there are more items than one page", () => {
+    it("paginates when there are more items than one page, and navigates to page 2 via the URL", () => {
       const manyItems = Array.from({ length: 11 }, (_, index) => ({
         id: `menu-${index}`,
         categoryId: "drinks",
@@ -653,11 +711,29 @@ describe("MenuManagementPage", () => {
 
       fireEvent.click(screen.getByRole("button", { name: "다음" }));
 
+      expect(replaceMock).toHaveBeenCalledWith("/menu?page=2");
+    });
+
+    it("renders page 2's items when a page param is already in the URL", () => {
+      const manyItems = Array.from({ length: 11 }, (_, index) => ({
+        id: `menu-${index}`,
+        categoryId: "drinks",
+        name: `메뉴 ${String(index).padStart(2, "0")}`,
+        description: "",
+        price: "1000",
+        isVisible: true,
+      }));
+      currentSearchParams = new URLSearchParams("page=2");
+      mockBootstrap({ data: { ...FIXTURE, items: manyItems } });
+
+      render(<MenuManagementPage />);
+
+      expect(screen.getByText("2 / 2")).toBeInTheDocument();
       expect(screen.getByText("메뉴 10")).toBeInTheDocument();
       expect(screen.queryByText("메뉴 00")).not.toBeInTheDocument();
     });
 
-    it("shows 30 items per page after choosing the 30 page-size option", () => {
+    it("requests 30 items per page via the URL after choosing the 30 page-size option", () => {
       const manyItems = Array.from({ length: 25 }, (_, index) => ({
         id: `menu-${index}`,
         categoryId: "drinks",
@@ -675,6 +751,23 @@ describe("MenuManagementPage", () => {
       fireEvent.change(screen.getByRole("combobox", { name: "페이지당 개수" }), {
         target: { value: "30" },
       });
+
+      expect(replaceMock).toHaveBeenCalledWith("/menu?pageSize=30");
+    });
+
+    it("shows all 25 items on one page when a pageSize=30 param is already in the URL", () => {
+      const manyItems = Array.from({ length: 25 }, (_, index) => ({
+        id: `menu-${index}`,
+        categoryId: "drinks",
+        name: `메뉴 ${String(index).padStart(2, "0")}`,
+        description: "",
+        price: "1000",
+        isVisible: true,
+      }));
+      currentSearchParams = new URLSearchParams("pageSize=30");
+      mockBootstrap({ data: { ...FIXTURE, items: manyItems } });
+
+      render(<MenuManagementPage />);
 
       expect(screen.getByText("1 / 1")).toBeInTheDocument();
       expect(screen.getByText("메뉴 00")).toBeInTheDocument();
