@@ -2,8 +2,9 @@
 
 import "@/i18n/client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { FormEvent } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -33,6 +34,7 @@ import {
 } from "@/components/ui/table";
 
 import type { MenuCategory } from "@/features/bootstrap/model";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { applyListQuery, type ListQueryState } from "@/lib/list/apply-list-query";
 
 import { CatalogResyncButton } from "./CatalogResyncButton";
@@ -51,16 +53,52 @@ type CategoryFormState = {
 
 const EMPTY_FORM: CategoryFormState = { id: "", label: "", isVisible: true };
 
+const SEARCH_DEBOUNCE_MS = 300;
+
 export function CategoryPanel({ categories }: { categories: MenuCategory[] }) {
   const { t } = useTranslation("menu");
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [form, setForm] = useState<CategoryFormState>(EMPTY_FORM);
   const [errors, setErrors] = useState<CategoryFormErrors>({});
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+
   // Search-only (no sort/pagination): category counts are structurally
   // small (one per physical menu section), so those controls would add
-  // clutter without a real problem to solve.
-  const [search, setSearch] = useState("");
+  // clutter without a real problem to solve. Still synced to the URL —
+  // same `q` param convention as `MenuManagementPage`'s — so a filtered
+  // view is bookmarkable/shareable.
+  const search = searchParams.get("q") ?? "";
+  const updateSearch = useCallback(
+    (value: string) => {
+      const params = new URLSearchParams();
+      if (value) {
+        params.set("q", value);
+      }
+      const queryString = params.toString();
+      router.replace(queryString ? `${pathname}?${queryString}` : pathname);
+    },
+    [pathname, router],
+  );
+
+  // Local, immediately-updated search box synced to the URL only after
+  // debouncing — same pattern as `MenuManagementPage`/`OrderListPage`.
+  const [searchInput, setSearchInput] = useState(search);
+  const [syncedSearch, setSyncedSearch] = useState(search);
+  if (search !== syncedSearch) {
+    setSyncedSearch(search);
+    setSearchInput(search);
+  }
+
+  const debouncedSearch = useDebouncedValue(searchInput, SEARCH_DEBOUNCE_MS);
+  useEffect(() => {
+    if (debouncedSearch !== search) {
+      updateSearch(debouncedSearch);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch]);
 
   const createMutation = useCreateCategoryMutation();
   const visibilityMutation = useUpdateCategoryVisibilityMutation();
@@ -138,8 +176,8 @@ export function CategoryPanel({ categories }: { categories: MenuCategory[] }) {
 
       {categories.length > 0 ? (
         <ListToolbar
-          searchValue={search}
-          onSearchChange={setSearch}
+          searchValue={searchInput}
+          onSearchChange={setSearchInput}
           searchPlaceholder={t("categorySearchPlaceholder")}
         />
       ) : null}
@@ -160,10 +198,10 @@ export function CategoryPanel({ categories }: { categories: MenuCategory[] }) {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>{t("columnId")}</TableHead>
+              <TableHead className="w-32">{t("columnId")}</TableHead>
               <TableHead>{t("common:columnName")}</TableHead>
-              <TableHead>{t("common:columnVisibility")}</TableHead>
-              <TableHead>{t("common:columnActions")}</TableHead>
+              <TableHead className="w-24">{t("common:columnVisibility")}</TableHead>
+              <TableHead className="w-28">{t("common:columnActions")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>

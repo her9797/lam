@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { fetchJson } from "@/lib/api/fetch-json";
 
-import { fetchOrdersPage } from "./api";
+import { fetchOrder, fetchOrdersPage } from "./api";
 import type { OrderListQuery } from "./model";
 
 vi.mock("@/lib/api/fetch-json", () => ({ fetchJson: vi.fn() }));
@@ -13,7 +13,8 @@ const BASE_QUERY: OrderListQuery = {
   status: "DONE",
   posSyncStatus: undefined,
   search: "",
-  datePreset: "all",
+  dateFrom: "",
+  dateTo: "",
   sort: "createdAt",
   order: "desc",
 };
@@ -60,8 +61,8 @@ describe("fetchOrdersPage", () => {
     expect(url.searchParams.get("q")).toBe("T-01");
   });
 
-  it("resolves a 'today' datePreset to concrete from/to bounds", async () => {
-    await fetchOrdersPage({ ...BASE_QUERY, datePreset: "today" });
+  it("resolves a dateFrom/dateTo pair to concrete from/to bounds", async () => {
+    await fetchOrdersPage({ ...BASE_QUERY, dateFrom: "2026-01-01", dateTo: "2026-01-08" });
 
     const [path] = vi.mocked(fetchJson).mock.calls[0];
     const url = new URL(String(path), "http://localhost");
@@ -69,12 +70,25 @@ describe("fetchOrdersPage", () => {
     expect(url.searchParams.get("to")).toBeTruthy();
   });
 
-  it("sends no from/to for the 'all' datePreset", async () => {
-    await fetchOrdersPage({ ...BASE_QUERY, datePreset: "all" });
+  it("sends no from/to when dateFrom/dateTo are blank", async () => {
+    await fetchOrdersPage(BASE_QUERY);
 
     const [path] = vi.mocked(fetchJson).mock.calls[0];
     const url = new URL(String(path), "http://localhost");
     expect(url.searchParams.has("from")).toBe(false);
     expect(url.searchParams.has("to")).toBe(false);
+  });
+});
+
+describe("fetchOrder", () => {
+  beforeEach(() => {
+    vi.mocked(fetchJson).mockReset().mockResolvedValue({ orderId: "order-1" });
+  });
+
+  it("requests the single-order path with the id URL-encoded", async () => {
+    await fetchOrder("order 1/weird");
+
+    const [path] = vi.mocked(fetchJson).mock.calls[0];
+    expect(path).toBe("/api/admin/payment-orders/order%201%2Fweird");
   });
 });

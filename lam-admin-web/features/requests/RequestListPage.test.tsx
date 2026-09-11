@@ -20,7 +20,8 @@ const approveMutateMock = vi.fn();
 const refetchMock = vi.fn();
 
 vi.mock("./queries", () => ({
-  useCustomerRequestsPageQuery: (query: unknown) => useCustomerRequestsPageQueryMock(query),
+  useCustomerRequestsPageQuery: (query: unknown, enabled: unknown) =>
+    useCustomerRequestsPageQueryMock(query, enabled),
   useUpdateCustomerRequestStatusMutation: () => useUpdateCustomerRequestStatusMutationMock(),
   useApproveSongRequestMutation: () => useApproveSongRequestMutationMock(),
 }));
@@ -57,6 +58,11 @@ const SONG_ITEMS: CustomerRequest[] = [
 function pageFixture(items: CustomerRequest[], overrides: Partial<CustomerRequestPageResult> = {}): CustomerRequestPageResult {
   return { items, page: 1, pageSize: 20, total: items.length, ...overrides };
 }
+
+// A populated date range so the screen renders its data view instead of
+// the "resolving the default range" loading state (see `RequestListPage`'s
+// mount effect / `dateFrom`/`dateTo` handling).
+const DATED_SEARCH_PARAMS = "dateFrom=2026-01-01&dateTo=2026-01-10";
 
 function mockQuery(overrides: Partial<ReturnType<typeof defaultQueryResult>> = {}) {
   useCustomerRequestsPageQueryMock.mockReturnValue({ ...defaultQueryResult(), ...overrides });
@@ -96,7 +102,7 @@ describe("RequestListPage", () => {
     replaceMock.mockClear();
     useCustomerRequestsPageQueryMock.mockClear();
     approveMutateMock.mockClear();
-    currentSearchParams = new URLSearchParams();
+    currentSearchParams = new URLSearchParams(DATED_SEARCH_PARAMS);
     mockQuery();
     mockMutation();
     useApproveSongRequestMutationMock.mockReturnValue({
@@ -159,12 +165,14 @@ describe("RequestListPage", () => {
     render(<RequestListPage kind="general" />);
     expect(useCustomerRequestsPageQueryMock).toHaveBeenCalledWith(
       expect.objectContaining({ kind: "general" }),
+      true,
     );
 
     cleanup();
     render(<RequestListPage kind="song" />);
     expect(useCustomerRequestsPageQueryMock).toHaveBeenCalledWith(
       expect.objectContaining({ kind: "song" }),
+      true,
     );
   });
 
@@ -177,7 +185,7 @@ describe("RequestListPage", () => {
   });
 
   it("shows a distinct 'no results' state when a filter/search yields nothing", () => {
-    currentSearchParams = new URLSearchParams("q=nomatch");
+    currentSearchParams = new URLSearchParams(`${DATED_SEARCH_PARAMS}&q=nomatch`);
     mockQuery({ data: pageFixture([], { total: 0 }) });
 
     render(<RequestListPage kind="general" />);
@@ -187,7 +195,7 @@ describe("RequestListPage", () => {
   });
 
   it("renders rows from the server response, stripping the song-request prefix for display", () => {
-    currentSearchParams = new URLSearchParams("sort=createdAt&order=desc");
+    currentSearchParams = new URLSearchParams(`${DATED_SEARCH_PARAMS}&sort=createdAt&order=desc`);
     mockQuery({ data: pageFixture(SONG_ITEMS) });
 
     render(<RequestListPage kind="song" />);
@@ -257,19 +265,21 @@ describe("RequestListPage", () => {
   });
 
   it("navigates to the next page via Pagination, keeping the other query params", () => {
-    currentSearchParams = new URLSearchParams("status=pending");
+    currentSearchParams = new URLSearchParams(`${DATED_SEARCH_PARAMS}&status=pending`);
     mockQuery({ data: pageFixture(ITEMS, { page: 1, total: 45 }) });
 
     render(<RequestListPage kind="general" />);
 
     fireEvent.click(screen.getByRole("button", { name: "다음" }));
 
-    expect(replaceMock).toHaveBeenCalledWith("/requests?page=2&status=pending");
+    expect(replaceMock).toHaveBeenCalledWith(
+      "/requests?page=2&status=pending&dateFrom=2026-01-01&dateTo=2026-01-10",
+    );
   });
 
   it("debounces a typed search into the URL and resets to page 1", async () => {
     vi.useFakeTimers();
-    currentSearchParams = new URLSearchParams("page=3");
+    currentSearchParams = new URLSearchParams(`${DATED_SEARCH_PARAMS}&page=3`);
     mockQuery({ data: pageFixture(ITEMS, { page: 3, total: 45 }) });
 
     render(<RequestListPage kind="general" />);
@@ -284,7 +294,26 @@ describe("RequestListPage", () => {
       vi.advanceTimersByTime(300);
     });
 
-    expect(replaceMock).toHaveBeenCalledWith("/requests?q=napkin");
+    expect(replaceMock).toHaveBeenCalledWith("/requests?q=napkin&dateFrom=2026-01-01&dateTo=2026-01-10");
     vi.useRealTimers();
+  });
+
+  it("renders the from/to date inputs seeded from the URL", () => {
+    render(<RequestListPage kind="general" />);
+
+    expect(screen.getByLabelText("시작일")).toHaveValue("2026-01-01");
+    expect(screen.getByLabelText("종료일")).toHaveValue("2026-01-10");
+  });
+
+  it("shows a loading state and seeds a default 7-day range when the URL has no date bound", () => {
+    currentSearchParams = new URLSearchParams();
+    mockQuery({ data: undefined, isLoading: true });
+
+    render(<RequestListPage kind="general" />);
+
+    expect(screen.getByRole("status")).toBeInTheDocument();
+    expect(replaceMock).toHaveBeenCalledTimes(1);
+    const [calledUrl] = replaceMock.mock.calls[0] as [string];
+    expect(calledUrl).toMatch(/^\/requests\?dateFrom=\d{4}-\d{2}-\d{2}&dateTo=\d{4}-\d{2}-\d{2}$/);
   });
 });

@@ -1,6 +1,5 @@
 import { PAGE_SIZE_OPTIONS } from "@/components/list/Pagination";
 
-import type { DatePreset } from "./business-day";
 import type {
   OrderListQuery,
   PaymentOrderPosSyncStatus,
@@ -16,15 +15,17 @@ import type {
  * it's safe to sync to the address bar/browser history the same way
  * `features/requests/list-query-url.ts` does.
  *
- * `datePreset` — not an absolute `from`/`to` bound — is what's stored in
- * the URL. The preset is resolved to an absolute range at fetch time
- * (`features/orders/api.ts`), so a bookmarked/shared "today" link always
- * means "today" whenever it's opened, not the calendar day it was created.
+ * `dateFrom`/`dateTo` — date-only `YYYY-MM-DD` strings, not an absolute
+ * instant range — are what's stored in the URL. They're resolved to an
+ * absolute business-day-bounded range at fetch time
+ * (`features/orders/api.ts`/`./order-date-range.ts`). There is no fixed
+ * "default" value for these two (the screen's own 7-day default shifts
+ * with the clock), so unlike every other field here they're written to the
+ * URL whenever set rather than omitted at a hardcoded default.
  */
 const DEFAULT_PAGE_SIZE = 10;
 // No status filter (all statuses) is the default view of `/orders`.
 const DEFAULT_STATUS: PaymentOrderStatus | undefined = undefined;
-const DEFAULT_DATE_PRESET: DatePreset = "all";
 const DEFAULT_SORT: PaymentOrderSort = "createdAt";
 
 const VALID_STATUSES: PaymentOrderStatus[] = ["READY", "DONE"];
@@ -34,8 +35,8 @@ const VALID_POS_SYNC_STATUSES: PaymentOrderPosSyncStatus[] = [
   "FAILED",
   "NOT_CONFIGURED",
 ];
-const VALID_DATE_PRESETS: DatePreset[] = ["today", "last7", "last30", "all"];
 const VALID_SORTS: PaymentOrderSort[] = ["createdAt", "amount"];
+const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 function isValidStatus(value: string | null): value is PaymentOrderStatus {
   return VALID_STATUSES.includes(value as PaymentOrderStatus);
@@ -45,12 +46,12 @@ function isValidPosSyncStatus(value: string | null): value is PaymentOrderPosSyn
   return VALID_POS_SYNC_STATUSES.includes(value as PaymentOrderPosSyncStatus);
 }
 
-function isValidDatePreset(value: string | null): value is DatePreset {
-  return VALID_DATE_PRESETS.includes(value as DatePreset);
-}
-
 function isValidSort(value: string | null): value is PaymentOrderSort {
   return VALID_SORTS.includes(value as PaymentOrderSort);
+}
+
+function parseDateOnlyParam(value: string | null): string {
+  return value && DATE_ONLY_PATTERN.test(value) ? value : "";
 }
 
 function parsePageSize(value: string | null): number {
@@ -70,9 +71,6 @@ export function parseOrderListQuery(searchParams: URLSearchParams): OrderListQue
   const posSyncRaw = searchParams.get("posSync");
   const posSyncStatus = isValidPosSyncStatus(posSyncRaw) ? posSyncRaw : undefined;
 
-  const datePresetRaw = searchParams.get("datePreset");
-  const datePreset = isValidDatePreset(datePresetRaw) ? datePresetRaw : DEFAULT_DATE_PRESET;
-
   const sortRaw = searchParams.get("sort");
   const sort = isValidSort(sortRaw) ? sortRaw : DEFAULT_SORT;
 
@@ -85,7 +83,8 @@ export function parseOrderListQuery(searchParams: URLSearchParams): OrderListQue
     status,
     posSyncStatus,
     search: searchParams.get("q") ?? "",
-    datePreset,
+    dateFrom: parseDateOnlyParam(searchParams.get("dateFrom")),
+    dateTo: parseDateOnlyParam(searchParams.get("dateTo")),
     sort,
     order,
   };
@@ -113,8 +112,11 @@ export function buildOrderListSearchParams(query: OrderListQuery): URLSearchPara
   if (query.search) {
     params.set("q", query.search);
   }
-  if (query.datePreset !== DEFAULT_DATE_PRESET) {
-    params.set("datePreset", query.datePreset);
+  if (query.dateFrom) {
+    params.set("dateFrom", query.dateFrom);
+  }
+  if (query.dateTo) {
+    params.set("dateTo", query.dateTo);
   }
   if (query.sort !== DEFAULT_SORT) {
     params.set("sort", query.sort);

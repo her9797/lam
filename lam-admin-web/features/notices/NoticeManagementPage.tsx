@@ -249,8 +249,8 @@ export function NoticeManagementPage() {
           <TableHeader>
             <TableRow>
               <TableHead>{t("columnText")}</TableHead>
-              <TableHead>{t("common:columnVisibility")}</TableHead>
-              <TableHead>{t("common:columnActions")}</TableHead>
+              <TableHead className="w-24">{t("common:columnVisibility")}</TableHead>
+              <TableHead className="w-44">{t("common:columnActions")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>

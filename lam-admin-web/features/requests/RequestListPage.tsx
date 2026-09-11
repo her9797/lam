@@ -11,6 +11,7 @@ import { ListTotalCount } from "@/components/list/ListTotalCount";
 import { Pagination } from "@/components/list/Pagination";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states/PageStates";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -29,6 +30,7 @@ import {
 } from "@/components/ui/table";
 import { stripSongRequestPrefix } from "@/features/dashboard/summary";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { defaultDateRangeDays, resolveCalendarDateRange } from "@/lib/date-range";
 import { formatDateTime } from "@/lib/utils";
 
 import { buildRequestListSearchParams, parseRequestListQuery } from "./list-query-url";
@@ -79,6 +81,11 @@ const COPY_KEYS: Record<
 
 const SEARCH_DEBOUNCE_MS = 300;
 
+// Default date-filter span for this screen, per this feature's plan —
+// unlike the sales-stats screen (30 days), request lists default to the
+// last 7 days.
+const DEFAULT_DATE_RANGE_SPAN_DAYS = 7;
+
 export function RequestListPage({ kind }: { kind: RequestListPageKind }) {
   const { t, i18n } = useTranslation("requests");
   const router = useRouter();
@@ -120,13 +127,35 @@ export function RequestListPage({ kind }: { kind: RequestListPageKind }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debouncedSearch]);
 
-  const requestsQuery = useCustomerRequestsPageQuery(query);
+  // The URL starts with no date bound (see `list-query-url.ts` — there is
+  // no fixed default to omit-and-imply, since "last 7 days" shifts with
+  // the clock). This effect applies the real default exactly once,
+  // client-side only, after mount — same hydration-safety reasoning as
+  // `SalesStatsPage`'s mount effect.
+  useEffect(() => {
+    if (!query.dateFrom || !query.dateTo) {
+      const defaults = defaultDateRangeDays(DEFAULT_DATE_RANGE_SPAN_DAYS);
+      updateQuery({ dateFrom: defaults.from, dateTo: defaults.to, page: 1 });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const dateRangeResult = resolveCalendarDateRange(query.dateFrom, query.dateTo);
+  const requestsQuery = useCustomerRequestsPageQuery(query, dateRangeResult.ok);
   const statusMutation = useUpdateCustomerRequestStatusMutation();
   const approveMutation = useApproveSongRequestMutation();
   const copyKeys = COPY_KEYS[kind];
 
-  if (requestsQuery.isLoading) {
+  if (!query.dateFrom || !query.dateTo || requestsQuery.isLoading) {
     return <LoadingState label={t(copyKeys.loadingLabel)} />;
+  }
+
+  if (!dateRangeResult.ok) {
+    return (
+      <p role="alert" className="text-sm text-destructive">
+        {t("dateInvalidRange")}
+      </p>
+    );
   }
 
   if (requestsQuery.isError) {
@@ -199,6 +228,26 @@ export function RequestListPage({ kind }: { kind: RequestListPageKind }) {
         searchPlaceholder={t("searchPlaceholder")}
         className="items-end"
       >
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="request-date-from">{t("dateFromLabel")}</Label>
+          <Input
+            id="request-date-from"
+            type="date"
+            value={query.dateFrom}
+            onChange={(event) => updateQuery({ dateFrom: event.target.value, page: 1 })}
+          />
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="request-date-to">{t("dateToLabel")}</Label>
+          <Input
+            id="request-date-to"
+            type="date"
+            value={query.dateTo}
+            onChange={(event) => updateQuery({ dateTo: event.target.value, page: 1 })}
+          />
+        </div>
+
         <div className="flex flex-col gap-2">
           <Label htmlFor="request-status-filter">{t("statusFilterLabel")}</Label>
           <Select
@@ -275,11 +324,11 @@ export function RequestListPage({ kind }: { kind: RequestListPageKind }) {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>{t("common:columnCreatedAt")}</TableHead>
-              <TableHead>{t("common:columnTable")}</TableHead>
+              <TableHead className="w-40">{t("common:columnCreatedAt")}</TableHead>
+              <TableHead className="w-20">{t("common:columnTable")}</TableHead>
               <TableHead>{t("columnText")}</TableHead>
-              <TableHead>{t("columnStatus")}</TableHead>
-              <TableHead>{t("common:columnActions")}</TableHead>
+              <TableHead className="w-24">{t("columnStatus")}</TableHead>
+              <TableHead className="w-28">{t("common:columnActions")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>

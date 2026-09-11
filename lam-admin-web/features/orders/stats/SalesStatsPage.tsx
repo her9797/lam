@@ -311,15 +311,47 @@ function SalesStatsContent({
 
       <Card>
         <CardHeader>
+          <CardTitle>{t("statsByMenuItemTitle")}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {/* Same Table form as the by-table breakdown below, wrapped in its
+              own fixed-height scroll area: the product catalog can run
+              long, and this keeps the card's own footprint from growing
+              with it instead of pushing the rest of the page down. */}
+          <div className="max-h-72 overflow-y-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{t("columnMenuItem")}</TableHead>
+                  <TableHead className="w-32">{t("columnRevenue")}</TableHead>
+                  <TableHead className="w-24">{t("columnOrderCount")}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {data.byMenuItem.map((row) => (
+                  <TableRow key={row.menuItemName}>
+                    <TableCell>{row.menuItemName || "-"}</TableCell>
+                    <TableCell>{formatCurrencyKRW(row.revenue, language)}</TableCell>
+                    <TableCell>{row.orderCount}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle>{t("statsByTableTitle")}</CardTitle>
         </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>{t("common:columnTable")}</TableHead>
-                <TableHead>{t("columnRevenue")}</TableHead>
-                <TableHead>{t("columnOrderCount")}</TableHead>
+                <TableHead className="w-1/3">{t("common:columnTable")}</TableHead>
+                <TableHead className="w-1/3">{t("columnRevenue")}</TableHead>
+                <TableHead className="w-1/3">{t("columnOrderCount")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

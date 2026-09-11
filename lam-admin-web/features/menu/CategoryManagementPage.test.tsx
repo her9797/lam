@@ -3,6 +3,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { validateCategoryForm } from "./model";
 
+const replaceMock = vi.fn();
+let currentSearchParams = new URLSearchParams();
+
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/menu/categories",
+  useRouter: () => ({ replace: replaceMock }),
+  useSearchParams: () => currentSearchParams,
+}));
+
 const useBootstrapQueryMock = vi.fn();
 
 vi.mock("@/features/bootstrap/queries", () => ({
@@ -71,6 +80,8 @@ beforeEach(() => {
   updateCategoryVisibilityMutate.mockClear();
   deleteCategoryMutate.mockClear();
   refetchMock.mockClear();
+  replaceMock.mockClear();
+  currentSearchParams = new URLSearchParams();
 
   createCategoryMutationState.current = idleMutation(createCategoryMutate);
   updateCategoryVisibilityMutationState.current = idleMutation(updateCategoryVisibilityMutate);
@@ -265,7 +276,8 @@ describe("CategoryManagementPage", () => {
     );
   });
 
-  it("filters the category table by label/id, without affecting the create form's duplicate-id check", () => {
+  it("debounces a typed search into the URL", async () => {
+    vi.useFakeTimers();
     mockBootstrap({
       data: {
         ...FIXTURE,
@@ -281,6 +293,29 @@ describe("CategoryManagementPage", () => {
     fireEvent.change(screen.getByPlaceholderText("카테고리 이름으로 검색"), {
       target: { value: "안주" },
     });
+    expect(replaceMock).not.toHaveBeenCalled();
+
+    await act(async () => {
+      vi.advanceTimersByTime(300);
+    });
+
+    expect(replaceMock).toHaveBeenCalledWith("/menu/categories?q=%EC%95%88%EC%A3%BC");
+    vi.useRealTimers();
+  });
+
+  it("shows only categories matching a q param already in the URL, without affecting the create form's duplicate-id check", () => {
+    currentSearchParams = new URLSearchParams("q=안주");
+    mockBootstrap({
+      data: {
+        ...FIXTURE,
+        categories: [
+          { id: "drinks", label: "음료", isVisible: true },
+          { id: "snacks", label: "안주", isVisible: true },
+        ],
+      },
+    });
+
+    render(<CategoryManagementPage />);
 
     expect(screen.getByText("안주")).toBeInTheDocument();
     expect(screen.queryByText("음료")).not.toBeInTheDocument();

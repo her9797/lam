@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 
+import { LoadingState } from "@/components/states/PageStates";
 import { CategoryManagementPage } from "@/features/menu/CategoryManagementPage";
 
 export const metadata: Metadata = {
@@ -7,5 +9,9 @@ export const metadata: Metadata = {
 };
 
 export default function Page() {
-  return <CategoryManagementPage />;
+  return (
+    <Suspense fallback={<LoadingState />}>
+      <CategoryManagementPage />
+    </Suspense>
+  );
 }

@@ -17,11 +17,20 @@ import type {
  *
  * `kind` is not part of the URL: it is fixed per-route by the `kind` prop
  * `RequestListPage` already receives, not a condition the operator toggles.
+ *
+ * `dateFrom`/`dateTo` — date-only `YYYY-MM-DD` strings, not an absolute
+ * instant range — are what's stored in the URL, resolved to an absolute
+ * calendar-day-bounded range at fetch time (`features/requests/api.ts`,
+ * `@/lib/date-range.ts`). There is no fixed "default" value for these two
+ * (the screen's own 7-day default shifts with the clock), so unlike every
+ * other field here they're written to the URL whenever set rather than
+ * omitted at a hardcoded default.
  */
 const DEFAULT_PAGE_SIZE = 10;
 
 const VALID_STATUSES: CustomerRequestStatus[] = ["pending", "checked", "completed"];
 const VALID_SORTS: CustomerRequestSort[] = ["status", "createdAt", "tableNumber"];
+const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 function isValidStatus(value: string | null): value is CustomerRequestStatus {
   return VALID_STATUSES.includes(value as CustomerRequestStatus);
@@ -29,6 +38,10 @@ function isValidStatus(value: string | null): value is CustomerRequestStatus {
 
 function isValidSort(value: string | null): value is CustomerRequestSort {
   return VALID_SORTS.includes(value as CustomerRequestSort);
+}
+
+function parseDateOnlyParam(value: string | null): string {
+  return value && DATE_ONLY_PATTERN.test(value) ? value : "";
 }
 
 function parsePageSize(value: string | null): number {
@@ -64,6 +77,8 @@ export function parseRequestListQuery(
     status,
     kind,
     search: searchParams.get("q") ?? "",
+    dateFrom: parseDateOnlyParam(searchParams.get("dateFrom")),
+    dateTo: parseDateOnlyParam(searchParams.get("dateTo")),
     sort,
     order,
   };
@@ -87,6 +102,12 @@ export function buildRequestListSearchParams(query: CustomerRequestListQuery): U
   }
   if (query.search) {
     params.set("q", query.search);
+  }
+  if (query.dateFrom) {
+    params.set("dateFrom", query.dateFrom);
+  }
+  if (query.dateTo) {
+    params.set("dateTo", query.dateTo);
   }
   if (query.sort !== "status") {
     params.set("sort", query.sort);

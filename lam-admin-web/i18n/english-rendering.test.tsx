@@ -22,12 +22,15 @@ vi.mock("@/features/requests/queries", () => ({
 
 // RequestListPage reads/writes the URL for its search/filter/sort/page
 // state (see `features/requests/list-query-url.ts`) — this file is about
-// rendered copy, not URL sync, so the router is stubbed to a fixed,
-// empty-query state.
+// rendered copy, not URL sync, so the router is stubbed to a fixed query
+// state. A populated dateFrom/dateTo is included so the page renders its
+// data view immediately, instead of the "resolving the default 7-day
+// range" loading state its mount effect would otherwise show first (see
+// that component's `dateFrom`/`dateTo` handling).
 vi.mock("next/navigation", () => ({
   usePathname: () => "/requests",
   useRouter: () => ({ replace: vi.fn() }),
-  useSearchParams: () => new URLSearchParams(),
+  useSearchParams: () => new URLSearchParams("dateFrom=2026-01-01&dateTo=2026-01-10"),
 }));
 
 const useBootstrapQueryMock = vi.fn();

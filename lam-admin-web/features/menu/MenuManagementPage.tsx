@@ -2,26 +2,17 @@
 
 import "@/i18n/client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useTranslation } from "react-i18next";
 
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ListToolbar } from "@/components/list/ListToolbar";
 import { ListTotalCount } from "@/components/list/ListTotalCount";
 import { Pagination } from "@/components/list/Pagination";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states/PageStates";
+import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -41,7 +32,8 @@ import {
 
 import { useBootstrapQuery } from "@/features/bootstrap/queries";
 import type { MenuItem } from "@/features/bootstrap/model";
-import { applyListQuery, type ListQueryState } from "@/lib/list/apply-list-query";
+import { applyListQuery } from "@/lib/list/apply-list-query";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 
 import {
   UPLOAD_FOCUS_CENTER,
@@ -53,12 +45,9 @@ import {
 import { CatalogResyncButton } from "./CatalogResyncButton";
 import { ImageCropEditor } from "./ImageCropEditor";
 import { MenuItemForm } from "./MenuItemForm";
-import { validateImageFile } from "./model";
-import {
-  useDeleteMenuItemMutation,
-  useUpdateMenuItemVisibilityMutation,
-  useUploadMenuItemImageMutation,
-} from "./queries";
+import { buildMenuListSearchParams, parseMenuListQuery, type MenuListQuery } from "./list-query-url";
+import { filterItemsByCategory, validateImageFile } from "./model";
+import { useUpdateMenuItemVisibilityMutation, useUploadMenuItemImageMutation } from "./queries";
 
 type CropDraft = {
   menuItemId: string;
@@ -67,29 +56,54 @@ type CropDraft = {
   transform: CropTransform;
 };
 
+const SEARCH_DEBOUNCE_MS = 300;
+
 export function MenuManagementPage() {
   const { t } = useTranslation("menu");
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const bootstrapQuery = useBootstrapQuery();
   const visibilityMutation = useUpdateMenuItemVisibilityMutation();
-  const deleteMutation = useDeleteMenuItemMutation();
   const uploadMutation = useUploadMenuItemImageMutation();
 
-  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [cropDraft, setCropDraft] = useState<CropDraft | null>(null);
   // Holds a translation key (from `validateImageFile`, or one raised here),
   // not rendered text, so the message follows a language switch.
   const [imageErrorKey, setImageErrorKey] = useState<string | null>(null);
 
-  // Search/sort/pagination applies only to this table's own rendering —
-  // never to the `items` passed to `MenuItemForm` below, which needs the
-  // full, unfiltered list to detect a newly-created item by diffing ids.
-  const [listQuery, setListQuery] = useState<ListQueryState>({
-    search: "",
-    sort: "",
-    order: "asc",
-    page: 1,
-    pageSize: 10,
-  });
+  // Search/category/sort/pagination applies only to this table's own
+  // rendering — never to the `items` passed to `MenuItemForm` below, which
+  // needs the full, unfiltered list to detect a newly-created item by
+  // diffing ids. Synced to the URL (see `./list-query-url.ts`) the same
+  // way `OrderListPage`/`RequestListPage` sync theirs.
+  const listQuery = useMemo(() => parseMenuListQuery(searchParams), [searchParams]);
+
+  const updateQuery = useCallback(
+    (patch: Partial<MenuListQuery>) => {
+      const params = buildMenuListSearchParams({ ...listQuery, ...patch });
+      const queryString = params.toString();
+      router.replace(queryString ? `${pathname}?${queryString}` : pathname);
+    },
+    [listQuery, pathname, router],
+  );
+
+  // Local, immediately-updated search box synced to the URL only after
+  // debouncing — same pattern as `OrderListPage`/`RequestListPage`.
+  const [searchInput, setSearchInput] = useState(listQuery.search);
+  const [syncedSearch, setSyncedSearch] = useState(listQuery.search);
+  if (listQuery.search !== syncedSearch) {
+    setSyncedSearch(listQuery.search);
+    setSearchInput(listQuery.search);
+  }
+
+  const debouncedSearch = useDebouncedValue(searchInput, SEARCH_DEBOUNCE_MS);
+  useEffect(() => {
+    if (debouncedSearch !== listQuery.search) {
+      updateQuery({ search: debouncedSearch, page: 1 });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch]);
 
   if (bootstrapQuery.isLoading) {
     return <LoadingState label={t("loading")} />;
@@ -108,9 +122,13 @@ export function MenuManagementPage() {
   const categories = bootstrapQuery.data?.categories ?? [];
   const items = bootstrapQuery.data?.items ?? [];
   const hasCategories = categories.length > 0;
-  const deleteTarget = items.find((item) => item.id === pendingDeleteId) ?? null;
 
-  const { items: visibleItems, total: visibleTotal } = applyListQuery<MenuItem>(items, listQuery, {
+  // Category filter applies before search/sort/pagination — narrows the
+  // candidate set `applyListQuery` then paginates, so "총 N건" reflects
+  // the category-filtered count, not the full catalog's.
+  const categoryFilteredItems = filterItemsByCategory(items, listQuery.category);
+
+  const { items: visibleItems, total: visibleTotal } = applyListQuery<MenuItem>(categoryFilteredItems, listQuery, {
     searchText: (item) => `${item.name} ${item.description}`,
     sortValue: (item, key) => (key === "price" ? Number(item.price) || 0 : item.name),
   });
@@ -120,13 +138,13 @@ export function MenuManagementPage() {
     name: t("itemSortByName"),
     price: t("itemSortByPrice"),
   };
+  const CATEGORY_FILTER_LABELS: Record<string, string> = {
+    all: t("common:filterAll"),
+    ...Object.fromEntries(categories.map((category) => [category.id, category.label])),
+  };
 
   function isVisibilityPending(id: string): boolean {
     return visibilityMutation.isPending && visibilityMutation.variables?.id === id;
-  }
-
-  function isDeletePending(id: string): boolean {
-    return deleteMutation.isPending && deleteMutation.variables === id;
   }
 
   function isUploadPending(id: string): boolean {
@@ -199,13 +217,6 @@ export function MenuManagementPage() {
     );
   }
 
-  function handleConfirmDelete() {
-    if (!pendingDeleteId) {
-      return;
-    }
-    deleteMutation.mutate(pendingDeleteId, { onSuccess: () => setPendingDeleteId(null) });
-  }
-
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -234,21 +245,46 @@ export function MenuManagementPage() {
 
       {items.length > 0 ? (
         <ListToolbar
-          searchValue={listQuery.search}
-          onSearchChange={(search) => setListQuery((prev) => ({ ...prev, search, page: 1 }))}
+          searchValue={searchInput}
+          onSearchChange={setSearchInput}
           searchPlaceholder={t("itemSearchPlaceholder")}
           className="items-end"
         >
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="menu-category-filter">{t("itemCategoryFilterLabel")}</Label>
+            <Select
+              value={listQuery.category || "all"}
+              onValueChange={(value) =>
+                updateQuery({ category: value === "all" ? "" : String(value), page: 1 })
+              }
+            >
+              <SelectTrigger
+                id="menu-category-filter"
+                size="sm"
+                className="w-32"
+                aria-label={t("itemCategoryFilterLabel")}
+              >
+                <SelectValue placeholder={t("itemCategoryFilterLabel")}>
+                  {(value: string) => CATEGORY_FILTER_LABELS[value] ?? value}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t("common:filterAll")}</SelectItem>
+                {categories.map((category) => (
+                  <SelectItem key={category.id} value={category.id}>
+                    {category.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
           <div className="flex flex-col gap-2">
             <Label htmlFor="menu-sort">{t("common:sortLabel")}</Label>
             <Select
               value={listQuery.sort || "none"}
               onValueChange={(value) =>
-                setListQuery((prev) => ({
-                  ...prev,
-                  sort: value === "none" ? "" : String(value),
-                  page: 1,
-                }))
+                updateQuery({ sort: value === "none" ? "" : String(value), page: 1 })
               }
             >
               <SelectTrigger id="menu-sort" size="sm" className="w-32" aria-label={t("common:sortLabel")}>
@@ -283,11 +319,10 @@ export function MenuManagementPage() {
           <TableHeader>
             <TableRow>
               <TableHead>{t("common:columnName")}</TableHead>
-              <TableHead>{t("columnCategory")}</TableHead>
-              <TableHead>{t("columnPrice")}</TableHead>
-              <TableHead>{t("common:columnVisibility")}</TableHead>
-              <TableHead>{t("columnImage")}</TableHead>
-              <TableHead>{t("common:columnActions")}</TableHead>
+              <TableHead className="w-32">{t("columnCategory")}</TableHead>
+              <TableHead className="w-24">{t("columnPrice")}</TableHead>
+              <TableHead className="w-24">{t("common:columnVisibility")}</TableHead>
+              <TableHead className="w-28">{t("columnImage")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -298,7 +333,7 @@ export function MenuManagementPage() {
                   <TableCell>
                     <Link
                       href={`/menu/${item.id}`}
-                      className="text-primary underline-offset-4 hover:underline"
+                      className="text-foreground underline underline-offset-4 hover:font-bold"
                     >
                       {item.name}
                     </Link>
@@ -319,7 +354,7 @@ export function MenuManagementPage() {
                     </Button>
                   </TableCell>
                   <TableCell>
-                    <label className="cursor-pointer text-sm text-primary underline-offset-4 hover:underline">
+                    <label className="cursor-pointer text-sm text-foreground underline underline-offset-4 hover:font-bold">
                       {t("imageSelect")}
                       <input
                         type="file"
@@ -335,17 +370,6 @@ export function MenuManagementPage() {
                       />
                     </label>
                   </TableCell>
-                  <TableCell>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="destructive"
-                      disabled={isDeletePending(item.id)}
-                      onClick={() => setPendingDeleteId(item.id)}
-                    >
-                      {t("common:delete")}
-                    </Button>
-                  </TableCell>
                 </TableRow>
               );
             })}
@@ -358,47 +382,10 @@ export function MenuManagementPage() {
           page={listQuery.page}
           pageSize={listQuery.pageSize}
           total={visibleTotal}
-          onPageChange={(page) => setListQuery((prev) => ({ ...prev, page }))}
-          onPageSizeChange={(pageSize) => setListQuery((prev) => ({ ...prev, pageSize, page: 1 }))}
+          onPageChange={(page) => updateQuery({ page })}
+          onPageSizeChange={(pageSize) => updateQuery({ pageSize, page: 1 })}
         />
       ) : null}
-
-      <AlertDialog
-        open={deleteTarget !== null}
-        onOpenChange={(open) => {
-          if (!open) {
-            setPendingDeleteId(null);
-          }
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t("itemDeleteTitle")}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {deleteTarget ? t("itemDeleteTarget", { name: deleteTarget.name }) : ""}
-              {t("common:deleteIrreversible")}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          {/*
-            A failed delete leaves this dialog open (it only closes in the
-            mutation's own `onSuccess`), so the failure has to be reported
-            here rather than in the page body behind the dialog.
-          */}
-          {deleteMutation.isError ? (
-            <p role="alert" className="text-sm text-destructive">
-              {deleteMutation.error instanceof Error
-                ? deleteMutation.error.message
-                : t("itemDeleteFailed")}
-            </p>
-          ) : null}
-          <AlertDialogFooter>
-            <AlertDialogCancel>{t("common:cancel")}</AlertDialogCancel>
-            <AlertDialogAction disabled={deleteMutation.isPending} onClick={handleConfirmDelete}>
-              {t("common:delete")}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       <Dialog
         open={cropDraft !== null}

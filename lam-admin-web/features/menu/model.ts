@@ -11,7 +11,7 @@
  * `isPrimary`, `displayArea`, `focusX`, `focusY`) — not invented.
  */
 
-import type { AppData } from "@/features/bootstrap/model";
+import type { AppData, MenuItem } from "@/features/bootstrap/model";
 
 /**
  * Mirrors `lam-api/internal/lamdata.CatalogSyncResponse` — the manual
@@ -164,4 +164,14 @@ export function validateImageFile(file: File): MenuValidationKey | undefined {
     return "errorImageSize";
   }
   return undefined;
+}
+
+/**
+ * `MenuManagementPage`'s category filter — applied before
+ * `applyListQuery`'s search/sort/pagination, so "총 N건" reflects the
+ * category-filtered count. `categoryId` blank (the "전체" option) returns
+ * `items` unfiltered.
+ */
+export function filterItemsByCategory(items: readonly MenuItem[], categoryId: string): MenuItem[] {
+  return categoryId ? items.filter((item) => item.categoryId === categoryId) : [...items];
 }

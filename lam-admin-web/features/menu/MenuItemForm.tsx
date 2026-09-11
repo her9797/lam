@@ -341,7 +341,7 @@ export function MenuItemForm({ categories, items }: MenuItemFormProps) {
             <div className="flex flex-col gap-1.5">
               <Label>{t("imageOptionalLabel")}</Label>
               <div className="flex items-center gap-3">
-                <label className="cursor-pointer text-sm text-primary underline-offset-4 hover:underline">
+                <label className="cursor-pointer text-sm text-foreground underline underline-offset-4 hover:font-bold">
                   {pendingImage ? t("imageReselect") : t("imageSelect")}
                   <input
                     type="file"

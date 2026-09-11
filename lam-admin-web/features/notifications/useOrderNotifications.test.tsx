@@ -82,9 +82,11 @@ describe("useOrderNotifications", () => {
     expect(query.status).toBe("DONE");
     expect(query.sort).toBe("createdAt");
     expect(query.order).toBe("desc");
-    // "all", not "today": the bell must not depend on the business-day
-    // window, or a sale rung up outside business hours never alarms.
-    expect(query.datePreset).toBe("all");
+    // Blank, not the business-day-bounded "today": the bell must not
+    // depend on the business-day window, or a sale rung up outside
+    // business hours never alarms.
+    expect(query.dateFrom).toBe("");
+    expect(query.dateTo).toBe("");
     expect(query.page).toBe(1);
   });
 

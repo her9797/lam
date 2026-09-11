@@ -88,6 +88,14 @@ afterEach(() => {
 });
 
 describe("MenuItemDetailPage", () => {
+  it("renders the back-to-list navigation as a button, not a plain text link", () => {
+    render(<MenuItemDetailPage menuItemId="menu-1" />);
+
+    const back = screen.getByRole("link", { name: "메뉴 목록으로" });
+    expect(back).toHaveAttribute("href", "/menu");
+    expect(back).toHaveClass("border-border");
+  });
+
   it("shows a loading state while bootstrap data is loading", () => {
     mockBootstrap({ data: undefined, isLoading: true });
 

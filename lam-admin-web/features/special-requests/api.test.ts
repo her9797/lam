@@ -69,6 +69,8 @@ describe("special-requests api", () => {
       pageSize: 10,
       gender: "female",
       search: "서울",
+      dateFrom: "2026-01-01",
+      dateTo: "2026-01-08",
       sort: "name",
       order: "asc",
     };
@@ -83,6 +85,8 @@ describe("special-requests api", () => {
     expect(requestUrl.searchParams.get("q")).toBe("서울");
     expect(requestUrl.searchParams.get("sort")).toBe("name");
     expect(requestUrl.searchParams.get("order")).toBe("asc");
+    expect(requestUrl.searchParams.get("from")).toBeTruthy();
+    expect(requestUrl.searchParams.get("to")).toBeTruthy();
     expect(result).toEqual(fixture);
   });
 
@@ -91,10 +95,39 @@ describe("special-requests api", () => {
     const fetchMock = vi.fn(async () => new Response(JSON.stringify(fixture), { status: 200 }));
     global.fetch = fetchMock as unknown as typeof fetch;
 
-    await fetchSpecialRequestsPage({ page: 1, pageSize: 20, search: "", sort: "createdAt", order: "desc" });
+    await fetchSpecialRequestsPage({
+      page: 1,
+      pageSize: 20,
+      search: "",
+      dateFrom: "",
+      dateTo: "",
+      sort: "createdAt",
+      order: "desc",
+    });
 
     const [url] = fetchMock.mock.calls[0] as unknown as [string];
     const requestUrl = new URL(url, "http://localhost");
     expect(requestUrl.searchParams.has("gender")).toBe(false);
+  });
+
+  it("omits from/to when dateFrom/dateTo are blank", async () => {
+    const fixture: SpecialRequestPageResult = { items: [], page: 1, pageSize: 20, total: 0 };
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify(fixture), { status: 200 }));
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    await fetchSpecialRequestsPage({
+      page: 1,
+      pageSize: 20,
+      search: "",
+      dateFrom: "",
+      dateTo: "",
+      sort: "createdAt",
+      order: "desc",
+    });
+
+    const [url] = fetchMock.mock.calls[0] as unknown as [string];
+    const requestUrl = new URL(url, "http://localhost");
+    expect(requestUrl.searchParams.has("from")).toBe(false);
+    expect(requestUrl.searchParams.has("to")).toBe(false);
   });
 });
