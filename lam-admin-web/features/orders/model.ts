@@ -1,5 +1,3 @@
-import type { DatePreset } from "./business-day";
-
 /**
  * Mirrors `lam-api/internal/lamdata.PaymentOrder` — the admin read shape,
  * deliberately kept separate from `lam-web`'s customer-facing payment
@@ -37,13 +35,22 @@ export type PaymentOrderSort = "createdAt" | "amount";
 
 export type SortOrder = "asc" | "desc";
 
+/**
+ * `dateFrom`/`dateTo` are date-only (`YYYY-MM-DD`) strings, resolved to
+ * absolute business-day-bounded instants at fetch time — see
+ * `./order-date-range.ts`. Both empty means "no date bound" (used only by
+ * the fixed internal queries in `./queries.ts`; the user-facing screen
+ * always has both populated once its mount effect resolves the default
+ * 7-day range).
+ */
 export type OrderListQuery = {
   page: number;
   pageSize: number;
   status?: PaymentOrderStatus;
   posSyncStatus?: PaymentOrderPosSyncStatus;
   search: string;
-  datePreset: DatePreset;
+  dateFrom: string;
+  dateTo: string;
   sort: PaymentOrderSort;
   order: SortOrder;
 };

@@ -83,9 +83,9 @@ export function MenuItemDetailPage({ menuItemId }: { menuItemId: string }) {
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-semibold text-foreground">{t("detailTitle")}</h1>
-        <Link href="/menu" className="text-sm text-primary underline-offset-4 hover:underline">
+        <Button size="sm" variant="outline" render={<Link href="/menu" />}>
           {t("detailBackToList")}
-        </Link>
+        </Button>
       </div>
 
       {statusMessage ? (

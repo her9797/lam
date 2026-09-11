@@ -4,7 +4,7 @@ import { buildOrderListSearchParams, parseOrderListQuery } from "./list-query-ur
 import type { OrderListQuery } from "./model";
 
 describe("parseOrderListQuery", () => {
-  it("defaults to page 1, pageSize 10, no status filter, no posSync filter, no search, datePreset all, sort createdAt desc", () => {
+  it("defaults to page 1, pageSize 10, no status filter, no posSync filter, no search, no date bound, sort createdAt desc", () => {
     const query = parseOrderListQuery(new URLSearchParams());
     expect(query).toEqual({
       page: 1,
@@ -12,7 +12,8 @@ describe("parseOrderListQuery", () => {
       status: undefined,
       posSyncStatus: undefined,
       search: "",
-      datePreset: "all",
+      dateFrom: "",
+      dateTo: "",
       sort: "createdAt",
       order: "desc",
     });
@@ -21,7 +22,7 @@ describe("parseOrderListQuery", () => {
   it("reads every recognized param from the URL", () => {
     const query = parseOrderListQuery(
       new URLSearchParams(
-        "page=2&pageSize=30&status=READY&posSync=FAILED&q=T-01&datePreset=last7&sort=amount&order=asc",
+        "page=2&pageSize=30&status=READY&posSync=FAILED&q=T-01&dateFrom=2026-01-01&dateTo=2026-01-08&sort=amount&order=asc",
       ),
     );
     expect(query).toEqual({
@@ -30,7 +31,8 @@ describe("parseOrderListQuery", () => {
       status: "READY",
       posSyncStatus: "FAILED",
       search: "T-01",
-      datePreset: "last7",
+      dateFrom: "2026-01-01",
+      dateTo: "2026-01-08",
       sort: "amount",
       order: "asc",
     });
@@ -43,11 +45,11 @@ describe("parseOrderListQuery", () => {
 
   it("falls back to defaults for unrecognized enum values", () => {
     const query = parseOrderListQuery(
-      new URLSearchParams("status=CANCELED&posSync=UNKNOWN&datePreset=yesterday&sort=tableNumber&order=random"),
+      new URLSearchParams("status=CANCELED&posSync=UNKNOWN&dateFrom=not-a-date&sort=tableNumber&order=random"),
     );
     expect(query.status).toBeUndefined();
     expect(query.posSyncStatus).toBeUndefined();
-    expect(query.datePreset).toBe("all");
+    expect(query.dateFrom).toBe("");
     expect(query.sort).toBe("createdAt");
     expect(query.order).toBe("desc");
   });
@@ -66,7 +68,8 @@ describe("buildOrderListSearchParams", () => {
     status: undefined,
     posSyncStatus: undefined,
     search: "",
-    datePreset: "all",
+    dateFrom: "",
+    dateTo: "",
     sort: "createdAt",
     order: "desc",
   };
@@ -82,7 +85,8 @@ describe("buildOrderListSearchParams", () => {
       status: "READY",
       posSyncStatus: "FAILED",
       search: "T-01",
-      datePreset: "last7",
+      dateFrom: "2026-01-01",
+      dateTo: "2026-01-08",
       sort: "amount",
       order: "asc",
     };
@@ -93,5 +97,11 @@ describe("buildOrderListSearchParams", () => {
   it("omits the status param entirely for the default 'no status filter' query", () => {
     const params = buildOrderListSearchParams(DEFAULT_QUERY);
     expect(params.has("status")).toBe(false);
+  });
+
+  it("serializes dateFrom/dateTo whenever set, since there is no fixed default", () => {
+    const params = buildOrderListSearchParams({ ...DEFAULT_QUERY, dateFrom: "2026-01-01", dateTo: "2026-01-08" });
+    expect(params.get("dateFrom")).toBe("2026-01-01");
+    expect(params.get("dateTo")).toBe("2026-01-08");
   });
 });

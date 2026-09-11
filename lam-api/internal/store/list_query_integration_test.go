@@ -271,3 +271,84 @@ func TestRepository_ListCustomerRequestsPage_InvalidSortIsRejected(t *testing.T)
 		t.Error("ListCustomerRequestsPage(invalid sort) error = nil, want an error")
 	}
 }
+
+func TestRepository_ListCustomerRequestsPage_FiltersByCreatedAtRange(t *testing.T) {
+	repo := resetDB(t)
+	ctx := context.Background()
+
+	if err := repo.CreateCustomerRequest(ctx, "T-01", "before range"); err != nil {
+		t.Fatalf("CreateCustomerRequest() error = %v", err)
+	}
+	time.Sleep(idSpacingDelay)
+
+	from := time.Now()
+	time.Sleep(idSpacingDelay)
+	if err := repo.CreateCustomerRequest(ctx, "T-02", "inside range"); err != nil {
+		t.Fatalf("CreateCustomerRequest() error = %v", err)
+	}
+	time.Sleep(idSpacingDelay)
+	to := time.Now()
+	time.Sleep(idSpacingDelay)
+
+	if err := repo.CreateCustomerRequest(ctx, "T-03", "after range"); err != nil {
+		t.Fatalf("CreateCustomerRequest() error = %v", err)
+	}
+
+	items, total, err := repo.ListCustomerRequestsPage(ctx, CustomerRequestFilter{
+		Kind: "all", Sort: "createdAt", Order: "asc", Page: 1, PageSize: 20,
+		From: &from, To: &to,
+	})
+	if err != nil {
+		t.Fatalf("ListCustomerRequestsPage() error = %v", err)
+	}
+	if total != 1 {
+		t.Fatalf("total = %d, want 1", total)
+	}
+	if len(items) != 1 || items[0].TableNumber != "T-02" {
+		t.Fatalf("items = %+v, want just T-02", items)
+	}
+}
+
+func TestRepository_ListSpecialRequestsPage_FiltersByCreatedAtRange(t *testing.T) {
+	repo := resetDB(t)
+	ctx := context.Background()
+
+	newSpecialRequest := func(table, name string) lamdata.SpecialRequest {
+		return lamdata.SpecialRequest{
+			TableNumber: table, Gender: "male", Name: name, Age: "20s",
+			Residence: "Seoul", Instagram: "@" + name, IdealType: "tall", Text: "hi",
+		}
+	}
+
+	if err := repo.CreateSpecialRequest(ctx, newSpecialRequest("T-01", "Before")); err != nil {
+		t.Fatalf("CreateSpecialRequest() error = %v", err)
+	}
+	time.Sleep(idSpacingDelay)
+
+	from := time.Now()
+	time.Sleep(idSpacingDelay)
+	if err := repo.CreateSpecialRequest(ctx, newSpecialRequest("T-02", "Inside")); err != nil {
+		t.Fatalf("CreateSpecialRequest() error = %v", err)
+	}
+	time.Sleep(idSpacingDelay)
+	to := time.Now()
+	time.Sleep(idSpacingDelay)
+
+	if err := repo.CreateSpecialRequest(ctx, newSpecialRequest("T-03", "After")); err != nil {
+		t.Fatalf("CreateSpecialRequest() error = %v", err)
+	}
+
+	items, total, err := repo.ListSpecialRequestsPage(ctx, SpecialRequestFilter{
+		Sort: "createdAt", Order: "asc", Page: 1, PageSize: 20,
+		From: &from, To: &to,
+	})
+	if err != nil {
+		t.Fatalf("ListSpecialRequestsPage() error = %v", err)
+	}
+	if total != 1 {
+		t.Fatalf("total = %d, want 1", total)
+	}
+	if len(items) != 1 || items[0].Name != "Inside" {
+		t.Fatalf("items = %+v, want just Inside", items)
+	}
+}

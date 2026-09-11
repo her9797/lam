@@ -51,10 +51,18 @@ export function useCustomerRequestsQuery() {
   });
 }
 
-export function useCustomerRequestsPageQuery(query: CustomerRequestListQuery) {
+/**
+ * `enabled` defaults to true for direct callers, but `RequestListPage`
+ * passes `false` while its date-range fields are still blank/invalid (see
+ * that component's mount effect) — without this, a query would fire once
+ * against an unbounded or unresolved range before the real default
+ * settles in.
+ */
+export function useCustomerRequestsPageQuery(query: CustomerRequestListQuery, enabled: boolean = true) {
   return useQuery({
     queryKey: requestsKeys.list(query),
     queryFn: () => fetchCustomerRequestsPage(query),
+    enabled,
   });
 }
 

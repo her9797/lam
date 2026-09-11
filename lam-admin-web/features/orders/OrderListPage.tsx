@@ -3,6 +3,7 @@
 import "@/i18n/client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useTranslation } from "react-i18next";
 
@@ -10,8 +11,7 @@ import { ListToolbar } from "@/components/list/ListToolbar";
 import { ListTotalCount } from "@/components/list/ListTotalCount";
 import { Pagination } from "@/components/list/Pagination";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states/PageStates";
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -31,15 +31,14 @@ import {
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { formatCurrencyKRW, formatDateTime } from "@/lib/utils";
 
-import type { DatePreset } from "./business-day";
 import { buildOrderListSearchParams, parseOrderListQuery } from "./list-query-url";
 import type {
   OrderListQuery,
-  PaymentOrder,
   PaymentOrderPosSyncStatus,
   PaymentOrderSort,
   PaymentOrderStatus,
 } from "./model";
+import { defaultOrderDateRange, resolveOrderDateRange } from "./order-date-range";
 import { useOrdersPageQuery } from "./queries";
 
 const SEARCH_DEBOUNCE_MS = 300;
@@ -56,41 +55,6 @@ const POS_SYNC_LABEL_KEY: Record<PaymentOrderPosSyncStatus, string> = {
   FAILED: "posSyncFailed",
   NOT_CONFIGURED: "posSyncNotConfigured",
 };
-
-const DATE_PRESET_LABEL_KEY: Record<DatePreset, string> = {
-  today: "datePresetToday",
-  last7: "datePresetLast7",
-  last30: "datePresetLast30",
-  all: "datePresetAll",
-};
-
-
-// Field list for the detail dialog, in display order. Labels are keys in
-// the `orders` namespace. Optional fields (e.g. `paymentKey` on an unpaid
-// `READY` order) fall back to "-" at render time rather than being
-// filtered out of this list, so the dialog's shape stays identical
-// regardless of the order's status.
-const DETAIL_FIELDS: Array<{ key: keyof PaymentOrder; labelKey: string }> = [
-  { key: "tableNumber", labelKey: "fieldTableNumber" },
-  { key: "menuItemName", labelKey: "fieldMenuItem" },
-  { key: "categoryName", labelKey: "fieldCategory" },
-  { key: "requestNote", labelKey: "fieldRequestNote" },
-  { key: "amount", labelKey: "fieldAmount" },
-  { key: "vat", labelKey: "fieldVat" },
-  { key: "suppliedAmount", labelKey: "fieldSuppliedAmount" },
-  { key: "taxFreeAmount", labelKey: "fieldTaxFreeAmount" },
-  { key: "status", labelKey: "fieldStatus" },
-  { key: "paymentMethod", labelKey: "fieldPaymentMethod" },
-  { key: "paymentKey", labelKey: "fieldPaymentKey" },
-  { key: "approvedAt", labelKey: "fieldApprovedAt" },
-  { key: "posSyncStatus", labelKey: "fieldPosSyncStatus" },
-  { key: "posOrderId", labelKey: "fieldPosOrderId" },
-  { key: "posSyncError", labelKey: "fieldPosSyncError" },
-  { key: "createdAt", labelKey: "fieldCreatedAt" },
-];
-
-const AMOUNT_FIELD_KEYS: Set<keyof PaymentOrder> = new Set(["amount", "vat", "suppliedAmount", "taxFreeAmount"]);
-const DATE_FIELD_KEYS: Set<keyof PaymentOrder> = new Set(["approvedAt", "createdAt"]);
 
 export function OrderListPage() {
   const { t, i18n } = useTranslation("orders");
@@ -127,14 +91,33 @@ export function OrderListPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debouncedSearch]);
 
-  const ordersQuery = useOrdersPageQuery(query);
-  // Detail dialog is driven by an in-memory id, not a URL param — an
-  // order's `paymentKey` is sensitive enough that it shouldn't round-trip
-  // through the address bar/browser history.
-  const [detailId, setDetailId] = useState<string | null>(null);
+  // The URL starts with no date bound (see `list-query-url.ts` — there is
+  // no fixed default to omit-and-imply, since "last 7 days" shifts with
+  // the clock). This effect applies the real default exactly once,
+  // client-side only, after mount — same hydration-safety reasoning as
+  // `SalesStatsPage`'s mount effect, since a `new Date()` read during
+  // render could disagree between the server's render and the client's.
+  useEffect(() => {
+    if (!query.dateFrom || !query.dateTo) {
+      const defaults = defaultOrderDateRange();
+      updateQuery({ dateFrom: defaults.from, dateTo: defaults.to, page: 1 });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  if (ordersQuery.isLoading) {
+  const dateRangeResult = resolveOrderDateRange(query.dateFrom, query.dateTo);
+  const ordersQuery = useOrdersPageQuery(query, dateRangeResult.ok);
+
+  if (!query.dateFrom || !query.dateTo || ordersQuery.isLoading) {
     return <LoadingState label={t("loading")} />;
+  }
+
+  if (!dateRangeResult.ok) {
+    return (
+      <p role="alert" className="text-sm text-destructive">
+        {t("statsInvalidRange")}
+      </p>
+    );
   }
 
   if (ordersQuery.isError) {
@@ -150,11 +133,7 @@ export function OrderListPage() {
   const orders = ordersQuery.data?.items ?? [];
   const total = ordersQuery.data?.total ?? 0;
   const hasActiveFilter =
-    Boolean(query.status) ||
-    Boolean(query.posSyncStatus) ||
-    query.datePreset !== "all" ||
-    query.search.trim().length > 0;
-  const detailOrder = orders.find((order) => order.orderId === detailId) ?? null;
+    Boolean(query.status) || Boolean(query.posSyncStatus) || query.search.trim().length > 0;
 
   const STATUS_FILTER_LABELS: Record<string, string> = {
     all: t("common:filterAll"),
@@ -168,36 +147,10 @@ export function OrderListPage() {
     FAILED: t("posSyncFailed"),
     NOT_CONFIGURED: t("posSyncNotConfigured"),
   };
-  const DATE_PRESET_LABELS: Record<string, string> = {
-    today: t("datePresetToday"),
-    last7: t("datePresetLast7"),
-    last30: t("datePresetLast30"),
-    all: t("datePresetAll"),
-  };
   const SORT_LABELS: Record<string, string> = {
     createdAt: t("sortByCreatedAt"),
     amount: t("sortByAmount"),
   };
-
-  function renderDetailValue(order: PaymentOrder, key: keyof PaymentOrder): string {
-    const value = order[key];
-    if (value === undefined || value === "") {
-      return "-";
-    }
-    if (key === "status") {
-      return t(STATUS_LABEL_KEY[order.status]);
-    }
-    if (key === "posSyncStatus") {
-      return t(POS_SYNC_LABEL_KEY[order.posSyncStatus]);
-    }
-    if (AMOUNT_FIELD_KEYS.has(key)) {
-      return formatCurrencyKRW(value as number, i18n.language);
-    }
-    if (DATE_FIELD_KEYS.has(key)) {
-      return formatDateTime(value as string, i18n.language);
-    }
-    return String(value);
-  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -212,23 +165,23 @@ export function OrderListPage() {
         className="items-end"
       >
         <div className="flex flex-col gap-2">
-          <Label htmlFor="order-date-preset">{t("datePresetLabel")}</Label>
-          <Select
-            value={query.datePreset}
-            onValueChange={(value) => updateQuery({ datePreset: value as DatePreset, page: 1 })}
-          >
-            <SelectTrigger id="order-date-preset" size="sm" className="w-32" aria-label={t("datePresetLabel")}>
-              <SelectValue placeholder={t("datePresetLabel")}>
-                {(value: string) => DATE_PRESET_LABELS[value] ?? value}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="today">{t("datePresetToday")}</SelectItem>
-              <SelectItem value="last7">{t("datePresetLast7")}</SelectItem>
-              <SelectItem value="last30">{t("datePresetLast30")}</SelectItem>
-              <SelectItem value="all">{t("datePresetAll")}</SelectItem>
-            </SelectContent>
-          </Select>
+          <Label htmlFor="order-date-from">{t("statsFromLabel")}</Label>
+          <Input
+            id="order-date-from"
+            type="date"
+            value={query.dateFrom}
+            onChange={(event) => updateQuery({ dateFrom: event.target.value, page: 1 })}
+          />
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="order-date-to">{t("statsToLabel")}</Label>
+          <Input
+            id="order-date-to"
+            type="date"
+            value={query.dateTo}
+            onChange={(event) => updateQuery({ dateTo: event.target.value, page: 1 })}
+          />
         </div>
 
         <div className="flex flex-col gap-2">
@@ -320,13 +273,12 @@ export function OrderListPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>{t("columnApprovedAt")}</TableHead>
-              <TableHead>{t("common:columnTable")}</TableHead>
+              <TableHead className="w-40">{t("columnApprovedAt")}</TableHead>
+              <TableHead className="w-20">{t("common:columnTable")}</TableHead>
               <TableHead>{t("columnMenuItem")}</TableHead>
-              <TableHead>{t("columnAmount")}</TableHead>
-              <TableHead>{t("columnStatus")}</TableHead>
-              <TableHead>{t("columnPosSync")}</TableHead>
-              <TableHead>{t("common:columnActions")}</TableHead>
+              <TableHead className="w-28">{t("columnAmount")}</TableHead>
+              <TableHead className="w-24">{t("columnStatus")}</TableHead>
+              <TableHead className="w-32">{t("columnPosSync")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -335,22 +287,17 @@ export function OrderListPage() {
                 <TableCell>{formatDateTime(order.approvedAt ?? order.createdAt, i18n.language)}</TableCell>
                 <TableCell>{order.tableNumber || "-"}</TableCell>
                 <TableCell>
-                  {order.menuItemName}
+                  <Link
+                    href={`/orders/${order.orderId}`}
+                    className="text-foreground underline underline-offset-4 hover:font-bold"
+                  >
+                    {order.menuItemName}
+                  </Link>
                   <span className="text-muted-foreground"> ({order.categoryName})</span>
                 </TableCell>
                 <TableCell>{formatCurrencyKRW(order.amount, i18n.language)}</TableCell>
                 <TableCell>{t(STATUS_LABEL_KEY[order.status])}</TableCell>
                 <TableCell>{t(POS_SYNC_LABEL_KEY[order.posSyncStatus])}</TableCell>
-                <TableCell>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setDetailId(order.orderId)}
-                  >
-                    {t("viewDetail")}
-                  </Button>
-                </TableCell>
               </TableRow>
             ))}
           </TableBody>
@@ -364,33 +311,6 @@ export function OrderListPage() {
         onPageChange={(page) => updateQuery({ page })}
         onPageSizeChange={(pageSize) => updateQuery({ pageSize, page: 1 })}
       />
-
-      <Dialog
-        open={detailOrder !== null}
-        onOpenChange={(open) => {
-          if (!open) {
-            setDetailId(null);
-          }
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t("detailTitle")}</DialogTitle>
-          </DialogHeader>
-          {detailOrder ? (
-            <dl className="flex flex-col gap-3">
-              {DETAIL_FIELDS.map((field) => (
-                <div key={field.key} className="flex flex-col gap-0.5">
-                  <dt className="text-sm font-medium text-foreground">{t(field.labelKey)}</dt>
-                  <dd className="text-sm text-muted-foreground">
-                    {renderDetailValue(detailOrder, field.key)}
-                  </dd>
-                </div>
-              ))}
-            </dl>
-          ) : null}
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

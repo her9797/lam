@@ -1,4 +1,5 @@
 import { fetchJson } from "@/lib/api/fetch-json";
+import { resolveCalendarDateRange } from "@/lib/date-range";
 
 import type {
   CustomerRequest,
@@ -22,6 +23,11 @@ export function fetchCustomerRequests(): Promise<CustomerRequest[]> {
  * `page`/`pageSize`/`kind`/`sort`/`order` are always sent (so a caller of
  * this function always gets the envelope), `status` only when set, and an
  * empty `search` is omitted so the server never has to special-case "".
+ *
+ * `dateFrom`/`dateTo` (date-only strings) are resolved to absolute
+ * calendar-day-bounded `from`/`to` bounds here, at fetch time (see
+ * `@/lib/date-range.ts`), rather than when the URL was parsed. When either
+ * is blank or the pair is invalid, no bound is sent.
  */
 export function fetchCustomerRequestsPage(
   query: CustomerRequestListQuery,
@@ -38,6 +44,12 @@ export function fetchCustomerRequestsPage(
   }
   if (query.search.trim()) {
     params.set("q", query.search);
+  }
+
+  const range = resolveCalendarDateRange(query.dateFrom, query.dateTo);
+  if (range.ok) {
+    params.set("from", range.from.toISOString());
+    params.set("to", range.to.toISOString());
   }
 
   return fetchJson<CustomerRequestPageResult>(`${CUSTOMER_REQUESTS_PATH}?${params.toString()}`, {

@@ -35,6 +35,14 @@ export type SpecialRequestListQuery = {
   pageSize: number;
   gender?: SpecialRequestGender;
   search: string;
+  /**
+   * Date-only (`YYYY-MM-DD`) strings, resolved to absolute calendar-day-
+   * bounded instants at fetch time — see `@/lib/date-range.ts`. Both blank
+   * means "no date bound"; `SpecialRequestPage`'s mount effect fills in the
+   * default 7-day range once, client-side.
+   */
+  dateFrom: string;
+  dateTo: string;
   sort: SpecialRequestSort;
   order: SortOrder;
 };

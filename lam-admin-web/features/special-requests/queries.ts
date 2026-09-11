@@ -20,10 +20,18 @@ export function useSpecialRequestsQuery() {
   });
 }
 
-export function useSpecialRequestsPageQuery(query: SpecialRequestListQuery) {
+/**
+ * `enabled` defaults to true for direct callers, but `SpecialRequestPage`
+ * passes `false` while its date-range fields are still blank/invalid (see
+ * that component's mount effect) — without this, a query would fire once
+ * against an unbounded or unresolved range before the real default
+ * settles in.
+ */
+export function useSpecialRequestsPageQuery(query: SpecialRequestListQuery, enabled: boolean = true) {
   return useQuery({
     queryKey: specialRequestKeys.list(query),
     queryFn: () => fetchSpecialRequestsPage(query),
+    enabled,
   });
 }
 

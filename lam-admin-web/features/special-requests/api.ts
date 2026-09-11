@@ -1,4 +1,5 @@
 import { fetchJson } from "@/lib/api/fetch-json";
+import { resolveCalendarDateRange } from "@/lib/date-range";
 
 import type { SpecialRequest, SpecialRequestListQuery, SpecialRequestPageResult } from "./model";
 
@@ -27,6 +28,12 @@ export function fetchSpecialRequestsPage(
   }
   if (query.search.trim()) {
     params.set("q", query.search);
+  }
+
+  const range = resolveCalendarDateRange(query.dateFrom, query.dateTo);
+  if (range.ok) {
+    params.set("from", range.from.toISOString());
+    params.set("to", range.to.toISOString());
   }
 
   return fetchJson<SpecialRequestPageResult>(`${SPECIAL_REQUESTS_PATH}?${params.toString()}`, {

@@ -540,6 +540,8 @@ func NewMux(repository *store.Repository, cfg config.Config, syncer *catalogsync
 			Status:   query.Status,
 			Kind:     query.Kind,
 			Search:   query.Search,
+			From:     query.From,
+			To:       query.To,
 			Sort:     query.Sort,
 			Order:    query.Order,
 			Page:     query.Page,
@@ -587,6 +589,8 @@ func NewMux(repository *store.Repository, cfg config.Config, syncer *catalogsync
 		items, total, err := repository.ListSpecialRequestsPage(r.Context(), store.SpecialRequestFilter{
 			Gender:   query.Gender,
 			Search:   query.Search,
+			From:     query.From,
+			To:       query.To,
 			Sort:     query.Sort,
 			Order:    query.Order,
 			Page:     query.Page,
@@ -643,6 +647,31 @@ func NewMux(repository *store.Repository, cfg config.Config, syncer *catalogsync
 			PageSize: query.PageSize,
 			Total:    total,
 		})
+	}))
+
+	mux.HandleFunc("/api/v1/admin/payment-orders/", withCORS(cfg.AllowedOrigin, func(w http.ResponseWriter, r *http.Request) {
+		if !requireAdminAuth(w, r, cfg.AdminAPIToken) {
+			return
+		}
+
+		if r.Method != http.MethodGet {
+			writeMethodNotAllowed(w)
+			return
+		}
+
+		id, ok := parseResourceID(r.URL.Path, "/api/v1/admin/payment-orders/")
+		if !ok {
+			http.NotFound(w, r)
+			return
+		}
+
+		order, err := repository.GetPaymentOrderForAdmin(r.Context(), id)
+		if err != nil {
+			writeStoreError(w, err)
+			return
+		}
+
+		writeJSON(w, http.StatusOK, order)
 	}))
 
 	mux.HandleFunc("/api/v1/admin/payment-orders/stats", withCORS(cfg.AllowedOrigin, func(w http.ResponseWriter, r *http.Request) {
