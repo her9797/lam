@@ -25,8 +25,10 @@ type customerRequestListQuery struct {
 	Status   string // "" = all statuses
 	Kind     string // "all" | "general" | "song"
 	Search   string
-	Sort     string // "status" | "createdAt" | "tableNumber"
-	Order    string // "asc" | "desc"
+	From     *time.Time // inclusive; nil = no lower bound
+	To       *time.Time // exclusive; nil = no upper bound
+	Sort     string     // "status" | "createdAt" | "tableNumber"
+	Order    string     // "asc" | "desc"
 }
 
 // specialRequestListQuery is the equivalent parsed query for
@@ -36,13 +38,15 @@ type specialRequestListQuery struct {
 	PageSize int
 	Gender   string // "" = both genders
 	Search   string
-	Sort     string // "createdAt" | "name"
-	Order    string // "asc" | "desc"
+	From     *time.Time // inclusive; nil = no lower bound
+	To       *time.Time // exclusive; nil = no upper bound
+	Sort     string     // "createdAt" | "name"
+	Order    string     // "asc" | "desc"
 }
 
-var customerRequestListParamKeys = []string{"page", "pageSize", "status", "kind", "q", "sort", "order"}
+var customerRequestListParamKeys = []string{"page", "pageSize", "status", "kind", "q", "from", "to", "sort", "order"}
 
-var specialRequestListParamKeys = []string{"page", "pageSize", "gender", "q", "sort", "order"}
+var specialRequestListParamKeys = []string{"page", "pageSize", "gender", "q", "from", "to", "sort", "order"}
 
 func hasAnyQueryParam(query url.Values, keys []string) bool {
 	for _, key := range keys {
@@ -63,6 +67,37 @@ func parsePage(query url.Values) (int, error) {
 		return 0, fmt.Errorf("invalid page: %q", raw)
 	}
 	return page, nil
+}
+
+// parseFromTo parses the optional "from"/"to" RFC3339 instant-range params
+// shared by the customer-request, special-request and payment-order list
+// queries. Both are optional and independent; when both are present, from
+// must be strictly before to (an empty or inverted range is rejected here
+// rather than silently returning zero rows).
+func parseFromTo(query url.Values) (*time.Time, *time.Time, error) {
+	var from, to *time.Time
+
+	if raw := query.Get("from"); raw != "" {
+		parsed, err := time.Parse(time.RFC3339, raw)
+		if err != nil {
+			return nil, nil, fmt.Errorf("invalid from: %q", raw)
+		}
+		from = &parsed
+	}
+
+	if raw := query.Get("to"); raw != "" {
+		parsed, err := time.Parse(time.RFC3339, raw)
+		if err != nil {
+			return nil, nil, fmt.Errorf("invalid to: %q", raw)
+		}
+		to = &parsed
+	}
+
+	if from != nil && to != nil && !from.Before(*to) {
+		return nil, nil, fmt.Errorf("invalid range: from %q must be before to %q", query.Get("from"), query.Get("to"))
+	}
+
+	return from, to, nil
 }
 
 func parsePageSize(query url.Values) (int, error) {
@@ -117,6 +152,13 @@ func parseCustomerRequestListQuery(query url.Values) (customerRequestListQuery, 
 	}
 
 	q.Search = query.Get("q")
+
+	from, to, err := parseFromTo(query)
+	if err != nil {
+		return q, false, err
+	}
+	q.From = from
+	q.To = to
 
 	if sort := query.Get("sort"); sort != "" {
 		switch sort {
@@ -179,6 +221,13 @@ func parseSpecialRequestListQuery(query url.Values) (specialRequestListQuery, bo
 	}
 
 	q.Search = query.Get("q")
+
+	from, to, err := parseFromTo(query)
+	if err != nil {
+		return q, false, err
+	}
+	q.From = from
+	q.To = to
 
 	if sort := query.Get("sort"); sort != "" {
 		switch sort {
@@ -258,25 +307,12 @@ func parsePaymentOrderListQuery(query url.Values) (paymentOrderListQuery, error)
 
 	q.Search = query.Get("q")
 
-	if from := query.Get("from"); from != "" {
-		parsed, err := time.Parse(time.RFC3339, from)
-		if err != nil {
-			return q, fmt.Errorf("invalid from: %q", from)
-		}
-		q.From = &parsed
+	from, to, err := parseFromTo(query)
+	if err != nil {
+		return q, err
 	}
-
-	if to := query.Get("to"); to != "" {
-		parsed, err := time.Parse(time.RFC3339, to)
-		if err != nil {
-			return q, fmt.Errorf("invalid to: %q", to)
-		}
-		q.To = &parsed
-	}
-
-	if q.From != nil && q.To != nil && !q.From.Before(*q.To) {
-		return q, fmt.Errorf("invalid range: from %q must be before to %q", query.Get("from"), query.Get("to"))
-	}
+	q.From = from
+	q.To = to
 
 	if sort := query.Get("sort"); sort != "" {
 		switch sort {

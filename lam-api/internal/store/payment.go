@@ -347,6 +347,67 @@ func (r *Repository) ListPaymentOrdersPage(ctx context.Context, filter PaymentOr
 	return orders, total, nil
 }
 
+// GetPaymentOrderForAdmin fetches a single order in the admin read shape
+// (lamdata.PaymentOrder — see ListPaymentOrdersPage's doc comment for why
+// this is a distinct type from the customer-facing PaymentOrder above).
+// Returns ErrNotFound (via classifyError) when no row matches id.
+func (r *Repository) GetPaymentOrderForAdmin(ctx context.Context, orderID string) (lamdata.PaymentOrder, error) {
+	var item lamdata.PaymentOrder
+	var approvedAt *time.Time
+	var createdAt time.Time
+	err := r.pool.QueryRow(ctx, `
+		SELECT
+			id,
+			COALESCE(menu_item_id, ''),
+			menu_item_name,
+			category_name,
+			table_number,
+			request_note,
+			amount,
+			vat,
+			supplied_amount,
+			tax_free_amount,
+			status,
+			COALESCE(payment_method, ''),
+			COALESCE(payment_key, ''),
+			approved_at,
+			pos_sync_status,
+			COALESCE(pos_order_id, ''),
+			COALESCE(pos_sync_error, ''),
+			created_at
+		FROM payment_orders
+		WHERE id = $1
+	`, strings.TrimSpace(orderID)).Scan(
+		&item.OrderID,
+		&item.MenuItemID,
+		&item.MenuItemName,
+		&item.CategoryName,
+		&item.TableNumber,
+		&item.RequestNote,
+		&item.Amount,
+		&item.VAT,
+		&item.SuppliedAmount,
+		&item.TaxFreeAmount,
+		&item.Status,
+		&item.PaymentMethod,
+		&item.PaymentKey,
+		&approvedAt,
+		&item.POSSyncStatus,
+		&item.POSOrderID,
+		&item.POSSyncError,
+		&createdAt,
+	)
+	if err != nil {
+		return lamdata.PaymentOrder{}, classifyError(err)
+	}
+
+	if approvedAt != nil {
+		item.ApprovedAt = formatTimestamp(*approvedAt)
+	}
+	item.CreatedAt = formatTimestamp(createdAt)
+	return item, nil
+}
+
 func (r *Repository) UpdatePaymentOrderPOSSync(ctx context.Context, orderID string, status string, posOrderID string, syncError string) error {
 	if status != "SUCCEEDED" && status != "FAILED" && status != "NOT_CONFIGURED" {
 		return ErrInvalidInput
@@ -545,6 +606,31 @@ func (r *Repository) GetPaymentOrderStats(ctx context.Context, from time.Time, t
 	}
 	tableRows.Close()
 	if err := tableRows.Err(); err != nil {
+		return lamdata.PaymentOrderStats{}, err
+	}
+
+	menuItemSQL := `
+		SELECT menu_item_name, COALESCE(SUM(amount), 0), COUNT(*)
+		FROM payment_orders
+	` + paymentOrderStatsFilterWhere + `
+		GROUP BY menu_item_name
+		ORDER BY SUM(amount) DESC
+	`
+	menuItemRows, err := r.pool.Query(ctx, menuItemSQL, from, to)
+	if err != nil {
+		return lamdata.PaymentOrderStats{}, classifyError(err)
+	}
+	stats.ByMenuItem = make([]lamdata.PaymentOrderMenuItemStat, 0)
+	for menuItemRows.Next() {
+		var row lamdata.PaymentOrderMenuItemStat
+		if err := menuItemRows.Scan(&row.MenuItemName, &row.Revenue, &row.OrderCount); err != nil {
+			menuItemRows.Close()
+			return lamdata.PaymentOrderStats{}, err
+		}
+		stats.ByMenuItem = append(stats.ByMenuItem, row)
+	}
+	menuItemRows.Close()
+	if err := menuItemRows.Err(); err != nil {
 		return lamdata.PaymentOrderStats{}, err
 	}
 

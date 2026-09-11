@@ -10,6 +10,7 @@ type seedDoneOrder = struct {
 	ID            string
 	TableNumber   string
 	CategoryName  string
+	MenuItemName  string // defaults to "Item" when blank
 	PaymentMethod string
 	Amount        int64
 	ApprovedAt    time.Time
@@ -23,12 +24,16 @@ type seedDoneOrder = struct {
 // toss_catalog_item_id.
 func seedDonePaymentOrder(t *testing.T, ctx context.Context, o seedDoneOrder) {
 	t.Helper()
+	menuItemName := o.MenuItemName
+	if menuItemName == "" {
+		menuItemName = "Item"
+	}
 	_, err := testPool.Exec(ctx, `
 		INSERT INTO payment_orders (
 			id, menu_item_name, category_name, table_number, amount, status,
 			payment_method, approved_at, pos_sync_status, created_at
-		) VALUES ($1, 'Item', $2, $3, $4, 'DONE', $5, $6, 'SUCCEEDED', $6)
-	`, o.ID, o.CategoryName, o.TableNumber, o.Amount, o.PaymentMethod, o.ApprovedAt)
+		) VALUES ($1, $2, $3, $4, $5, 'DONE', $6, $7, 'SUCCEEDED', $7)
+	`, o.ID, menuItemName, o.CategoryName, o.TableNumber, o.Amount, o.PaymentMethod, o.ApprovedAt)
 	if err != nil {
 		t.Fatalf("seed DONE payment_orders %q: %v", o.ID, err)
 	}
@@ -208,6 +213,43 @@ func TestRepository_GetPaymentOrderStats_GroupsByCategoryPaymentMethodAndTable(t
 	}
 	if stats.ByTable[1].TableNumber != "1" || stats.ByTable[1].Revenue != 13000 || stats.ByTable[1].OrderCount != 2 {
 		t.Errorf("ByTable[1] = %+v, want 1/13000/2", stats.ByTable[1])
+	}
+}
+
+func TestRepository_GetPaymentOrderStats_GroupsByMenuItem(t *testing.T) {
+	repo := resetDB(t)
+	ctx := context.Background()
+
+	seedDonePaymentOrder(t, ctx, seedDoneOrder{
+		ID: "m1", TableNumber: "1", CategoryName: "Drinks", MenuItemName: "Beer",
+		PaymentMethod: "카드", Amount: 8000, ApprovedAt: time.Date(2026, 1, 10, 20, 0, 0, 0, kst),
+	})
+	seedDonePaymentOrder(t, ctx, seedDoneOrder{
+		ID: "m2", TableNumber: "1", CategoryName: "Drinks", MenuItemName: "Beer",
+		PaymentMethod: "카드", Amount: 8000, ApprovedAt: time.Date(2026, 1, 10, 20, 30, 0, 0, kst),
+	})
+	seedDonePaymentOrder(t, ctx, seedDoneOrder{
+		ID: "m3", TableNumber: "2", CategoryName: "Food", MenuItemName: "Pizza",
+		PaymentMethod: "간편결제", Amount: 15000, ApprovedAt: time.Date(2026, 1, 11, 21, 0, 0, 0, kst),
+	})
+
+	from := time.Date(2026, 1, 1, 0, 0, 0, 0, kst)
+	to := time.Date(2026, 2, 1, 0, 0, 0, 0, kst)
+	stats, err := repo.GetPaymentOrderStats(ctx, from, to, false)
+	if err != nil {
+		t.Fatalf("GetPaymentOrderStats() error = %v", err)
+	}
+
+	if len(stats.ByMenuItem) != 2 {
+		t.Fatalf("ByMenuItem = %+v, want 2 entries", stats.ByMenuItem)
+	}
+	// Ordered by revenue descending: Beer (two orders summing to 16,000)
+	// outranks Pizza (a single 15,000 order).
+	if stats.ByMenuItem[0].MenuItemName != "Beer" || stats.ByMenuItem[0].Revenue != 16000 || stats.ByMenuItem[0].OrderCount != 2 {
+		t.Errorf("ByMenuItem[0] = %+v, want Beer/16000/2", stats.ByMenuItem[0])
+	}
+	if stats.ByMenuItem[1].MenuItemName != "Pizza" || stats.ByMenuItem[1].Revenue != 15000 || stats.ByMenuItem[1].OrderCount != 1 {
+		t.Errorf("ByMenuItem[1] = %+v, want Pizza/15000/1", stats.ByMenuItem[1])
 	}
 }
 
