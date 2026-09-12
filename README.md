@@ -59,6 +59,7 @@ lam
 - 많은 요청이 쌓이면 카드 내부에서 스크롤되도록 처리
 - `바로 전달하기` 요청은 `미처리 → 확인 → 처리완료` 흐름으로 관리
 - `특별한` 요청은 상세보기와 삭제 중심으로 관리
+- 테이블별 QR 발급·인쇄 화면 (`QR_SIGNING_SECRET`, `CUSTOMER_WEB_BASE_URL` 설정이 필요합니다. 아래 [4. QR 서명 설정](#4-qr-서명-설정)을 참고하세요)
 
 ### 백엔드/API
 
@@ -142,6 +143,7 @@ http://localhost:9090
 - `ALLOWED_ORIGIN=*`
 - `ADMIN_API_TOKEN=lam-admin-api-token`
 - `PAYMENT_API_TOKEN=lam-payment-api-token` (로컬 기본값, 운영에서는 반드시 교체)
+- `QR_SIGNING_SECRET`, `CUSTOMER_WEB_BASE_URL` (기본값 없음. 관리자 테이블 QR 화면에만 필요하며, 아래 [4. QR 서명 설정](#4-qr-서명-설정) 참고)
 
 저장소 루트 `.env`에 `DATABASE_URL`을 설정하면 Docker Compose의 `lam-api`도 해당 외부 PostgreSQL을 사용합니다. 값이 없으면 기존 로컬 PostgreSQL 컨테이너를 사용합니다.
 
@@ -213,16 +215,65 @@ http://localhost:3000
 
 `lam-web`을 로컬에서 함께 실행하는 경우 포트가 겹치므로(둘 다 기본 3000), 두 웹을 동시에 띄우려면 한쪽의 포트를 변경하거나 Docker Compose 실행(아래)을 사용하세요.
 
+### 4. QR 서명 설정
+
+테이블 QR은 `lam-api`가 만들고 `lam-web`이 검증합니다. 두 서비스가 **같은** `QR_SIGNING_SECRET`을 공유해야 이 흐름이 맞물립니다.
+
+| 변수 | 설정 대상 | 용도 |
+| --- | --- | --- |
+| `QR_SIGNING_SECRET` | `lam-api`, `lam-web` | 테이블 ID를 HMAC-SHA256으로 서명·검증하는 서버 전용 secret |
+| `CUSTOMER_WEB_BASE_URL` | `lam-api` | QR URL에 인쇄될 손님 웹 주소 (`{BASE_URL}/qr/enter?table=...&sig=...`) |
+
+동작 흐름:
+
+1. 관리자 웹의 테이블 QR 화면이 `lam-api`의 `GET /api/v1/admin/tables`를 호출합니다.
+2. `lam-api`가 `QR_SIGNING_SECRET`으로 각 테이블 ID를 서명하고, `CUSTOMER_WEB_BASE_URL`을 붙여 QR URL을 만듭니다.
+3. 손님이 QR을 스캔하면 `lam-web`의 `/qr/enter`가 같은 secret으로 서명을 검증하고 QR 세션 쿠키를 발급합니다.
+
+주의사항:
+
+- **두 값이 다르면 발급된 QR이 전부 무효가 됩니다.** 스캔 시 서명 검증에 실패해 손님은 `/access-required`로 이동합니다. secret을 교체하면 이미 인쇄된 QR도 함께 무효가 되므로 QR을 다시 발급·인쇄해야 합니다.
+- `lam-api`에서 둘 중 하나라도 비어 있으면 `GET /api/v1/admin/tables`가 `500`을 반환하고, 관리자 테이블 QR 화면이 열리지 않습니다.
+- `lam-web`에서 값이 비어 있으면 서명 검증이 항상 실패하므로 모든 QR 스캔이 `/access-required`로 이동합니다.
+- **서버 전용 secret입니다.** 어느 웹 앱에서도 `NEXT_PUBLIC_` 접두사로 노출하지 마세요. 브라우저에 노출되면 누구나 임의 테이블의 QR을 위조할 수 있습니다.
+- `CUSTOMER_WEB_BASE_URL`은 손님 휴대폰의 브라우저가 직접 여는 주소여야 합니다. Compose 내부 DNS 이름(`http://lam-web:8080`)을 넣으면 컨테이너 밖에서는 풀리지 않아 모든 스캔이 실패합니다.
+
+로컬 설정 예시(값은 커밋하지 않습니다):
+
+```bash
+# lam-api/.env
+QR_SIGNING_SECRET=lam-web과_동일한_긴_임의값
+CUSTOMER_WEB_BASE_URL=http://localhost:3000
+
+# lam-web/.env.local
+QR_SIGNING_SECRET=lam-api와_동일한_긴_임의값
+```
+
+`lam-web`은 Next.js가 `.env.local`을 자동으로 읽지만, `lam-api`에는 `.env` 로더가 없어 `os.Getenv`만 사용합니다. `go run`으로 직접 실행할 때는 `lam-api/.env`를 셸에 먼저 불러오세요.
+
+```bash
+cd lam-api
+set -a
+source ./.env
+set +a
+go run ./cmd/server
+```
+
+Docker Compose로 실행할 때는 저장소 루트 `.env`의 `QR_SIGNING_SECRET` 하나가 두 서비스에 모두 주입되므로 값이 어긋날 일이 없습니다(아래 [Docker Compose 실행](#docker-compose-실행) 참고).
+
 ## Docker Compose 실행
 
 `docker-compose.yml`은 PostgreSQL, `lam-api`, `lam-web`, `lam-admin-web` 네 서비스를 함께 띄웁니다. 기존 PostgreSQL 설정과 `lam-postgres-data` volume은 그대로 유지됩니다.
 
-`lam-admin-web`의 `ADMIN_PASSWORD`와 `SESSION_SECRET`에는 **기본값이 없습니다.** 두 값이 설정되어 있지 않으면 `docker compose config`/`docker compose up`이 즉시 실패합니다(fail-loud). 실행 전에 저장소 루트에 `.env` 파일을 만들거나 셸 환경변수로 내보내세요.
+`lam-admin-web`의 `ADMIN_PASSWORD`·`SESSION_SECRET`과 `lam-api`·`lam-web`의 `QR_SIGNING_SECRET`에는 **기본값이 없습니다.** 세 값 중 하나라도 설정되어 있지 않으면 `docker compose config`/`docker compose up`이 즉시 실패합니다(fail-loud). 실행 전에 저장소 루트에 `.env` 파일을 만들거나 셸 환경변수로 내보내세요.
+
+`QR_SIGNING_SECRET`은 루트 `.env`의 한 값이 `lam-api`와 `lam-web` 두 서비스에 그대로 주입되므로, Compose로 실행하는 한 두 서비스의 값이 어긋나지 않습니다.
 
 ```bash
 cat > .env <<'EOF'
 ADMIN_PASSWORD=로컬에서_사용할_비밀번호
 SESSION_SECRET=로컬에서_사용할_세션_서명키
+QR_SIGNING_SECRET=lam_api와_lam_web이_공유할_긴_임의값
 CUSTOMER_TEST_ENTRY_TOKEN=로컬에서만_사용할_긴_임의값
 PAYMENT_API_TOKEN=웹과_API가_공유할_긴_임의값
 NEXT_PUBLIC_TOSS_CLIENT_KEY=토스페이먼츠_클라이언트키
@@ -249,8 +300,9 @@ docker compose ps
 
 환경변수 구분:
 
-- **필수(기본값 없음, 미설정 시 compose 실패)**: `ADMIN_PASSWORD`, `SESSION_SECRET` (`lam-admin-web` 로그인을 통과시키는 값)
+- **필수(기본값 없음, 미설정 시 compose 실패)**: `ADMIN_PASSWORD`, `SESSION_SECRET` (`lam-admin-web` 로그인을 통과시키는 값), `QR_SIGNING_SECRET` (`lam-api`와 `lam-web`이 공유하는 QR 서명 secret)
 - **선택(기본값 빈 문자열, 미설정 시 기능 비활성화)**: `STAFF_ENTRY_TOKEN`, `CUSTOMER_TEST_ENTRY_TOKEN` (`lam-web`)
+- **기본값 `http://localhost:3000`**: `CUSTOMER_WEB_BASE_URL` (`lam-api`가 QR에 인쇄하는 손님 웹 주소. 호스트 브라우저가 여는 주소이므로 Compose 내부 DNS 이름을 쓰지 않으며, 배포 시에는 실제 도메인으로 덮어씁니다)
 - **결제 연동 시 필수**: `NEXT_PUBLIC_TOSS_CLIENT_KEY`, `TOSS_PAYMENTS_SECRET_KEY`, `TOSS_PLACE_ACCESS_KEY`, `TOSS_PLACE_SECRET_KEY`, `TOSS_PLACE_MERCHANT_ID`
 - **신청곡 승인·재생 시 필수**: `YOUTUBE_API_KEY` (YouTube Data API v3 서버 키, 웹에는 넣지 않음)
 - **로컬 개발용 기본값 있음(운영 배포 전 반드시 교체)**: `ADMIN_API_TOKEN`, `PAYMENT_API_TOKEN` (각 웹과 API에 동일한 값을 설정)
