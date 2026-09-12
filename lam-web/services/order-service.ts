@@ -12,7 +12,13 @@ export type CustomerOrder = {
   createdAt: string;
 };
 
-export async function createOrder(input: { menuItemId: string; tableNumber: string; requestNote: string }) {
+export type OrderOptionChoiceInput = {
+  optionId: string;
+  optionChoiceId: string;
+  quantity: number;
+};
+
+export async function createOrder(input: { menuItemId: string; tableNumber: string; requestNote: string; optionChoices: OrderOptionChoiceInput[] }) {
   const response = await fetch("/api/orders", {
     method: "POST",
     headers: { "Content-Type": "application/json" },

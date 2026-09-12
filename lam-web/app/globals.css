@@ -765,6 +765,64 @@ body:has(.menu-detail-modal) .content-card {
   line-height: 1.65;
 }
 
+.menu-detail-options {
+  display: grid;
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.menu-option-group {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+
+.menu-option-group legend {
+  padding: 0 5px;
+  color: var(--text);
+  font-weight: 700;
+}
+
+.menu-option-group legend span {
+  margin-left: 7px;
+  color: var(--muted-strong);
+  font-size: 0.72rem;
+  font-weight: 500;
+}
+
+.menu-option-choice-row,
+.menu-option-choice {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.menu-option-choice {
+  min-width: 0;
+  flex: 1;
+  color: var(--muted-strong);
+  cursor: pointer;
+}
+
+.menu-option-choice small {
+  margin-left: auto;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.menu-option-quantity {
+  width: 58px;
+  min-height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  text-align: center;
+}
+
 .menu-detail-request-field {
   margin-top: 18px;
 }

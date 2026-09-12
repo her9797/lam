@@ -46,6 +46,15 @@ go run ./cmd/server
 http://localhost:9090
 ```
 
+로컬에서는 저장소 루트 `.env` 또는 `lam-api/.env.local`의 API 환경변수를
+`go run` 실행 시 자동으로 읽습니다. Supabase PostgreSQL을 사용하려면 해당
+파일에 연결 문자열을 설정합니다. 이미 셸에 설정된 환경변수는 덮어쓰지
+않습니다.
+
+```bash
+DATABASE_URL='postgresql://postgres.<PROJECT_REF>:[YOUR-PASSWORD]@aws-0-<REGION>.pooler.supabase.com:5432/postgres?sslmode=require'
+```
+
 손님 주문을 토스 POS에 등록하려면 다음 값을 환경변수로 설정합니다. 키는 저장소에 커밋하지 않습니다.
 
 ```bash
@@ -60,6 +69,8 @@ TOSS_PLACE_MERCHANT_ID=토스플레이스_가맹점_ID
 토스플레이스가 설정되어 있으면 API 시작 시 POS 카탈로그를 한 번 동기화합니다. 이후 변경 사항은 관리자 메뉴의 `다시 동기화` 버튼으로 반영합니다.
 
 - 상품명, 가격, 판매 상태와 토스 상품 ID는 POS를 원본으로 사용합니다.
+- 토스 상품 이미지와 옵션·선택지도 함께 가져와 손님 메뉴에 노출합니다.
+- 손님이 선택한 옵션은 서버에서 필수 여부, 선택 개수, 수량과 추가 금액을 다시 검증한 뒤 토스 POS 주문의 `optionChoices`로 전달합니다.
 - 기존 `lam` 메뉴와 이름이 일치하면 설명, 이미지, 뱃지를 유지한 채 연결합니다.
 - 신규 POS 상품은 `하이볼 / 위스키 / 칵테일 / 논알콜` 웹 카테고리에 자동 분류합니다.
 - POS에서 사라진 상품, 품절 상품, 0원 상품은 손님 화면에서 숨깁니다.

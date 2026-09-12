@@ -136,7 +136,7 @@ go run ./cmd/server
 http://localhost:9090
 ```
 
-기본 환경값:
+환경변수와 로컬 `.env`에 값이 없을 때의 기본값:
 
 - `APP_ADDR=:9090`
 - `DATABASE_URL=postgres://lam:lam@127.0.0.1:5432/lam?sslmode=disable`
@@ -145,15 +145,10 @@ http://localhost:9090
 - `PAYMENT_API_TOKEN=lam-payment-api-token` (로컬 기본값, 운영에서는 반드시 교체)
 - `QR_SIGNING_SECRET`, `CUSTOMER_WEB_BASE_URL` (기본값 없음. 관리자 테이블 QR 화면에만 필요하며, 아래 [4. QR 서명 설정](#4-qr-서명-설정) 참고)
 
-저장소 루트 `.env`에 `DATABASE_URL`을 설정하면 Docker Compose의 `lam-api`도 해당 외부 PostgreSQL을 사용합니다. 값이 없으면 기존 로컬 PostgreSQL 컨테이너를 사용합니다.
-
-`go run`으로 API만 직접 실행할 때는 루트 `.env`를 먼저 셸에 불러옵니다.
+저장소 루트 `.env` 또는 `lam-api/.env.local`에 설정한 `DATABASE_URL`, 토스플레이스, YouTube, Supabase Realtime 등의 API 환경변수는 `go run`으로 직접 실행한 `lam-api`가 자동으로 읽습니다. 셸이나 Cloud Run에서 주입한 값이 있으면 그 값이 우선하며, `DATABASE_URL`이 어디에도 없을 때만 로컬 PostgreSQL을 사용합니다.
 
 ```bash
 cd lam-api
-set -a
-source ../.env
-set +a
 go run ./cmd/server
 ```
 

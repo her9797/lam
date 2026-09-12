@@ -30,7 +30,7 @@ func (f *fakeCatalogRepository) SyncTossCatalog(_ context.Context, items []store
 func TestSyncMapsPOSCategoriesToCustomerCategories(t *testing.T) {
 	repository := &fakeCatalogRepository{}
 	syncer := New(fakeCatalogClient{items: []tossplace.CatalogItem{
-		{ID: "1", Title: "얼그레이하이볼", Category: tossplace.CatalogCategory{Title: "1%~7%"}, Price: tossplace.CatalogPrice{Type: "FIXED", Value: 10000}, State: "ON_SALE", Enabled: true},
+		{ID: "1", Title: "얼그레이하이볼", ImageURL: "https://cdn.example.com/item.png", Category: tossplace.CatalogCategory{Title: "1%~7%"}, Price: tossplace.CatalogPrice{Type: "FIXED", Value: 10000}, State: "ON_SALE", Enabled: true, Options: []tossplace.CatalogOption{{ID: "option-1", Title: "샷", Enabled: true, Choices: []tossplace.CatalogOptionChoice{{ID: "choice-1", Title: "추가", Enabled: true, State: "ON_SALE", PriceValue: 500}}}}},
 		{ID: "2", Title: "제임슨", Category: tossplace.CatalogCategory{Title: "블렌디드 위스키"}, Price: tossplace.CatalogPrice{Type: "FIXED", Value: 9000}, State: "ON_SALE", Enabled: true},
 		{ID: "3", Title: "셜리템플", Category: tossplace.CatalogCategory{Title: "논알콜"}, Price: tossplace.CatalogPrice{Type: "FIXED", Value: 0}, State: "ON_SALE", Enabled: true},
 		{ID: "4", Title: "진토닉", Category: tossplace.CatalogCategory{Title: "8%~19%"}, Price: tossplace.CatalogPrice{Type: "FIXED", Value: 10000}, State: "SOLD_OUT", Enabled: true},
@@ -41,6 +41,9 @@ func TestSyncMapsPOSCategoriesToCustomerCategories(t *testing.T) {
 	}
 	if got := repository.items[0].CategoryID; got != "highball" {
 		t.Fatalf("highball category = %q", got)
+	}
+	if repository.items[0].ImageURL != "https://cdn.example.com/item.png" || len(repository.items[0].Options) != 1 || repository.items[0].Options[0].Choices[0].PriceValue != 500 {
+		t.Fatalf("catalog media/options = %+v", repository.items[0])
 	}
 	if got := repository.items[1].CategoryID; got != "whisky" {
 		t.Fatalf("whisky category = %q", got)

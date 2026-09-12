@@ -48,14 +48,33 @@ func (s *Syncer) Sync(ctx context.Context) (store.TossCatalogSyncResult, error) 
 
 	mapped := make([]store.TossCatalogItem, 0, len(items))
 	for _, item := range items {
+		options := make([]store.TossCatalogOption, 0, len(item.Options))
+		for _, option := range item.Options {
+			choices := make([]store.TossCatalogOptionChoice, 0, len(option.Choices))
+			for _, choice := range option.Choices {
+				choices = append(choices, store.TossCatalogOptionChoice{
+					ID: choice.ID, Title: choice.Title, PriceValue: choice.PriceValue,
+					ImageURL: choice.ImageURL, Enabled: choice.Enabled, State: choice.State,
+					SortOrder: choice.Order, QuantityEnabled: choice.QuantityEnabled,
+					MinQuantity: choice.MinQuantity, MaxQuantity: choice.MaxQuantity,
+				})
+			}
+			options = append(options, store.TossCatalogOption{
+				ID: option.ID, Title: option.Title, Enabled: option.Enabled,
+				SortOrder: option.Order, Required: option.Required,
+				MinChoices: option.MinChoices, MaxChoices: option.MaxChoices, Choices: choices,
+			})
+		}
 		mapped = append(mapped, store.TossCatalogItem{
 			ID:          item.ID,
 			Name:        item.Title,
 			Description: item.Description,
+			ImageURL:    item.ImageURL,
 			CategoryID:  customerCategoryID(item),
 			Price:       item.Price.Value,
 			IsVisible:   item.Enabled && item.State == "ON_SALE" && item.Price.Type == "FIXED" && item.Price.Value > 0,
 			SortOrder:   item.Order,
+			Options:     options,
 		})
 	}
 
