@@ -705,7 +705,8 @@ describe("MenuManagementPage", () => {
       render(<MenuManagementPage />);
 
       expect(screen.getByText("총 11건")).toBeInTheDocument();
-      expect(screen.getByText("1 / 2")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "1페이지" })).toHaveAttribute("aria-current", "page");
+      expect(screen.getByRole("button", { name: "2페이지" })).toBeInTheDocument();
       expect(screen.getByText("메뉴 00")).toBeInTheDocument();
       expect(screen.queryByText("메뉴 10")).not.toBeInTheDocument();
 
@@ -728,7 +729,7 @@ describe("MenuManagementPage", () => {
 
       render(<MenuManagementPage />);
 
-      expect(screen.getByText("2 / 2")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "2페이지" })).toHaveAttribute("aria-current", "page");
       expect(screen.getByText("메뉴 10")).toBeInTheDocument();
       expect(screen.queryByText("메뉴 00")).not.toBeInTheDocument();
     });
@@ -746,7 +747,8 @@ describe("MenuManagementPage", () => {
 
       render(<MenuManagementPage />);
 
-      expect(screen.getByText("1 / 3")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "1페이지" })).toHaveAttribute("aria-current", "page");
+      expect(screen.getByRole("button", { name: "3페이지" })).toBeInTheDocument();
 
       fireEvent.change(screen.getByRole("combobox", { name: "페이지당 개수" }), {
         target: { value: "30" },
@@ -769,7 +771,7 @@ describe("MenuManagementPage", () => {
 
       render(<MenuManagementPage />);
 
-      expect(screen.getByText("1 / 1")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "1페이지" })).toHaveAttribute("aria-current", "page");
       expect(screen.getByText("메뉴 00")).toBeInTheDocument();
       expect(screen.getByText("메뉴 24")).toBeInTheDocument();
     });
