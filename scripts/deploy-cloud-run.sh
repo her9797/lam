@@ -63,14 +63,14 @@ API_REGION="${CLOUD_RUN_API_REGION:-asia-northeast3}"
 WEB_REGION="${CLOUD_RUN_WEB_REGION:-asia-northeast1}"
 ADMIN_WEB_REGION="${CLOUD_RUN_ADMIN_WEB_REGION:-asia-northeast3}"
 WEB_DOMAIN="${CLOUD_RUN_WEB_DOMAIN-www.barlaam.store}"
-WEB_SERVICE_ACCOUNT="${CLOUD_RUN_WEB_SERVICE_ACCOUNT:-lam-cloud-run@${PROJECT_ID}.iam.gserviceaccount.com}"
+CLOUD_RUN_SERVICE_ACCOUNT="${CLOUD_RUN_SERVICE_ACCOUNT:-${CLOUD_RUN_WEB_SERVICE_ACCOUNT:-lam-cloud-run@${PROJECT_ID}.iam.gserviceaccount.com}}"
 NEXT_PUBLIC_SUPABASE_URL="${CLOUD_RUN_NEXT_PUBLIC_SUPABASE_URL:-https://escntlunkvcoiylczijh.supabase.co}"
 NEXT_PUBLIC_SUPABASE_ANON_KEY="${CLOUD_RUN_NEXT_PUBLIC_SUPABASE_ANON_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzY250bHVua3Zjb2l5bGN6aWpoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgyODEyODUsImV4cCI6MjEwMzg1NzI4NX0.MSZoTACZWK_6wGEPFPbYe3Umz0ECnsG6ztoKM_bEZ0E}"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 deploy_api() {
   local api_secrets
-  api_secrets="DATABASE_URL=lam-database-url:latest,ADMIN_API_TOKEN=lam-admin-api-token:latest,SUPABASE_BROADCAST_KEY=lam-supabase-secret-key:latest,SUPABASE_URL=lam-supabase-url:latest"
+  api_secrets="DATABASE_URL=lam-database-url:latest,ADMIN_API_TOKEN=lam-admin-api-token:latest,PAYMENT_API_TOKEN=lam-payment-api-token:latest,SUPABASE_BROADCAST_KEY=lam-supabase-secret-key:latest,SUPABASE_URL=lam-supabase-url:latest,TOSS_PLACE_ACCESS_KEY=lam-toss-place-access-key:latest,TOSS_PLACE_SECRET_KEY=lam-toss-place-secret-key:latest,TOSS_PLACE_MERCHANT_ID=lam-toss-place-merchant-id:latest"
   if "$GCLOUD" secrets describe lam-youtube-api-key --project="$PROJECT_ID" >/dev/null 2>&1; then
     api_secrets+=",YOUTUBE_API_KEY=lam-youtube-api-key:latest"
   else
@@ -81,6 +81,7 @@ deploy_api() {
     --project="$PROJECT_ID" \
     --source="$ROOT_DIR/lam-api" \
     --region="$API_REGION" \
+    --service-account="$CLOUD_RUN_SERVICE_ACCOUNT" \
     --allow-unauthenticated \
     --min-instances=0 \
     --max-instances=1 \
@@ -102,7 +103,7 @@ deploy_web() {
     --project="$PROJECT_ID" \
     --source="$ROOT_DIR/lam-web" \
     --region="$WEB_REGION" \
-    --service-account="$WEB_SERVICE_ACCOUNT" \
+    --service-account="$CLOUD_RUN_SERVICE_ACCOUNT" \
     --allow-unauthenticated \
     --min-instances=0 \
     --max-instances=1 \
@@ -166,6 +167,7 @@ deploy_admin() {
     --project="$PROJECT_ID" \
     --source="$ROOT_DIR/lam-admin-web" \
     --region="$ADMIN_WEB_REGION" \
+    --service-account="$CLOUD_RUN_SERVICE_ACCOUNT" \
     --allow-unauthenticated \
     --min-instances=0 \
     --max-instances=1 \

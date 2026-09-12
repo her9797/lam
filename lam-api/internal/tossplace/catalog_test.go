@@ -25,8 +25,10 @@ func TestClientListCatalogItems(t *testing.T) {
 				"id":"item-1",
 				"title":"얼그레이하이볼",
 				"description":"티 향",
+				"imageUrl":"https://cdn.example.com/earlgrey.png",
 				"category":{"id":"category-1","title":"1%~7%"},
 				"price":{"title":"기본","priceType":"FIXED","priceUnit":1,"priceValue":10000},
+				"options":[{"id":"option-1","title":"샷","enabled":true,"order":1,"required":false,"minChoices":1,"maxChoices":2,"choices":[{"id":"choice-1","optionId":"option-1","title":"샷 추가","state":"ON_SALE","enabled":true,"order":1,"priceValue":500,"imageUrl":"https://cdn.example.com/shot.png","quantityEnabled":true,"minQuantity":1,"maxQuantity":3}]}],
 				"state":"ON_SALE",
 				"enabled":true,
 				"order":3
@@ -42,5 +44,8 @@ func TestClientListCatalogItems(t *testing.T) {
 	}
 	if len(items) != 1 || items[0].ID != "item-1" || items[0].Price.Value != 10000 || items[0].Category.Title != "1%~7%" {
 		t.Fatalf("items = %+v", items)
+	}
+	if items[0].ImageURL != "https://cdn.example.com/earlgrey.png" || len(items[0].Options) != 1 || items[0].Options[0].Choices[0].PriceValue != 500 {
+		t.Fatalf("catalog media/options = %+v", items[0])
 	}
 }

@@ -106,6 +106,7 @@ export function normalizeAppDataImages(appData: AppData): AppData {
     store: normalizeStoreInfo(appData.store),
     items: appData.items.map((item) => ({
       ...item,
+      imageUrl: item.imageUrl ? normalizeImageUrl(item.imageUrl) : item.imageUrl,
       images: normalizeMenuImages(item.images),
     })),
   };

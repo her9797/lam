@@ -4,6 +4,7 @@ import { useEffect, useId, useState } from "react";
 
 import type { MenuItem } from "@/data/menu-data";
 import { getMenuItemDetail } from "@/lib/menu-item-detail";
+import { getMenuOrderTotal, parseWonPrice, validateMenuOptionSelection, type MenuOptionSelection } from "@/lib/menu-options";
 import { getStoredTableNumber } from "@/lib/table-session";
 import { createOrder } from "@/services/order-service";
 
@@ -18,6 +19,7 @@ export function MenuItemCard({ item, imageArea = "menu" }: MenuItemCardProps) {
   const [orderError, setOrderError] = useState("");
   const [isOrderComplete, setIsOrderComplete] = useState(false);
   const [requestNote, setRequestNote] = useState("");
+  const [selectedChoices, setSelectedChoices] = useState<MenuOptionSelection>({});
   const titleId = useId();
   const descriptionId = useId();
   const detail = getMenuItemDetail(item);
@@ -30,6 +32,9 @@ export function MenuItemCard({ item, imageArea = "menu" }: MenuItemCardProps) {
       : item.images;
   const candidateImages = preferredImages?.length ? preferredImages : fallbackImages;
   const primaryImage = candidateImages?.find((image) => image.isPrimary) ?? candidateImages?.[0];
+  const displayImageURL = item.imageUrl || primaryImage?.contentUrl;
+  const options = item.options ?? [];
+  const totalAmount = getMenuOrderTotal(parseWonPrice(item.price), options, selectedChoices);
 
   useEffect(() => {
     if (!isOpen) {
@@ -55,11 +60,26 @@ export function MenuItemCard({ item, imageArea = "menu" }: MenuItemCardProps) {
   async function handleOrder() {
     setIsOrdering(true);
     setOrderError("");
+    const validationError = validateMenuOptionSelection(options, selectedChoices);
+    if (validationError) {
+      setOrderError(validationError);
+      setIsOrdering(false);
+      return;
+    }
     try {
       await createOrder({
         menuItemId: item.id,
         tableNumber: getStoredTableNumber(),
         requestNote,
+        optionChoices: options.flatMap((option) =>
+          option.choices
+            .filter((choice) => (selectedChoices[choice.id] ?? 0) > 0)
+            .map((choice) => ({
+              optionId: option.id,
+              optionChoiceId: choice.id,
+              quantity: selectedChoices[choice.id],
+            })),
+        ),
       });
       setIsOrderComplete(true);
     } catch (error) {
@@ -73,7 +93,26 @@ export function MenuItemCard({ item, imageArea = "menu" }: MenuItemCardProps) {
     setOrderError("");
     setIsOrderComplete(false);
     setRequestNote("");
+    setSelectedChoices({});
     setIsOpen(true);
+  }
+
+  function selectChoice(optionId: string, choiceId: string, maxChoices: number, checked: boolean) {
+    setSelectedChoices((current) => {
+      const next = { ...current };
+      const option = options.find((candidate) => candidate.id === optionId);
+      if (maxChoices === 1 && option) {
+        for (const choice of option.choices) {
+          delete next[choice.id];
+        }
+      }
+      if (checked) {
+        next[choiceId] = 1;
+      } else {
+        delete next[choiceId];
+      }
+      return next;
+    });
   }
 
   return (
@@ -85,12 +124,12 @@ export function MenuItemCard({ item, imageArea = "menu" }: MenuItemCardProps) {
         onClick={openDetail}
       >
         <div className="menu-icon">
-          {primaryImage ? (
+          {displayImageURL ? (
             <img
-              src={primaryImage.contentUrl}
+              src={displayImageURL}
               alt={item.name}
               className="menu-icon-image"
-              style={{ objectPosition: `${primaryImage.focusX}% ${primaryImage.focusY}%` }}
+              style={!item.imageUrl && primaryImage ? { objectPosition: `${primaryImage.focusX}% ${primaryImage.focusY}%` } : undefined}
             />
           ) : (
             item.name.slice(0, 1)
@@ -128,10 +167,81 @@ export function MenuItemCard({ item, imageArea = "menu" }: MenuItemCardProps) {
           >
             <p className="section-kicker">menu detail</p>
             <h2 id={titleId}>{detail.name}</h2>
-            <p className="menu-detail-price">{detail.price}</p>
+            <p className="menu-detail-price">
+              {totalAmount > 0 ? `${new Intl.NumberFormat("ko-KR").format(totalAmount)}원` : detail.price}
+            </p>
             <p className="menu-detail-description" id={descriptionId}>
               {detail.description || "메뉴 설명이 준비 중입니다."}
             </p>
+            {!isOrderComplete && options.length > 0 ? (
+              <div className="menu-detail-options">
+                {options.map((option) => {
+                  const isSingle = option.maxChoices === 1;
+                  return (
+                    <fieldset className="menu-option-group" key={option.id}>
+                      <legend>
+                        {option.title}
+                        <span>{option.required ? "필수" : "선택"}</span>
+                      </legend>
+                      {!option.required && isSingle ? (
+                        <label className="menu-option-choice">
+                          <input
+                            type="radio"
+                            name={`option-${option.id}`}
+                            checked={!option.choices.some((choice) => (selectedChoices[choice.id] ?? 0) > 0)}
+                            onChange={() => {
+                              setSelectedChoices((current) => {
+                                const next = { ...current };
+                                for (const choice of option.choices) {
+                                  delete next[choice.id];
+                                }
+                                return next;
+                              });
+                            }}
+                          />
+                          <span>선택 안 함</span>
+                        </label>
+                      ) : null}
+                      {option.choices.map((choice) => {
+                        const quantity = selectedChoices[choice.id] ?? 0;
+                        return (
+                          <div className="menu-option-choice-row" key={choice.id}>
+                            <label className="menu-option-choice">
+                              <input
+                                type={isSingle ? "radio" : "checkbox"}
+                                name={`option-${option.id}`}
+                                checked={quantity > 0}
+                                onChange={(event) => selectChoice(option.id, choice.id, option.maxChoices, event.target.checked)}
+                              />
+                              <span>{choice.title}</span>
+                              <small>{choice.priceValue > 0 ? `+${choice.priceValue.toLocaleString("ko-KR")}원` : "추가금 없음"}</small>
+                            </label>
+                            {quantity > 0 && choice.quantityEnabled ? (
+                              <input
+                                className="menu-option-quantity"
+                                type="number"
+                                aria-label={`${choice.title} 수량`}
+                                min={choice.minQuantity}
+                                max={choice.maxQuantity}
+                                value={quantity}
+                                onChange={(event) => {
+                                  const parsed = Number(event.target.value);
+                                  if (!Number.isFinite(parsed)) {
+                                    return;
+                                  }
+                                  const value = Math.max(choice.minQuantity, Math.min(choice.maxQuantity, parsed));
+                                  setSelectedChoices((current) => ({ ...current, [choice.id]: value }));
+                                }}
+                              />
+                            ) : null}
+                          </div>
+                        );
+                      })}
+                    </fieldset>
+                  );
+                })}
+              </div>
+            ) : null}
             {!isOrderComplete ? (
               <label className="request-compose-field menu-detail-request-field">
                 <span>요청사항 (선택)</span>

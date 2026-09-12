@@ -16,15 +16,36 @@ type MenuCategory struct {
 }
 
 type MenuItem struct {
-	ID          string      `json:"id"`
-	CategoryID  string      `json:"categoryId"`
-	Badge       string      `json:"badge,omitempty"`
-	BadgeColor  string      `json:"badgeColor,omitempty"`
-	Name        string      `json:"name"`
-	Description string      `json:"description"`
-	Price       string      `json:"price"`
-	IsVisible   bool        `json:"isVisible"`
-	Images      []MenuImage `json:"images,omitempty"`
+	ID          string       `json:"id"`
+	CategoryID  string       `json:"categoryId"`
+	Badge       string       `json:"badge,omitempty"`
+	BadgeColor  string       `json:"badgeColor,omitempty"`
+	Name        string       `json:"name"`
+	Description string       `json:"description"`
+	Price       string       `json:"price"`
+	ImageURL    string       `json:"imageUrl,omitempty"`
+	IsVisible   bool         `json:"isVisible"`
+	Images      []MenuImage  `json:"images,omitempty"`
+	Options     []MenuOption `json:"options,omitempty"`
+}
+
+type MenuOption struct {
+	ID         string             `json:"id"`
+	Title      string             `json:"title"`
+	Required   bool               `json:"required"`
+	MinChoices int                `json:"minChoices"`
+	MaxChoices int                `json:"maxChoices"`
+	Choices    []MenuOptionChoice `json:"choices"`
+}
+
+type MenuOptionChoice struct {
+	ID              string `json:"id"`
+	Title           string `json:"title"`
+	PriceValue      int64  `json:"priceValue"`
+	ImageURL        string `json:"imageUrl,omitempty"`
+	QuantityEnabled bool   `json:"quantityEnabled"`
+	MinQuantity     int64  `json:"minQuantity"`
+	MaxQuantity     int64  `json:"maxQuantity"`
 }
 
 type MenuImage struct {
