@@ -105,6 +105,14 @@ describe("OrderDetailPage", () => {
     expect(screen.getByText("얼음은 적게 주세요")).toBeInTheDocument();
   });
 
+  it("renders a CANCELLED order's status label", () => {
+    mockQuery({ data: { ...ORDER, status: "CANCELLED" } });
+
+    render(<OrderDetailPage orderId="order-1" />);
+
+    expect(screen.getByText("취소됨")).toBeInTheDocument();
+  });
+
   it("navigates back via router history when the back link is clicked", () => {
     render(<OrderDetailPage orderId="order-1" />);
 

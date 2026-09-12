@@ -20,6 +20,7 @@ import { useOrderQuery } from "./queries";
 const STATUS_LABEL_KEY: Record<PaymentOrderStatus, string> = {
   READY: "statusReady",
   DONE: "statusDone",
+  CANCELLED: "statusCancelled",
 };
 
 const POS_SYNC_LABEL_KEY: Record<PaymentOrderPosSyncStatus, string> = {
