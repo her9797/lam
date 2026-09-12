@@ -22,7 +22,7 @@ func TestRepositorySyncTossCatalogPreservesMetadataAndHidesUnavailableItems(t *t
 	}
 
 	result, err := repo.SyncTossCatalog(ctx, []TossCatalogItem{
-		{ID: "pos-earlgrey", Name: "얼그레이하이볼", Description: "토스 설명", CategoryID: "highball", Price: 10000, IsVisible: true, SortOrder: 3},
+		{ID: "pos-earlgrey", Name: "얼그레이하이볼", Description: "토스 설명", ImageURL: "https://cdn.example.com/earlgrey.png", CategoryID: "highball", Price: 10000, IsVisible: true, SortOrder: 3, Options: []TossCatalogOption{{ID: "option-shot", Title: "샷", Enabled: true, Required: false, MinChoices: 1, MaxChoices: 1, Choices: []TossCatalogOptionChoice{{ID: "choice-shot", Title: "샷 추가", PriceValue: 500, Enabled: true, State: "ON_SALE", MinQuantity: 1, MaxQuantity: 1}}}}},
 		{ID: "pos-whisky", Name: "제임슨", CategoryID: "whisky", Price: 9000, IsVisible: true, SortOrder: 4},
 		{ID: "pos-zero", Name: "신데렐라", CategoryID: "non-alcohol", Price: 0, IsVisible: false, SortOrder: 5},
 	})
@@ -40,6 +40,21 @@ func TestRepositorySyncTossCatalogPreservesMetadataAndHidesUnavailableItems(t *t
 	}
 	if description != "기존 설명" || badge != "best" || price != "10,000원" || !visible || tossID != "pos-earlgrey" {
 		t.Fatalf("matched item = description:%q badge:%q price:%q visible:%v tossID:%q", description, badge, price, visible, tossID)
+	}
+	var imageURL, optionTitle, choiceTitle string
+	var choicePrice int64
+	if err := testPool.QueryRow(ctx, `
+		SELECT mi.toss_image_url, mo.title, moc.title, moc.price_value
+		FROM menu_items mi
+		JOIN menu_item_options mio ON mio.menu_item_id = mi.id
+		JOIN menu_options mo ON mo.id = mio.option_id
+		JOIN menu_option_choices moc ON moc.option_id = mo.id
+		WHERE mi.id = 'earlgrey'
+	`).Scan(&imageURL, &optionTitle, &choiceTitle, &choicePrice); err != nil {
+		t.Fatalf("read synchronized option/image: %v", err)
+	}
+	if imageURL != "https://cdn.example.com/earlgrey.png" || optionTitle != "샷" || choiceTitle != "샷 추가" || choicePrice != 500 {
+		t.Fatalf("synced image/options = %q %q %q %d", imageURL, optionTitle, choiceTitle, choicePrice)
 	}
 	if err := testPool.QueryRow(ctx, `SELECT is_visible FROM menu_items WHERE id = 'local-only'`).Scan(&visible); err != nil || visible {
 		t.Fatalf("local-only visible=%v err=%v, want false", visible, err)

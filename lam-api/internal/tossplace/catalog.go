@@ -21,12 +21,39 @@ type CatalogPrice struct {
 	Value int64  `json:"priceValue"`
 }
 
+type CatalogOptionChoice struct {
+	ID              string `json:"id"`
+	OptionID        string `json:"optionId"`
+	Title           string `json:"title"`
+	State           string `json:"state"`
+	Enabled         bool   `json:"enabled"`
+	Order           int    `json:"order"`
+	PriceValue      int64  `json:"priceValue"`
+	ImageURL        string `json:"imageUrl"`
+	QuantityEnabled bool   `json:"quantityEnabled"`
+	MinQuantity     int64  `json:"minQuantity"`
+	MaxQuantity     int64  `json:"maxQuantity"`
+}
+
+type CatalogOption struct {
+	ID         string                `json:"id"`
+	Title      string                `json:"title"`
+	Enabled    bool                  `json:"enabled"`
+	Order      int                   `json:"order"`
+	Choices    []CatalogOptionChoice `json:"choices"`
+	Required   bool                  `json:"required"`
+	MinChoices int                   `json:"minChoices"`
+	MaxChoices int                   `json:"maxChoices"`
+}
+
 type CatalogItem struct {
 	ID          string          `json:"id"`
 	Title       string          `json:"title"`
 	Description string          `json:"description"`
+	ImageURL    string          `json:"imageUrl"`
 	Category    CatalogCategory `json:"category"`
 	Price       CatalogPrice    `json:"price"`
+	Options     []CatalogOption `json:"options"`
 	State       string          `json:"state"`
 	Enabled     bool            `json:"enabled"`
 	Order       int             `json:"order"`
