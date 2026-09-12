@@ -8,12 +8,73 @@ import { Pagination } from "./Pagination";
 afterEach(cleanup);
 
 describe("Pagination", () => {
-  it("shows the current/last page", () => {
+  it("shows every page when the page count is five or fewer", () => {
     render(
       <Pagination page={2} pageSize={20} total={45} onPageChange={vi.fn()} onPageSizeChange={vi.fn()} />,
     );
 
-    expect(screen.getByText("2 / 3")).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /^\d+페이지$/ }).map((button) => button.textContent)).toEqual([
+      "1",
+      "2",
+      "3",
+    ]);
+    expect(screen.getByRole("button", { name: "2페이지" })).toHaveAttribute("aria-current", "page");
+  });
+
+  it("shows five consecutive pages centered on the current page", () => {
+    render(
+      <Pagination page={5} pageSize={10} total={100} onPageChange={vi.fn()} onPageSizeChange={vi.fn()} />,
+    );
+
+    expect(screen.getAllByRole("button", { name: /^\d+페이지$/ }).map((button) => button.textContent)).toEqual([
+      "3",
+      "4",
+      "5",
+      "6",
+      "7",
+    ]);
+    expect(screen.getAllByText("…")).toHaveLength(2);
+  });
+
+  it("keeps five pages visible at the beginning and end", () => {
+    const { rerender } = render(
+      <Pagination page={2} pageSize={10} total={100} onPageChange={vi.fn()} onPageSizeChange={vi.fn()} />,
+    );
+
+    expect(screen.getAllByRole("button", { name: /^\d+페이지$/ }).map((button) => button.textContent)).toEqual([
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+    ]);
+    expect(screen.getAllByText("…")).toHaveLength(1);
+
+    rerender(
+      <Pagination page={9} pageSize={10} total={100} onPageChange={vi.fn()} onPageSizeChange={vi.fn()} />,
+    );
+
+    expect(screen.getAllByRole("button", { name: /^\d+페이지$/ }).map((button) => button.textContent)).toEqual([
+      "6",
+      "7",
+      "8",
+      "9",
+      "10",
+    ]);
+    expect(screen.getAllByText("…")).toHaveLength(1);
+  });
+
+  it("moves directly to the first, numbered, and last page", () => {
+    const onPageChange = vi.fn();
+    render(
+      <Pagination page={5} pageSize={10} total={100} onPageChange={onPageChange} onPageSizeChange={vi.fn()} />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "첫 페이지" }));
+    fireEvent.click(screen.getByRole("button", { name: "7페이지" }));
+    fireEvent.click(screen.getByRole("button", { name: "마지막 페이지" }));
+
+    expect(onPageChange.mock.calls).toEqual([[1], [7], [10]]);
   });
 
   it("disables the previous button on the first page", () => {
@@ -22,6 +83,7 @@ describe("Pagination", () => {
     );
 
     expect(screen.getByRole("button", { name: "이전" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "첫 페이지" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "다음" })).not.toBeDisabled();
   });
 
@@ -31,6 +93,7 @@ describe("Pagination", () => {
     );
 
     expect(screen.getByRole("button", { name: "다음" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "마지막 페이지" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "이전" })).not.toBeDisabled();
   });
 
@@ -58,7 +121,7 @@ describe("Pagination", () => {
       <Pagination page={1} pageSize={20} total={0} onPageChange={vi.fn()} onPageSizeChange={vi.fn()} />,
     );
 
-    expect(screen.getByText("1 / 1")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "1페이지" })).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("button", { name: "다음" })).toBeDisabled();
   });
 

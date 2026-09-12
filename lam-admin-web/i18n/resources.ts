@@ -77,7 +77,10 @@ export const ko = {
     listTotalCount: "총 {{count}}건",
     listPrevPage: "이전",
     listNextPage: "다음",
-    listPageIndicator: "{{page}} / {{pageCount}}",
+    listFirstPage: "첫 페이지",
+    listLastPage: "마지막 페이지",
+    listPageLabel: "{{page}}페이지",
+    listPageNavigation: "페이지 탐색",
     listPageSizeLabel: "페이지당 개수",
   },
   auth: {
@@ -496,7 +499,10 @@ export const en = {
     listTotalCount: "{{count}} total",
     listPrevPage: "Previous",
     listNextPage: "Next",
-    listPageIndicator: "{{page}} / {{pageCount}}",
+    listFirstPage: "First page",
+    listLastPage: "Last page",
+    listPageLabel: "Page {{page}}",
+    listPageNavigation: "Pagination",
     listPageSizeLabel: "Per page",
   },
   auth: {

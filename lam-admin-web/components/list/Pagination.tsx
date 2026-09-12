@@ -4,11 +4,34 @@ import "@/i18n/client";
 
 import { useTranslation } from "react-i18next";
 
-import { RiArrowDownSLine } from "@remixicon/react";
+import {
+  RiArrowDownSLine,
+  RiArrowLeftDoubleLine,
+  RiArrowLeftSLine,
+  RiArrowRightDoubleLine,
+  RiArrowRightSLine,
+} from "@remixicon/react";
 
 import { Button } from "@/components/ui/button";
 
 export const PAGE_SIZE_OPTIONS = [10, 20, 30] as const;
+
+type PageItem = number | "ellipsis-start" | "ellipsis-end";
+
+function getPageItems(page: number, pageCount: number): PageItem[] {
+  if (pageCount <= 5) {
+    return Array.from({ length: pageCount }, (_, index) => index + 1);
+  }
+
+  const startPage = Math.min(Math.max(page - 2, 1), pageCount - 4);
+  const pages = Array.from({ length: 5 }, (_, index) => startPage + index);
+
+  return [
+    ...(startPage > 1 ? (["ellipsis-start"] as const) : []),
+    ...pages,
+    ...(startPage + 4 < pageCount ? (["ellipsis-end"] as const) : []),
+  ];
+}
 
 export function Pagination({
   page,
@@ -25,6 +48,8 @@ export function Pagination({
 }) {
   const { t } = useTranslation("common");
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
+  const currentPage = Math.min(Math.max(page, 1), pageCount);
+  const pageItems = getPageItems(currentPage, pageCount);
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
@@ -43,27 +68,71 @@ export function Pagination({
         </select>
         <RiArrowDownSLine className="pointer-events-none absolute right-2 size-4 text-muted-foreground" />
       </div>
-      <div className="flex items-center gap-2">
+      <nav aria-label={t("listPageNavigation")} className="flex max-w-full items-center gap-1 overflow-x-auto">
         <Button
           type="button"
-          size="sm"
-          variant="outline"
-          disabled={page <= 1}
-          onClick={() => onPageChange(page - 1)}
+          size="icon-sm"
+          variant="ghost"
+          aria-label={t("listFirstPage")}
+          title={t("listFirstPage")}
+          disabled={currentPage <= 1}
+          onClick={() => onPageChange(1)}
         >
-          {t("listPrevPage")}
+          <RiArrowLeftDoubleLine data-icon="inline-start" aria-hidden="true" />
         </Button>
-        <span>{t("listPageIndicator", { page, pageCount })}</span>
         <Button
           type="button"
-          size="sm"
-          variant="outline"
-          disabled={page >= pageCount}
-          onClick={() => onPageChange(page + 1)}
+          size="icon-sm"
+          variant="ghost"
+          aria-label={t("listPrevPage")}
+          title={t("listPrevPage")}
+          disabled={currentPage <= 1}
+          onClick={() => onPageChange(currentPage - 1)}
         >
-          {t("listNextPage")}
+          <RiArrowLeftSLine data-icon="inline-start" aria-hidden="true" />
         </Button>
-      </div>
+        {pageItems.map((item) =>
+          typeof item === "number" ? (
+            <Button
+              key={item}
+              type="button"
+              size="icon-sm"
+              variant={item === currentPage ? "default" : "ghost"}
+              aria-current={item === currentPage ? "page" : undefined}
+              aria-label={t("listPageLabel", { page: item })}
+              onClick={() => onPageChange(item)}
+            >
+              {item}
+            </Button>
+          ) : (
+            <span key={item} aria-hidden="true" className="inline-flex size-8 items-center justify-center">
+              …
+            </span>
+          ),
+        )}
+        <Button
+          type="button"
+          size="icon-sm"
+          variant="ghost"
+          aria-label={t("listNextPage")}
+          title={t("listNextPage")}
+          disabled={currentPage >= pageCount}
+          onClick={() => onPageChange(currentPage + 1)}
+        >
+          <RiArrowRightSLine data-icon="inline-end" aria-hidden="true" />
+        </Button>
+        <Button
+          type="button"
+          size="icon-sm"
+          variant="ghost"
+          aria-label={t("listLastPage")}
+          title={t("listLastPage")}
+          disabled={currentPage >= pageCount}
+          onClick={() => onPageChange(pageCount)}
+        >
+          <RiArrowRightDoubleLine data-icon="inline-end" aria-hidden="true" />
+        </Button>
+      </nav>
     </div>
   );
 }
