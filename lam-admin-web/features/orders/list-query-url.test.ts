@@ -48,6 +48,11 @@ describe("parseOrderListQuery", () => {
     expect(query.status).toBe("CANCELLED");
   });
 
+  it("accepts status=ACKNOWLEDGED as a valid status filter", () => {
+    const query = parseOrderListQuery(new URLSearchParams("status=ACKNOWLEDGED"));
+    expect(query.status).toBe("ACKNOWLEDGED");
+  });
+
   it("falls back to defaults for unrecognized enum values", () => {
     const query = parseOrderListQuery(
       new URLSearchParams("status=CANCELED&posSync=UNKNOWN&dateFrom=not-a-date&sort=tableNumber&order=random"),

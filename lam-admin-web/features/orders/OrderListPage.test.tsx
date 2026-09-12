@@ -159,7 +159,7 @@ describe("OrderListPage", () => {
     expect(screen.getByText("결제완료")).toBeInTheDocument();
     expect(screen.getByText("6")).toBeInTheDocument();
     expect(screen.getByText("Cider")).toBeInTheDocument();
-    expect(screen.getByText("미결제")).toBeInTheDocument();
+    expect(screen.getByText("주문접수")).toBeInTheDocument();
     expect(screen.getByText("7")).toBeInTheDocument();
     expect(screen.getByText("Wine")).toBeInTheDocument();
     expect(screen.getByText("취소됨")).toBeInTheDocument();
@@ -177,6 +177,17 @@ describe("OrderListPage", () => {
 
     expect(useOrdersPageQueryMock).toHaveBeenCalledWith(
       expect.objectContaining({ status: "CANCELLED" }),
+      true,
+    );
+  });
+
+  it("accepts ACKNOWLEDGED as a status filter from the URL", () => {
+    currentSearchParams = new URLSearchParams("dateFrom=2026-01-01&dateTo=2026-01-10&status=ACKNOWLEDGED");
+
+    render(<OrderListPage />);
+
+    expect(useOrdersPageQueryMock).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "ACKNOWLEDGED" }),
       true,
     );
   });
