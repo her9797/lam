@@ -69,8 +69,9 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY="${CLOUD_RUN_NEXT_PUBLIC_SUPABASE_ANON_KEY:-eyJhbG
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 deploy_api() {
+  local customer_web_base_url="$1"
   local api_secrets
-  api_secrets="DATABASE_URL=lam-database-url:latest,ADMIN_API_TOKEN=lam-admin-api-token:latest,SUPABASE_BROADCAST_KEY=lam-supabase-secret-key:latest,SUPABASE_URL=lam-supabase-url:latest"
+  api_secrets="DATABASE_URL=lam-database-url:latest,ADMIN_API_TOKEN=lam-admin-api-token:latest,SUPABASE_BROADCAST_KEY=lam-supabase-secret-key:latest,SUPABASE_URL=lam-supabase-url:latest,QR_SIGNING_SECRET=lam-qr-signing-secret:latest"
   if "$GCLOUD" secrets describe lam-youtube-api-key --project="$PROJECT_ID" >/dev/null 2>&1; then
     api_secrets+=",YOUTUBE_API_KEY=lam-youtube-api-key:latest"
   else
@@ -85,7 +86,7 @@ deploy_api() {
     --min-instances=0 \
     --max-instances=1 \
     --set-secrets="$api_secrets" \
-    --set-env-vars='ALLOWED_ORIGIN=*' \
+    --set-env-vars="ALLOWED_ORIGIN=*,CUSTOMER_WEB_BASE_URL=$customer_web_base_url" \
     --quiet
 }
 
@@ -94,6 +95,13 @@ get_api_base_url() {
     --project="$PROJECT_ID" \
     --region="$API_REGION" \
     --format='value(status.url)'
+}
+
+get_web_base_url() {
+  "$GCLOUD" run services describe lam-web \
+    --project="$PROJECT_ID" \
+    --region="$WEB_REGION" \
+    --format='value(status.url)' 2>/dev/null
 }
 
 deploy_web() {
@@ -175,8 +183,22 @@ deploy_admin() {
     --quiet
 }
 
+# lam-api가 발급하는 테이블 QR은 이 주소로 고객 폰 브라우저를 연다. 커스텀 도메인이
+# 설정되어 있으면(기본값) 그 주소를 쓰고, 없으면 이미 존재하는(또는 방금 배포한)
+# lam-web의 Cloud Run URL을 조회한다 — lam-web이 아직 한 번도 배포되지 않았다면
+# 빈 값이 되어 /api/v1/admin/tables가 500을 내니, 이후 lam-web을 배포한 뒤 이
+# 스크립트를 다시 실행해 lam-api를 갱신해야 한다.
+if [[ -n "$WEB_DOMAIN" ]]; then
+  CUSTOMER_WEB_BASE_URL="https://$WEB_DOMAIN"
+else
+  CUSTOMER_WEB_BASE_URL="$(get_web_base_url)"
+  if [[ -z "$CUSTOMER_WEB_BASE_URL" ]]; then
+    printf 'Warning: lam-web is not deployed yet and CLOUD_RUN_WEB_DOMAIN is unset; lam-api will start with an empty CUSTOMER_WEB_BASE_URL and its /api/v1/admin/tables endpoint will 500 until lam-web is deployed and this script is re-run.\n' >&2
+  fi
+fi
+
 if contains api "${SERVICES[@]}"; then
-  deploy_api
+  deploy_api "$CUSTOMER_WEB_BASE_URL"
 fi
 
 # web/admin 배포에는 lam-api URL이 필요하고, api만 배포한 경우도 결과 요약에

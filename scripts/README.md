@@ -37,7 +37,7 @@
    | `lam-payment-api-token` | lam-web (lam-api에 설정된 값과 동일해야 함) |
    | `lam-web-session-secret` | lam-web |
    | `lam-staff-entry-token` | lam-web |
-   | `lam-qr-signing-secret` | lam-web |
+   | `lam-qr-signing-secret` | lam-web, lam-api (두 곳 값이 동일해야 함) |
    | `lam-qr-access-token` | lam-web |
    | `lam-customer-test-entry-token` | lam-web |
    | `lam-admin-web-admin-password` | lam-admin-web |
@@ -64,7 +64,7 @@
 | `CLOUD_RUN_API_REGION` | `asia-northeast3` | lam-api 리전 |
 | `CLOUD_RUN_WEB_REGION` | `asia-northeast1` | lam-web 리전 |
 | `CLOUD_RUN_ADMIN_WEB_REGION` | `asia-northeast1` | lam-admin-web 리전 |
-| `CLOUD_RUN_WEB_DOMAIN` | `www.barlaam.store` | lam-web 커스텀 도메인. 빈 문자열이면 매핑 확인·생성을 생략 |
+| `CLOUD_RUN_WEB_DOMAIN` | `www.barlaam.store` | lam-web 커스텀 도메인. 빈 문자열이면 매핑 확인·생성을 생략하고, lam-api에 넘기는 `CUSTOMER_WEB_BASE_URL`(관리자 테이블 QR이 여는 주소)도 이미 배포된 lam-web의 Cloud Run URL로 대체된다 |
 | `CLOUD_RUN_WEB_SERVICE_ACCOUNT` | `lam-cloud-run@<project>.iam.gserviceaccount.com` | lam-web 실행 서비스 계정 |
 | `CLOUD_RUN_NEXT_PUBLIC_SUPABASE_URL` | 현재 운영 Supabase 프로젝트 URL | lam-admin-web 빌드 시점에 번들에 박히는 값 |
 | `CLOUD_RUN_NEXT_PUBLIC_SUPABASE_ANON_KEY` | 현재 운영 Supabase anon key | 위와 동일. anon/publishable key는 브라우저에 공개되도록 설계된 값이라 스크립트에 기본값으로 두어도 안전하다(RLS로 보호됨) |

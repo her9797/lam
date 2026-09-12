@@ -15,6 +15,7 @@ import {
   RiMegaphoneLine,
   RiMusic2Line,
   RiPlayCircleLine,
+  RiQrCodeLine,
   RiRestaurantLine,
   RiShoppingBag3Line,
   RiShoppingCart2Line,
@@ -101,6 +102,7 @@ const PRODUCT_NAV_GROUP: NavGroup = {
 const NAV_GROUPS: NavGroup[] = [REQUEST_NAV_GROUP, ORDER_NAV_GROUP, PRODUCT_NAV_GROUP];
 
 const BOTTOM_NAV_ITEMS: NavItem[] = [
+  { href: "/tables", labelKey: "navTables", icon: RiQrCodeLine },
   { href: "/notices", labelKey: "navNotices", icon: RiMegaphoneLine },
   { href: "/store-copy", labelKey: "navStoreCopy", icon: RiFileTextLine },
 ];
