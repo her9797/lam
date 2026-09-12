@@ -450,6 +450,9 @@ export const ko = {
     printSheet: "인쇄용 PDF 시트",
     downloadPngFailed: "PNG 다운로드에 실패했습니다.",
     downloadSvgFailed: "SVG 다운로드에 실패했습니다.",
+    copyLink: "링크 복사",
+    linkCopied: "링크를 복사했습니다.",
+    linkCopyFailed: "링크 복사에 실패했습니다.",
   },
 } as const;
 
@@ -879,6 +882,9 @@ export const en = {
     printSheet: "Printable PDF sheet",
     downloadPngFailed: "Could not download the PNG file.",
     downloadSvgFailed: "Could not download the SVG file.",
+    copyLink: "Copy link",
+    linkCopied: "Link copied.",
+    linkCopyFailed: "Could not copy the link.",
   },
 } as const;
 
