@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -653,6 +654,39 @@ func NewMux(repository *store.Repository, cfg config.Config, syncer *catalogsync
 
 	mux.HandleFunc("/api/v1/admin/payment-orders/", withCORS(cfg.AllowedOrigin, func(w http.ResponseWriter, r *http.Request) {
 		if !requireAdminAuth(w, r, cfg.AdminAPIToken) {
+			return
+		}
+
+		if r.Method == http.MethodPatch {
+			id, ok := parseStatusResourceID(r.URL.Path, "/api/v1/admin/payment-orders/")
+			if !ok {
+				http.NotFound(w, r)
+				return
+			}
+
+			var payload updatePaymentOrderStatusRequest
+			if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+				writeError(w, http.StatusBadRequest, err)
+				return
+			}
+
+			// The admin screen may only move an order READY -> ACKNOWLEDGED.
+			// DONE/CANCELLED stay TossPlace-webhook-only (see
+			// store.AcknowledgePaymentOrder's doc comment), so any other
+			// requested status is rejected here before even reaching the
+			// store layer.
+			if strings.TrimSpace(payload.Status) != "ACKNOWLEDGED" {
+				writeError(w, http.StatusBadRequest, fmt.Errorf("%w: status %q", store.ErrInvalidInput, payload.Status))
+				return
+			}
+
+			order, err := repository.AcknowledgePaymentOrder(r.Context(), id)
+			if err != nil {
+				writeStoreError(w, err)
+				return
+			}
+
+			writeJSON(w, http.StatusOK, order)
 			return
 		}
 
