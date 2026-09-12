@@ -30,11 +30,13 @@ import { getAdminCookieName, isAdminSessionValid } from "@/lib/auth/session";
 export const config = {
   matcher: [
     "/dashboard/:path*",
+    "/orders/:path*",
     "/requests/:path*",
     "/song-requests/:path*",
     "/player/:path*",
     "/special-requests/:path*",
     "/menu/:path*",
+    "/tables/:path*",
     "/notices/:path*",
     "/store-copy/:path*",
   ],

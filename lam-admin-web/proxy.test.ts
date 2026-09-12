@@ -1,3 +1,6 @@
+import { readdirSync } from "node:fs";
+import { join } from "node:path";
+
 import { NextRequest } from "next/server";
 import { describe, expect, it } from "vitest";
 
@@ -13,16 +16,43 @@ function requestFor(pathname: string, cookieValue?: string): NextRequest {
   return request;
 }
 
-const ADMIN_PATHS = [
-  "/dashboard",
-  "/requests",
-  "/song-requests",
-  "/player",
-  "/special-requests",
-  "/menu",
-  "/notices",
-  "/store-copy",
-];
+const ADMIN_GROUP_DIR = join(process.cwd(), "app", "(admin)");
+
+/** A directory is routable once a `page` file exists anywhere beneath it. */
+function hasPage(dir: string): boolean {
+  return readdirSync(dir, { withFileTypes: true }).some((entry) =>
+    entry.isDirectory()
+      ? hasPage(join(dir, entry.name))
+      : /^page\.(tsx|ts|jsx|js)$/.test(entry.name),
+  );
+}
+
+/**
+ * The first URL segment of every route that exists under `app/(admin)/`, read
+ * from disk so that adding a directory there without touching `proxy.ts` fails
+ * this suite instead of silently shipping an unguarded admin page.
+ *
+ * Route groups (`(name)`) contribute no URL segment, so they are transparent
+ * and we descend through them.
+ */
+function adminRouteSegments(dir: string = ADMIN_GROUP_DIR): string[] {
+  return readdirSync(dir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .flatMap((entry) => {
+      const child = join(dir, entry.name);
+      if (entry.name.startsWith("(") && entry.name.endsWith(")")) {
+        return adminRouteSegments(child);
+      }
+      return hasPage(child) ? [entry.name] : [];
+    })
+    .sort();
+}
+
+const MATCHED_SEGMENTS = config.matcher.map((pattern) =>
+  pattern.replace("/:path*", "").replace(/^\//, ""),
+);
+
+const ADMIN_PATHS = MATCHED_SEGMENTS.map((segment) => `/${segment}`);
 
 describe("proxy admin session gate", () => {
   it("redirects an anonymous visitor to /login on every admin route", () => {
@@ -57,19 +87,30 @@ describe("proxy admin session gate", () => {
     expect(response.status).toBe(200);
   });
 
-  it("matches every admin route group directory and nothing else", () => {
+  it("guards every route directory that exists under app/(admin)/", () => {
+    const segments = adminRouteSegments();
+    expect(segments.length).toBeGreaterThan(0);
+
+    const guarded = new Set(MATCHED_SEGMENTS);
+    const unguarded = segments.filter((segment) => !guarded.has(segment));
+    expect(unguarded).toEqual([]);
+  });
+
+  it("keeps no matcher entry for a directory that no longer exists", () => {
+    const segments = new Set(adminRouteSegments());
+    const stale = MATCHED_SEGMENTS.filter((segment) => !segments.has(segment));
+    expect(stale).toEqual([]);
+  });
+
+  it("keeps every matcher entry in the statically analyzable `/segment/:path*` form", () => {
+    for (const pattern of config.matcher) {
+      expect(pattern).toMatch(/^\/[a-z0-9-]+\/:path\*$/);
+    }
+  });
+
+  it("leaves /login and /api outside the matcher", () => {
     // `/login` and `/api/*` must stay outside the matcher: the login page has
     // to be reachable anonymously, and the BFF routes do their own auth.
-    expect(config.matcher).toEqual([
-      "/dashboard/:path*",
-      "/requests/:path*",
-      "/song-requests/:path*",
-      "/player/:path*",
-      "/special-requests/:path*",
-      "/menu/:path*",
-      "/notices/:path*",
-      "/store-copy/:path*",
-    ]);
     expect(config.matcher.some((pattern) => pattern.startsWith("/login"))).toBe(false);
     expect(config.matcher.some((pattern) => pattern.startsWith("/api"))).toBe(false);
   });

@@ -24,6 +24,13 @@ type Config struct {
 	// as "sending is disabled", not an error.
 	SupabaseURL          string
 	SupabaseBroadcastKey string
+	// QRSigningSecret and CustomerWebBaseURL configure the admin table QR
+	// endpoint (see internal/httpapi/tables.go). Both are empty by default,
+	// matching lam-web's own optional QR_SIGNING_SECRET handling — the
+	// endpoint itself rejects requests with a 500 when either is unset
+	// rather than silently signing with an empty secret.
+	QRSigningSecret    string
+	CustomerWebBaseURL string
 }
 
 func Load() Config {
@@ -84,5 +91,7 @@ func Load() Config {
 		YouTubeAPIBaseURL:      youTubeAPIBaseURL,
 		SupabaseURL:            os.Getenv("SUPABASE_URL"),
 		SupabaseBroadcastKey:   os.Getenv("SUPABASE_BROADCAST_KEY"),
+		QRSigningSecret:        os.Getenv("QR_SIGNING_SECRET"),
+		CustomerWebBaseURL:     os.Getenv("CUSTOMER_WEB_BASE_URL"),
 	}
 }
