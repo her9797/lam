@@ -89,7 +89,27 @@ const FIXTURE: AppData = {
       name: "아메리카노",
       description: "시원한 아메리카노",
       price: "4000",
+      imageUrl: "https://cdn.example.com/americano.png",
       isVisible: true,
+      options: [
+        {
+          id: "option-size",
+          title: "사이즈",
+          required: true,
+          minChoices: 1,
+          maxChoices: 1,
+          choices: [
+            {
+              id: "choice-large",
+              title: "라지",
+              priceValue: 1000,
+              quantityEnabled: false,
+              minQuantity: 0,
+              maxQuantity: 1,
+            },
+          ],
+        },
+      ],
     },
   ],
   requestGuides: [],
@@ -176,6 +196,19 @@ describe("pure validators", () => {
   it("accepts an allowed, appropriately sized image file", () => {
     const file = new File([new Uint8Array(10)], "a.jpg", { type: "image/jpeg" });
     expect(validateImageFile(file)).toBeUndefined();
+  });
+});
+
+describe("POS catalog fields", () => {
+  it("shows the synced product image and option summary in the menu table", () => {
+    render(<MenuManagementPage />);
+
+    expect(screen.getByRole("img", { name: "아메리카노 상품 이미지" })).toHaveAttribute(
+      "src",
+      "https://cdn.example.com/americano.png",
+    );
+    expect(screen.getByText("옵션 1개 · 선택지 1개")).toBeInTheDocument();
+    expect(screen.getByText("사이즈")).toBeInTheDocument();
   });
 });
 

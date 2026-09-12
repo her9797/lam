@@ -46,7 +46,7 @@ import { CatalogResyncButton } from "./CatalogResyncButton";
 import { ImageCropEditor } from "./ImageCropEditor";
 import { MenuItemForm } from "./MenuItemForm";
 import { buildMenuListSearchParams, parseMenuListQuery, type MenuListQuery } from "./list-query-url";
-import { filterItemsByCategory, validateImageFile } from "./model";
+import { filterItemsByCategory, getMenuItemDisplayImage, validateImageFile } from "./model";
 import { useUpdateMenuItemVisibilityMutation, useUploadMenuItemImageMutation } from "./queries";
 
 type CropDraft = {
@@ -321,13 +321,17 @@ export function MenuManagementPage() {
               <TableHead>{t("common:columnName")}</TableHead>
               <TableHead className="w-32">{t("columnCategory")}</TableHead>
               <TableHead className="w-24">{t("columnPrice")}</TableHead>
+              <TableHead className="w-44">{t("columnOptions")}</TableHead>
               <TableHead className="w-24">{t("common:columnVisibility")}</TableHead>
-              <TableHead className="w-28">{t("columnImage")}</TableHead>
+              <TableHead className="w-44">{t("columnImage")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {visibleItems.map((item) => {
               const category = categories.find((candidate) => candidate.id === item.categoryId);
+              const displayImage = getMenuItemDisplayImage(item);
+              const options = item.options ?? [];
+              const choiceCount = options.reduce((total, option) => total + option.choices.length, 0);
               return (
                 <TableRow key={item.id}>
                   <TableCell>
@@ -340,6 +344,20 @@ export function MenuManagementPage() {
                   </TableCell>
                   <TableCell>{category?.label ?? item.categoryId}</TableCell>
                   <TableCell>{item.price}</TableCell>
+                  <TableCell>
+                    {options.length > 0 ? (
+                      <div className="flex min-w-0 flex-col gap-1">
+                        <span className="text-sm text-foreground">
+                          {t("optionSummary", { optionCount: options.length, choiceCount })}
+                        </span>
+                        <span className="truncate text-xs text-muted-foreground">
+                          {options.map((option) => option.title).join(" · ")}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-sm text-muted-foreground">{t("noOptions")}</span>
+                    )}
+                  </TableCell>
                   <TableCell>
                     <Button
                       type="button"
@@ -354,21 +372,37 @@ export function MenuManagementPage() {
                     </Button>
                   </TableCell>
                   <TableCell>
-                    <label className="cursor-pointer text-sm text-foreground underline underline-offset-4 hover:font-bold">
-                      {t("imageSelect")}
-                      <input
-                        type="file"
-                        accept="image/jpeg,image/png,image/webp"
-                        className="sr-only"
-                        aria-label={t("imageSelectRowAria", { name: item.name })}
-                        disabled={isUploadPending(item.id)}
-                        onChange={(event) => {
-                          const file = event.target.files?.[0];
-                          void handleImageSelected(item.id, file);
-                          event.target.value = "";
-                        }}
-                      />
-                    </label>
+                    <div className="flex items-center gap-3">
+                      {displayImage ? (
+                        // POS image hosts are provided dynamically by the API.
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={displayImage.src}
+                          alt={t("itemImageAlt", { name: item.name })}
+                          className="size-12 shrink-0 rounded-2xl object-cover"
+                          style={
+                            displayImage.focusX === undefined
+                              ? undefined
+                              : { objectPosition: `${displayImage.focusX}% ${displayImage.focusY}%` }
+                          }
+                        />
+                      ) : null}
+                      <label className="cursor-pointer text-sm text-foreground underline underline-offset-4 hover:font-bold">
+                        {t("imageSelect")}
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          className="sr-only"
+                          aria-label={t("imageSelectRowAria", { name: item.name })}
+                          disabled={isUploadPending(item.id)}
+                          onChange={(event) => {
+                            const file = event.target.files?.[0];
+                            void handleImageSelected(item.id, file);
+                            event.target.value = "";
+                          }}
+                        />
+                      </label>
+                    </div>
                   </TableCell>
                 </TableRow>
               );
