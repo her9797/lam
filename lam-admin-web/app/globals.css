@@ -139,6 +139,11 @@
   }
   html {
     @apply bg-background font-sans;
+    /* Hold the scrollbar's width whether or not the page currently
+       overflows. Without this, any content change that crosses the
+       viewport height — a list page dropping from 30 rows to 10 — takes
+       the scrollbar with it and shifts the whole layout sideways. */
+    scrollbar-gutter: stable;
   }
   body {
     @apply m-0 min-w-80 antialiased bg-background text-foreground;
@@ -188,6 +193,29 @@
 
 .status-success {
   @apply text-success;
+}
+
+/* `components/list/ListProgressBar`'s indeterminate sweep. The bar's own
+   resting width is the full track, and the sweep is expressed purely as a
+   transform: the reduced-motion rule below collapses the animation, and
+   what remains is a static full-width bar that still reads as busy. The
+   segment stretches as it crosses the middle so the motion reads as travel
+   rather than a block marching across. */
+.list-progress-bar {
+  transform-origin: left center;
+  animation: list-progress-sweep 1.05s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+@keyframes list-progress-sweep {
+  0% {
+    transform: translateX(-25%) scaleX(0.25);
+  }
+  50% {
+    transform: translateX(35%) scaleX(0.45);
+  }
+  100% {
+    transform: translateX(100%) scaleX(0.25);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -9,6 +9,7 @@ import { useTranslation } from "react-i18next";
 
 import { ListToolbar } from "@/components/list/ListToolbar";
 import { ListTotalCount } from "@/components/list/ListTotalCount";
+import { ListUpdatingRegion } from "@/components/list/ListUpdatingRegion";
 import { Pagination } from "@/components/list/Pagination";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states/PageStates";
 import { Button } from "@/components/ui/button";
@@ -71,7 +72,12 @@ export function OrderListPage() {
     (patch: Partial<OrderListQuery>) => {
       const params = buildOrderListSearchParams({ ...query, ...patch });
       const queryString = params.toString();
-      router.replace(queryString ? `${pathname}?${queryString}` : pathname);
+      // `scroll: false` — App Router scrolls to the top of the page on every
+      // navigation by default, and a page/filter change here is a navigation.
+      // The operator is already looking at the list they just clicked in;
+      // yanking them to the top of the document is the jump this screen was
+      // reported for.
+      router.replace(queryString ? `${pathname}?${queryString}` : pathname, { scroll: false });
     },
     [query, pathname, router],
   );
@@ -268,64 +274,75 @@ export function OrderListPage() {
 
       <ListTotalCount count={total} />
 
-      {orders.length === 0 ? (
-        hasActiveFilter ? (
-          <EmptyState
-            title={t("common:listNoResultsTitle")}
-            description={t("common:listNoResultsDescription")}
-          />
+      {/* The rows stay put through a page change (see `useOrdersPageQuery`'s
+          `placeholderData`) — the bar reports the fetch, and `stale` says the
+          page on screen is still the previous one. */}
+      <ListUpdatingRegion
+        active={ordersQuery.isFetching}
+        stale={ordersQuery.isPlaceholderData}
+      >
+        {orders.length === 0 ? (
+          hasActiveFilter ? (
+            <EmptyState
+              title={t("common:listNoResultsTitle")}
+              description={t("common:listNoResultsDescription")}
+            />
+          ) : (
+            <EmptyState title={t("emptyTitle")} description={t("emptyDescription")} />
+          )
         ) : (
-          <EmptyState title={t("emptyTitle")} description={t("emptyDescription")} />
-        )
-      ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-40">{t("columnApprovedAt")}</TableHead>
-              <TableHead className="w-20">{t("common:columnTable")}</TableHead>
-              <TableHead>{t("columnMenuItem")}</TableHead>
-              <TableHead className="w-28">{t("columnAmount")}</TableHead>
-              <TableHead className="w-24">{t("columnStatus")}</TableHead>
-              <TableHead className="w-32">{t("columnPosSync")}</TableHead>
-              <TableHead className="w-28">{t("common:columnActions")}</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {orders.map((order) => (
-              <TableRow key={order.orderId}>
-                <TableCell>{formatDateTime(order.approvedAt ?? order.createdAt, i18n.language)}</TableCell>
-                <TableCell>{order.tableNumber || "-"}</TableCell>
-                <TableCell>
-                  <Link
-                    href={`/orders/${order.orderId}`}
-                    className="text-foreground underline underline-offset-4 hover:font-bold"
-                  >
-                    {order.menuItemName}
-                  </Link>
-                  <span className="text-muted-foreground"> ({order.categoryName})</span>
-                </TableCell>
-                <TableCell>{formatCurrencyKRW(order.amount, i18n.language)}</TableCell>
-                <TableCell>{t(STATUS_LABEL_KEY[order.status])}</TableCell>
-                <TableCell>{t(POS_SYNC_LABEL_KEY[order.posSyncStatus])}</TableCell>
-                <TableCell>
-                  {order.status === "READY" ? (
-                    <Button
-                      type="button"
-                      size="sm"
-                      disabled={
-                        acknowledgeMutation.isPending && acknowledgeMutation.variables === order.orderId
-                      }
-                      onClick={() => acknowledgeMutation.mutate(order.orderId)}
-                    >
-                      {t("detailAcknowledgeButton")}
-                    </Button>
-                  ) : null}
-                </TableCell>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-40">{t("columnApprovedAt")}</TableHead>
+                <TableHead className="w-20">{t("common:columnTable")}</TableHead>
+                <TableHead>{t("columnMenuItem")}</TableHead>
+                <TableHead className="w-28">{t("columnAmount")}</TableHead>
+                <TableHead className="w-24">{t("columnStatus")}</TableHead>
+                <TableHead className="w-32">{t("columnPosSync")}</TableHead>
+                <TableHead className="w-28">{t("common:columnActions")}</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      )}
+            </TableHeader>
+            <TableBody>
+              {orders.map((order) => (
+                <TableRow key={order.orderId}>
+                  <TableCell>
+                    {formatDateTime(order.approvedAt ?? order.createdAt, i18n.language)}
+                  </TableCell>
+                  <TableCell>{order.tableNumber || "-"}</TableCell>
+                  <TableCell>
+                    <Link
+                      href={`/orders/${order.orderId}`}
+                      className="text-foreground underline underline-offset-4 hover:font-bold"
+                    >
+                      {order.menuItemName}
+                    </Link>
+                    <span className="text-muted-foreground"> ({order.categoryName})</span>
+                  </TableCell>
+                  <TableCell>{formatCurrencyKRW(order.amount, i18n.language)}</TableCell>
+                  <TableCell>{t(STATUS_LABEL_KEY[order.status])}</TableCell>
+                  <TableCell>{t(POS_SYNC_LABEL_KEY[order.posSyncStatus])}</TableCell>
+                  <TableCell>
+                    {order.status === "READY" ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={
+                          acknowledgeMutation.isPending &&
+                          acknowledgeMutation.variables === order.orderId
+                        }
+                        onClick={() => acknowledgeMutation.mutate(order.orderId)}
+                      >
+                        {t("detailAcknowledgeButton")}
+                      </Button>
+                    ) : null}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </ListUpdatingRegion>
 
       <Pagination
         page={query.page}

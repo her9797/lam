@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { approveSongRequest } from "@/features/player/api";
 import { songQueueKeys } from "@/features/player/keys";
@@ -63,6 +63,10 @@ export function useCustomerRequestsPageQuery(query: CustomerRequestListQuery, en
     queryKey: requestsKeys.list(query),
     queryFn: () => fetchCustomerRequestsPage(query),
     enabled,
+    // See `features/orders/queries.ts`'s equivalent: paging changes the
+    // cache key, and without a placeholder `RequestListPage` unmounts its
+    // whole list to a spinner on every page click.
+    placeholderData: keepPreviousData,
   });
 }
 

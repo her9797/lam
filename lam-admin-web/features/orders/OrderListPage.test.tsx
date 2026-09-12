@@ -86,6 +86,8 @@ function defaultQueryResult() {
   return {
     data: pageFixture(ORDERS),
     isLoading: false,
+    isFetching: false,
+    isPlaceholderData: false,
     isError: false,
     error: null as unknown,
     refetch: refetchMock,
@@ -132,6 +134,50 @@ describe("OrderListPage", () => {
     render(<OrderListPage />);
 
     expect(screen.getByRole("status")).toBeInTheDocument();
+  });
+
+  // Paging must not tear the screen down. Before this, the page-level
+  // `isLoading` gate swapped the whole list (toolbar, table, pagination) for
+  // a centred spinner on every page click: the document collapsed to a
+  // fraction of its height, the scrollbar appeared and disappeared, and the
+  // button that was just clicked unmounted under the pointer. The next page
+  // now arrives under a progress bar with the previous rows still in place.
+  it("keeps the rows and the pagination mounted while the next page loads", () => {
+    mockQuery({ isFetching: true, isPlaceholderData: true });
+
+    render(<OrderListPage />);
+
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.getByRole("progressbar", { name: "목록을 업데이트하는 중" })).toBeInTheDocument();
+    expect(screen.getByText("Beer")).toBeInTheDocument();
+    expect(screen.getByRole("navigation", { name: "페이지 탐색" })).toBeInTheDocument();
+  });
+
+  it("marks the list busy while it is showing a stale page", () => {
+    mockQuery({ isFetching: true, isPlaceholderData: true });
+
+    render(<OrderListPage />);
+
+    expect(screen.getByRole("table").closest("[aria-busy]")).toHaveAttribute("aria-busy", "true");
+  });
+
+  // App Router scrolls the document to the top on every navigation by
+  // default, which yanked the operator away from the list they had just
+  // clicked in. Paging must leave the viewport where it is.
+  it("changes the page without scrolling the document to the top", () => {
+    mockQuery({ data: pageFixture(ORDERS, { page: 1, total: 45 }) });
+
+    render(<OrderListPage />);
+    fireEvent.click(screen.getByRole("button", { name: "다음" }));
+
+    expect(replaceMock).toHaveBeenCalledWith(expect.stringContaining("page=2"), { scroll: false });
+  });
+
+  it("leaves the list idle and unmarked once the page has settled", () => {
+    render(<OrderListPage />);
+
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+    expect(screen.getByRole("table").closest("[aria-busy]")).toHaveAttribute("aria-busy", "false");
   });
 
   it("shows an error state with a working retry action when the query fails", () => {

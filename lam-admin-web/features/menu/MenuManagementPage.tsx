@@ -62,7 +62,12 @@ export function MenuManagementPage() {
     (patch: Partial<MenuListQuery>) => {
       const params = buildMenuListSearchParams({ ...listQuery, ...patch });
       const queryString = params.toString();
-      router.replace(queryString ? `${pathname}?${queryString}` : pathname);
+      // `scroll: false` — see `features/orders/OrderListPage.tsx`: App Router
+      // scrolls to the top of the document on every navigation, and a
+      // page/filter change here is a navigation. This list pages client-side
+      // from the bootstrap payload, so it needs no progress indicator — the
+      // scroll jump was the only part of the paging problem it shared.
+      router.replace(queryString ? `${pathname}?${queryString}` : pathname, { scroll: false });
     },
     [listQuery, pathname, router],
   );

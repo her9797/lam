@@ -8,6 +8,7 @@ import { useTranslation } from "react-i18next";
 
 import { ListToolbar } from "@/components/list/ListToolbar";
 import { ListTotalCount } from "@/components/list/ListTotalCount";
+import { ListUpdatingRegion } from "@/components/list/ListUpdatingRegion";
 import { Pagination } from "@/components/list/Pagination";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states/PageStates";
 import { Button } from "@/components/ui/button";
@@ -98,7 +99,10 @@ export function RequestListPage({ kind }: { kind: RequestListPageKind }) {
     (patch: Partial<CustomerRequestListQuery>) => {
       const params = buildRequestListSearchParams({ ...query, ...patch });
       const queryString = params.toString();
-      router.replace(queryString ? `${pathname}?${queryString}` : pathname);
+      // `scroll: false` — see `features/orders/OrderListPage.tsx`: App Router
+      // scrolls to the top of the document on every navigation, and a
+      // page/filter change here is a navigation.
+      router.replace(queryString ? `${pathname}?${queryString}` : pathname, { scroll: false });
     },
     [query, pathname, router],
   );
@@ -311,69 +315,78 @@ export function RequestListPage({ kind }: { kind: RequestListPageKind }) {
 
       <ListTotalCount count={total} />
 
-      {requests.length === 0 ? (
-        hasActiveFilter ? (
-          <EmptyState
-            title={t("common:listNoResultsTitle")}
-            description={t("common:listNoResultsDescription")}
-          />
+      {/* The rows stay put through a page change (see
+          `useCustomerRequestsPageQuery`'s `placeholderData`) — the bar
+          reports the fetch, and `stale` says the page on screen is still the
+          previous one. */}
+      <ListUpdatingRegion
+        active={requestsQuery.isFetching}
+        stale={requestsQuery.isPlaceholderData}
+      >
+        {requests.length === 0 ? (
+          hasActiveFilter ? (
+            <EmptyState
+              title={t("common:listNoResultsTitle")}
+              description={t("common:listNoResultsDescription")}
+            />
+          ) : (
+            <EmptyState title={t(copyKeys.emptyTitle)} description={t(copyKeys.emptyDescription)} />
+          )
         ) : (
-          <EmptyState title={t(copyKeys.emptyTitle)} description={t(copyKeys.emptyDescription)} />
-        )
-      ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-40">{t("common:columnCreatedAt")}</TableHead>
-              <TableHead className="w-20">{t("common:columnTable")}</TableHead>
-              <TableHead>{t("columnText")}</TableHead>
-              <TableHead className="w-24">{t("columnStatus")}</TableHead>
-              <TableHead className="w-28">{t("common:columnActions")}</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {requests.map((request) => {
-              const next =
-                kind === "song"
-                  ? request.status === "pending"
-                    ? { status: "checked" as const, labelKey: "actionApproveAndPlay" }
-                    : undefined
-                  : NEXT_STATUS[request.status];
-              const statusLabel =
-                kind === "song" && request.status === "checked"
-                  ? t("songStatusQueued")
-                  : kind === "song" && request.status === "completed"
-                    ? t("songStatusCompleted")
-                    : t(STATUS_LABEL_KEY[request.status]);
-              return (
-                <TableRow key={request.id}>
-                  <TableCell>{formatDateTime(request.createdAt, i18n.language)}</TableCell>
-                  <TableCell>{request.tableNumber || "-"}</TableCell>
-                  <TableCell className="whitespace-normal">
-                    {kind === "song" ? stripSongRequestPrefix(request.text) : request.text}
-                  </TableCell>
-                  <TableCell>{statusLabel}</TableCell>
-                  <TableCell>
-                    {next ? (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        disabled={isRowMutating(request.id)}
-                        onClick={() => handleAdvance(request)}
-                      >
-                        {t(next.labelKey)}
-                      </Button>
-                    ) : (
-                      <span className="text-sm text-muted-foreground">-</span>
-                    )}
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-      )}
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-40">{t("common:columnCreatedAt")}</TableHead>
+                <TableHead className="w-20">{t("common:columnTable")}</TableHead>
+                <TableHead>{t("columnText")}</TableHead>
+                <TableHead className="w-24">{t("columnStatus")}</TableHead>
+                <TableHead className="w-28">{t("common:columnActions")}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {requests.map((request) => {
+                const next =
+                  kind === "song"
+                    ? request.status === "pending"
+                      ? { status: "checked" as const, labelKey: "actionApproveAndPlay" }
+                      : undefined
+                    : NEXT_STATUS[request.status];
+                const statusLabel =
+                  kind === "song" && request.status === "checked"
+                    ? t("songStatusQueued")
+                    : kind === "song" && request.status === "completed"
+                      ? t("songStatusCompleted")
+                      : t(STATUS_LABEL_KEY[request.status]);
+                return (
+                  <TableRow key={request.id}>
+                    <TableCell>{formatDateTime(request.createdAt, i18n.language)}</TableCell>
+                    <TableCell>{request.tableNumber || "-"}</TableCell>
+                    <TableCell className="whitespace-normal">
+                      {kind === "song" ? stripSongRequestPrefix(request.text) : request.text}
+                    </TableCell>
+                    <TableCell>{statusLabel}</TableCell>
+                    <TableCell>
+                      {next ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={isRowMutating(request.id)}
+                          onClick={() => handleAdvance(request)}
+                        >
+                          {t(next.labelKey)}
+                        </Button>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">-</span>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        )}
+      </ListUpdatingRegion>
 
       <Pagination
         page={query.page}

@@ -46,6 +46,8 @@ function defaultQueryResult() {
   return {
     data: pageFixture(ITEMS),
     isLoading: false,
+    isFetching: false,
+    isPlaceholderData: false,
     isError: false,
     error: null as unknown,
     refetch: refetchMock,
@@ -88,6 +90,27 @@ describe("SpecialRequestPage", () => {
     render(<SpecialRequestPage />);
 
     expect(screen.getByRole("status")).toBeInTheDocument();
+  });
+
+  // See `features/orders/OrderListPage.test.tsx` for why paging must not
+  // unmount the list.
+  it("keeps the rows and the pagination mounted while the next page loads", () => {
+    mockQuery({ isFetching: true, isPlaceholderData: true });
+
+    render(<SpecialRequestPage />);
+
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.getByRole("progressbar", { name: "목록을 업데이트하는 중" })).toBeInTheDocument();
+    expect(screen.getByText("홍길동")).toBeInTheDocument();
+    expect(screen.getByRole("navigation", { name: "페이지 탐색" })).toBeInTheDocument();
+  });
+
+  it("marks the list busy while it is showing a stale page", () => {
+    mockQuery({ isFetching: true, isPlaceholderData: true });
+
+    render(<SpecialRequestPage />);
+
+    expect(screen.getByRole("table").closest("[aria-busy]")).toHaveAttribute("aria-busy", "true");
   });
 
   it("shows an error state with a working retry action when the query fails", () => {

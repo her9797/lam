@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ListToolbar } from "@/components/list/ListToolbar";
 import { ListTotalCount } from "@/components/list/ListTotalCount";
+import { ListUpdatingRegion } from "@/components/list/ListUpdatingRegion";
 import { Pagination } from "@/components/list/Pagination";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states/PageStates";
 import { Input } from "@/components/ui/input";
@@ -282,57 +283,66 @@ export function SpecialRequestPage() {
 
       <ListTotalCount count={total} />
 
-      {requests.length === 0 ? (
-        hasActiveFilter ? (
-          <EmptyState
-            title={t("common:listNoResultsTitle")}
-            description={t("common:listNoResultsDescription")}
-          />
+      {/* The rows stay put through a page change (see
+          `useSpecialRequestsPageQuery`'s `placeholderData`) — the bar reports
+          the fetch, and `stale` says the page on screen is still the previous
+          one. */}
+      <ListUpdatingRegion
+        active={requestsQuery.isFetching}
+        stale={requestsQuery.isPlaceholderData}
+      >
+        {requests.length === 0 ? (
+          hasActiveFilter ? (
+            <EmptyState
+              title={t("common:listNoResultsTitle")}
+              description={t("common:listNoResultsDescription")}
+            />
+          ) : (
+            <EmptyState title={t("emptyTitle")} description={t("emptyDescription")} />
+          )
         ) : (
-          <EmptyState title={t("emptyTitle")} description={t("emptyDescription")} />
-        )
-      ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-40">{t("common:columnCreatedAt")}</TableHead>
-              <TableHead className="w-20">{t("common:columnTable")}</TableHead>
-              <TableHead>{t("common:columnName")}</TableHead>
-              <TableHead className="w-44">{t("common:columnActions")}</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {requests.map((request) => (
-              <TableRow key={request.id}>
-                <TableCell>{formatDateTime(request.createdAt, i18n.language)}</TableCell>
-                <TableCell>{request.tableNumber || "-"}</TableCell>
-                <TableCell>{request.name}</TableCell>
-                <TableCell>
-                  <div className="flex gap-2">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setDetailId(request.id)}
-                    >
-                      {t("viewDetail")}
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="destructive"
-                      disabled={isRowDeleting(request.id)}
-                      onClick={() => setPendingDeleteId(request.id)}
-                    >
-                      {t("common:delete")}
-                    </Button>
-                  </div>
-                </TableCell>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-40">{t("common:columnCreatedAt")}</TableHead>
+                <TableHead className="w-20">{t("common:columnTable")}</TableHead>
+                <TableHead>{t("common:columnName")}</TableHead>
+                <TableHead className="w-44">{t("common:columnActions")}</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      )}
+            </TableHeader>
+            <TableBody>
+              {requests.map((request) => (
+                <TableRow key={request.id}>
+                  <TableCell>{formatDateTime(request.createdAt, i18n.language)}</TableCell>
+                  <TableCell>{request.tableNumber || "-"}</TableCell>
+                  <TableCell>{request.name}</TableCell>
+                  <TableCell>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setDetailId(request.id)}
+                      >
+                        {t("viewDetail")}
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="destructive"
+                        disabled={isRowDeleting(request.id)}
+                        onClick={() => setPendingDeleteId(request.id)}
+                      >
+                        {t("common:delete")}
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </ListUpdatingRegion>
 
       <Pagination
         page={query.page}

@@ -620,7 +620,10 @@ describe("MenuManagementPage", () => {
 
       fireEvent.click(screen.getByRole("button", { name: "다음" }));
 
-      expect(replaceMock).toHaveBeenCalledWith("/menu?page=2");
+      // `scroll: false` — App Router scrolls the document to the top on every
+      // navigation by default, which yanked the operator away from the list
+      // they had just clicked in. See `features/orders/OrderListPage.tsx`.
+      expect(replaceMock).toHaveBeenCalledWith("/menu?page=2", { scroll: false });
     });
 
     it("renders page 2's items when a page param is already in the URL", () => {
@@ -662,7 +665,7 @@ describe("MenuManagementPage", () => {
         target: { value: "30" },
       });
 
-      expect(replaceMock).toHaveBeenCalledWith("/menu?pageSize=30");
+      expect(replaceMock).toHaveBeenCalledWith("/menu?pageSize=30", { scroll: false });
     });
 
     it("shows all 25 items on one page when a pageSize=30 param is already in the URL", () => {

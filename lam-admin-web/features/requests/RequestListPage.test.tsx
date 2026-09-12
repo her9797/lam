@@ -72,6 +72,8 @@ function defaultQueryResult() {
   return {
     data: pageFixture(ITEMS),
     isLoading: false,
+    isFetching: false,
+    isPlaceholderData: false,
     isError: false,
     error: null as unknown,
     refetch: refetchMock,
@@ -124,6 +126,28 @@ describe("RequestListPage", () => {
     render(<RequestListPage kind="general" />);
 
     expect(screen.getByRole("status")).toBeInTheDocument();
+  });
+
+  // See `features/orders/OrderListPage.test.tsx` for why paging must not
+  // unmount the list: the page-level `isLoading` gate used to replace the
+  // whole screen with a spinner on every page click.
+  it("keeps the rows and the pagination mounted while the next page loads", () => {
+    mockQuery({ isFetching: true, isPlaceholderData: true });
+
+    render(<RequestListPage kind="general" />);
+
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.getByRole("progressbar", { name: "목록을 업데이트하는 중" })).toBeInTheDocument();
+    expect(screen.getByText("물 좀 주세요")).toBeInTheDocument();
+    expect(screen.getByRole("navigation", { name: "페이지 탐색" })).toBeInTheDocument();
+  });
+
+  it("marks the list busy while it is showing a stale page", () => {
+    mockQuery({ isFetching: true, isPlaceholderData: true });
+
+    render(<RequestListPage kind="general" />);
+
+    expect(screen.getByRole("table").closest("[aria-busy]")).toHaveAttribute("aria-busy", "true");
   });
 
   it("shows an error state with a working retry action when the query fails", () => {
@@ -272,8 +296,12 @@ describe("RequestListPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "다음" }));
 
+    // `scroll: false` is part of the contract, not incidental: App Router
+    // scrolls the document to the top on every navigation by default, which
+    // yanked the operator away from the list they had just clicked in.
     expect(replaceMock).toHaveBeenCalledWith(
       "/requests?page=2&status=pending&dateFrom=2026-01-01&dateTo=2026-01-10",
+      { scroll: false },
     );
   });
 
@@ -294,7 +322,10 @@ describe("RequestListPage", () => {
       vi.advanceTimersByTime(300);
     });
 
-    expect(replaceMock).toHaveBeenCalledWith("/requests?q=napkin&dateFrom=2026-01-01&dateTo=2026-01-10");
+    expect(replaceMock).toHaveBeenCalledWith(
+      "/requests?q=napkin&dateFrom=2026-01-01&dateTo=2026-01-10",
+      { scroll: false },
+    );
     vi.useRealTimers();
   });
 

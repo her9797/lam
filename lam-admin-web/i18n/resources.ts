@@ -82,6 +82,7 @@ export const ko = {
     listPageLabel: "{{page}}페이지",
     listPageNavigation: "페이지 탐색",
     listPageSizeLabel: "페이지당 개수",
+    listUpdating: "목록을 업데이트하는 중",
   },
   auth: {
     pageTitle: "관리자 로그인",
@@ -513,6 +514,7 @@ export const en = {
     listPageLabel: "Page {{page}}",
     listPageNavigation: "Pagination",
     listPageSizeLabel: "Per page",
+    listUpdating: "Updating the list",
   },
   auth: {
     pageTitle: "Admin sign in",
