@@ -37,6 +37,7 @@
    | `lam-toss-place-access-key` | lam-api |
    | `lam-toss-place-secret-key` | lam-api |
    | `lam-toss-place-merchant-id` | lam-api |
+   | `lam-toss-place-webhook-secret` | lam-api (TossPlace 개발자센터에서 주문 웹훅 등록 시 발급되는 서명 키. 위 `lam-toss-place-secret-key`와 다른 값) |
    | `lam-youtube-api-key` | lam-api (YouTube Data API v3 서버 키) |
    | `lam-web-session-secret` | lam-web |
    | `lam-staff-entry-token` | lam-web |

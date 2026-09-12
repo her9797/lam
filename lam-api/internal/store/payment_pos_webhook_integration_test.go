@@ -60,7 +60,12 @@ func TestRepository_CompletePaymentOrderFromPOS_IsIdempotentWhenAlreadyDone(t *t
 	if err != nil {
 		t.Fatalf("second call (duplicate webhook) error = %v, want nil", err)
 	}
-	if second.Status != "DONE" || second != first {
+	// PaymentOrder contains a slice (option choices) and so is not
+	// comparable with ==; assert on the fields a duplicate delivery must
+	// leave untouched instead.
+	if second.Status != "DONE" || second.ApprovedAt != first.ApprovedAt ||
+		second.PaymentMethod != first.PaymentMethod || second.VAT != first.VAT ||
+		second.SuppliedAmount != first.SuppliedAmount || second.TaxFreeAmount != first.TaxFreeAmount {
 		t.Fatalf("second call = %+v, want unchanged %+v", second, first)
 	}
 }
