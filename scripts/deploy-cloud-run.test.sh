@@ -58,7 +58,22 @@ grep -Fq 'https://asia-northeast1-run.googleapis.com/apis/domains.cloudrun.com/v
 : >"$GCLOUD_LOG"
 PATH="$TEST_TMP:$PATH" bash "$ROOT_DIR/scripts/deploy-cloud-run.sh" api >/dev/null
 grep -Fq 'run deploy lam-api' "$GCLOUD_LOG"
+grep -Fq -- '--region=asia-northeast3' "$GCLOUD_LOG"
+grep -Fq -- '--service-account=lam-cloud-run@lam-production.iam.gserviceaccount.com' "$GCLOUD_LOG"
+grep -Fq 'PAYMENT_API_TOKEN=lam-payment-api-token:latest' "$GCLOUD_LOG"
+grep -Fq 'QR_SIGNING_SECRET=lam-qr-signing-secret:latest' "$GCLOUD_LOG"
+grep -Fq 'TOSS_PLACE_ACCESS_KEY=lam-toss-place-access-key:latest' "$GCLOUD_LOG"
+grep -Fq 'TOSS_PLACE_SECRET_KEY=lam-toss-place-secret-key:latest' "$GCLOUD_LOG"
+grep -Fq 'TOSS_PLACE_MERCHANT_ID=lam-toss-place-merchant-id:latest' "$GCLOUD_LOG"
+grep -Fq 'TOSS_PLACE_WEBHOOK_SECRET=lam-toss-place-webhook-secret:latest' "$GCLOUD_LOG"
 grep -Fq 'YOUTUBE_API_KEY=lam-youtube-api-key:latest' "$GCLOUD_LOG"
+grep -Fq 'CUSTOMER_WEB_BASE_URL=https://www.barlaam.store' "$GCLOUD_LOG"
+
+: >"$GCLOUD_LOG"
+PATH="$TEST_TMP:$PATH" bash "$ROOT_DIR/scripts/deploy-cloud-run.sh" admin >/dev/null
+grep -Fq 'run deploy lam-admin-web' "$GCLOUD_LOG"
+grep -Fq -- '--region=asia-northeast3' "$GCLOUD_LOG"
+grep -Fq -- '--service-account=lam-cloud-run@lam-production.iam.gserviceaccount.com' "$GCLOUD_LOG"
 
 : >"$GCLOUD_LOG"
 MOCK_MISSING_YOUTUBE_SECRET=1 PATH="$TEST_TMP:$PATH" bash "$ROOT_DIR/scripts/deploy-cloud-run.sh" api >/dev/null 2>&1

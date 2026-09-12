@@ -47,6 +47,7 @@ const SEARCH_DEBOUNCE_MS = 300;
 const STATUS_LABEL_KEY: Record<PaymentOrderStatus, string> = {
   READY: "statusReady",
   DONE: "statusDone",
+  CANCELLED: "statusCancelled",
 };
 
 const POS_SYNC_LABEL_KEY: Record<PaymentOrderPosSyncStatus, string> = {
@@ -139,6 +140,7 @@ export function OrderListPage() {
     all: t("common:filterAll"),
     READY: t("statusReady"),
     DONE: t("statusDone"),
+    CANCELLED: t("statusCancelled"),
   };
   const POS_SYNC_FILTER_LABELS: Record<string, string> = {
     all: t("common:filterAll"),
@@ -204,6 +206,7 @@ export function OrderListPage() {
               <SelectItem value="all">{t("common:filterAll")}</SelectItem>
               <SelectItem value="READY">{t("statusReady")}</SelectItem>
               <SelectItem value="DONE">{t("statusDone")}</SelectItem>
+              <SelectItem value="CANCELLED">{t("statusCancelled")}</SelectItem>
             </SelectContent>
           </Select>
         </div>

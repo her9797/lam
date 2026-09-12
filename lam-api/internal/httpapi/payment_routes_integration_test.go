@@ -122,6 +122,12 @@ func TestRouter_OrderOnlyFlowCreatesUnpaidPOSOrder(t *testing.T) {
 		INSERT INTO menu_categories (id, label, sort_order) VALUES ('highball', '하이볼', 1);
 		INSERT INTO menu_items (id, category_id, name, description, price, sort_order, toss_catalog_item_id)
 		VALUES ('house-highball', 'highball', '하우스 하이볼', '테스트 메뉴', '10,000원', 1, 'pos-item-1');
+		INSERT INTO menu_options (id, title, is_enabled, is_required, min_choices, max_choices, sort_order)
+		VALUES ('option-shot', '샷', TRUE, TRUE, 1, 1, 1);
+		INSERT INTO menu_option_choices (id, option_id, title, price_value, is_enabled, state, quantity_enabled, min_quantity, max_quantity, sort_order)
+		VALUES ('choice-shot', 'option-shot', '샷 추가', 500, TRUE, 'ON_SALE', FALSE, 1, 1, 1);
+		INSERT INTO menu_item_options (menu_item_id, option_id, sort_order)
+		VALUES ('house-highball', 'option-shot', 1);
 	`); err != nil {
 		t.Fatalf("seed menu: %v", err)
 	}
@@ -132,8 +138,15 @@ func TestRouter_OrderOnlyFlowCreatesUnpaidPOSOrder(t *testing.T) {
 		var body struct {
 			Payments []json.RawMessage `json:"payments"`
 			Order    struct {
-				OrderKey string `json:"orderKey"`
-				Memo     string `json:"memo"`
+				OrderKey  string `json:"orderKey"`
+				Memo      string `json:"memo"`
+				LineItems []struct {
+					OptionChoices []struct {
+						OptionID       string `json:"optionId"`
+						OptionChoiceID string `json:"optionChoiceId"`
+						Price          int64  `json:"price"`
+					} `json:"optionChoices"`
+				} `json:"lineItems"`
 			} `json:"order"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -147,6 +160,9 @@ func TestRouter_OrderOnlyFlowCreatesUnpaidPOSOrder(t *testing.T) {
 		}
 		if body.Order.Memo != "테이블 7 · 요청사항: 얼음 적게 · lam 웹 주문" {
 			t.Fatalf("memo = %q", body.Order.Memo)
+		}
+		if len(body.Order.LineItems) != 1 || len(body.Order.LineItems[0].OptionChoices) != 1 || body.Order.LineItems[0].OptionChoices[0].OptionChoiceID != "choice-shot" || body.Order.LineItems[0].OptionChoices[0].Price != 500 {
+			t.Fatalf("POS option choices = %+v", body.Order.LineItems)
 		}
 		writeJSON(w, http.StatusOK, map[string]any{
 			"resultType": "SUCCESS",
@@ -163,7 +179,10 @@ func TestRouter_OrderOnlyFlowCreatesUnpaidPOSOrder(t *testing.T) {
 	handler := NewMux(testRepo, cfg, nil)
 	headers := map[string]string{"Authorization": "Bearer " + cfg.PaymentAPIToken}
 
-	createBody, _ := json.Marshal(map[string]string{"menuItemId": "house-highball", "tableNumber": "7", "requestNote": "  얼음 적게  "})
+	createBody, _ := json.Marshal(map[string]any{
+		"menuItemId": "house-highball", "tableNumber": "7", "requestNote": "  얼음 적게  ",
+		"optionChoices": []map[string]any{{"optionId": "option-shot", "optionChoiceId": "choice-shot", "quantity": 1}},
+	})
 	created := doRequest(t, handler, http.MethodPost, "/api/v1/orders", createBody, headers)
 	if created.Code != http.StatusCreated {
 		t.Fatalf("create status = %d, body = %s", created.Code, created.Body.String())
@@ -173,11 +192,12 @@ func TestRouter_OrderOnlyFlowCreatesUnpaidPOSOrder(t *testing.T) {
 		RequestNote   string `json:"requestNote"`
 		POSSyncStatus string `json:"posSyncStatus"`
 		POSOrderID    string `json:"posOrderId"`
+		Amount        int64  `json:"amount"`
 	}
 	if err := json.Unmarshal(created.Body.Bytes(), &result); err != nil {
 		t.Fatalf("decode order: %v", err)
 	}
-	if result.Status != "READY" || result.RequestNote != "얼음 적게" || result.POSSyncStatus != "SUCCEEDED" || result.POSOrderID != "pos-order-unpaid" {
+	if result.Status != "READY" || result.RequestNote != "얼음 적게" || result.Amount != 10500 || result.POSSyncStatus != "SUCCEEDED" || result.POSOrderID != "pos-order-unpaid" {
 		t.Fatalf("created order = %+v", result)
 	}
 	if posCalls.Load() != 1 {

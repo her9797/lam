@@ -65,3 +65,29 @@ func TestNormalizePaymentOrderRequestNote(t *testing.T) {
 		}
 	})
 }
+
+func TestResolvePaymentOrderOptions(t *testing.T) {
+	options := []availableOrderOption{{
+		ID: "option-size", Title: "사이즈", Required: true, MinChoices: 1, MaxChoices: 1,
+		Choices: map[string]availableOrderOptionChoice{
+			"choice-large": {ID: "choice-large", Title: "라지", PriceValue: 1000, QuantityEnabled: false, MinQuantity: 1, MaxQuantity: 1},
+		},
+	}}
+
+	selected, additionalAmount, err := resolvePaymentOrderOptions(options, []OrderOptionChoiceInput{{
+		OptionID: "option-size", OptionChoiceID: "choice-large", Quantity: 1,
+	}})
+	if err != nil {
+		t.Fatalf("resolvePaymentOrderOptions() error = %v", err)
+	}
+	if additionalAmount != 1000 || len(selected) != 1 || selected[0].OptionTitle != "사이즈" || selected[0].ChoiceTitle != "라지" {
+		t.Fatalf("selected=%+v additionalAmount=%d", selected, additionalAmount)
+	}
+
+	if _, _, err := resolvePaymentOrderOptions(options, nil); err == nil {
+		t.Fatal("required option without a selection must fail")
+	}
+	if _, _, err := resolvePaymentOrderOptions(options, []OrderOptionChoiceInput{{OptionID: "option-size", OptionChoiceID: "missing", Quantity: 1}}); err == nil {
+		t.Fatal("unknown option choice must fail")
+	}
+}

@@ -10,30 +10,65 @@ import (
 	"time"
 
 	"github.com/her9797/lam/lam-api/internal/lamdata"
+	"github.com/jackc/pgx/v5"
 )
 
 var paymentAmountPattern = regexp.MustCompile(`^(?:[1-9][0-9]*|[1-9][0-9]{0,2}(?:,[0-9]{3})+)원$`)
 
 type PaymentOrder struct {
-	OrderID           string `json:"orderId"`
-	MenuItemID        string `json:"menuItemId"`
-	TossCatalogItemID string `json:"-"`
-	MenuItemName      string `json:"menuItemName"`
-	CategoryName      string `json:"categoryName"`
-	TableNumber       string `json:"tableNumber"`
-	RequestNote       string `json:"requestNote"`
-	Amount            int64  `json:"amount"`
-	Status            string `json:"status"`
-	PaymentKey        string `json:"paymentKey,omitempty"`
-	PaymentMethod     string `json:"paymentMethod,omitempty"`
-	ApprovedAt        string `json:"approvedAt,omitempty"`
-	VAT               int64  `json:"vat"`
-	SuppliedAmount    int64  `json:"suppliedAmount"`
-	TaxFreeAmount     int64  `json:"taxFreeAmount"`
-	POSSyncStatus     string `json:"posSyncStatus"`
-	POSOrderID        string `json:"posOrderId,omitempty"`
-	POSSyncError      string `json:"posSyncError,omitempty"`
-	CreatedAt         string `json:"createdAt"`
+	OrderID           string                     `json:"orderId"`
+	MenuItemID        string                     `json:"menuItemId"`
+	TossCatalogItemID string                     `json:"-"`
+	MenuItemName      string                     `json:"menuItemName"`
+	CategoryName      string                     `json:"categoryName"`
+	TableNumber       string                     `json:"tableNumber"`
+	RequestNote       string                     `json:"requestNote"`
+	Amount            int64                      `json:"amount"`
+	Status            string                     `json:"status"`
+	PaymentKey        string                     `json:"paymentKey,omitempty"`
+	PaymentMethod     string                     `json:"paymentMethod,omitempty"`
+	ApprovedAt        string                     `json:"approvedAt,omitempty"`
+	VAT               int64                      `json:"vat"`
+	SuppliedAmount    int64                      `json:"suppliedAmount"`
+	TaxFreeAmount     int64                      `json:"taxFreeAmount"`
+	POSSyncStatus     string                     `json:"posSyncStatus"`
+	POSOrderID        string                     `json:"posOrderId,omitempty"`
+	POSSyncError      string                     `json:"posSyncError,omitempty"`
+	CreatedAt         string                     `json:"createdAt"`
+	OptionChoices     []PaymentOrderOptionChoice `json:"optionChoices,omitempty"`
+}
+
+type OrderOptionChoiceInput struct {
+	OptionID       string `json:"optionId"`
+	OptionChoiceID string `json:"optionChoiceId"`
+	Quantity       int64  `json:"quantity"`
+}
+
+type PaymentOrderOptionChoice struct {
+	OptionID       string `json:"optionId"`
+	OptionChoiceID string `json:"optionChoiceId"`
+	OptionTitle    string `json:"optionTitle"`
+	ChoiceTitle    string `json:"choiceTitle"`
+	PriceValue     int64  `json:"priceValue"`
+	Quantity       int64  `json:"quantity"`
+}
+
+type availableOrderOption struct {
+	ID         string
+	Title      string
+	Required   bool
+	MinChoices int
+	MaxChoices int
+	Choices    map[string]availableOrderOptionChoice
+}
+
+type availableOrderOptionChoice struct {
+	ID              string
+	Title           string
+	PriceValue      int64
+	QuantityEnabled bool
+	MinQuantity     int64
+	MaxQuantity     int64
 }
 
 const paymentOrderRequestNoteMaxLength = 200
@@ -61,7 +96,7 @@ func parsePaymentAmount(price string) (int64, error) {
 	return amount, nil
 }
 
-func (r *Repository) CreatePaymentOrder(ctx context.Context, menuItemID string, tableNumber string, requestNote string) (PaymentOrder, error) {
+func (r *Repository) CreatePaymentOrder(ctx context.Context, menuItemID string, tableNumber string, requestNote string, optionChoices []OrderOptionChoiceInput) (PaymentOrder, error) {
 	menuItemID = strings.TrimSpace(menuItemID)
 	if menuItemID == "" {
 		return PaymentOrder{}, ErrInvalidInput
@@ -71,11 +106,17 @@ func (r *Repository) CreatePaymentOrder(ctx context.Context, menuItemID string, 
 		return PaymentOrder{}, err
 	}
 
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return PaymentOrder{}, err
+	}
+	defer tx.Rollback(ctx)
+
 	var itemName string
 	var categoryName string
 	var price string
 	var tossCatalogItemID string
-	err = r.pool.QueryRow(ctx, `
+	err = tx.QueryRow(ctx, `
 		SELECT mi.name, mc.label, mi.price, mi.toss_catalog_item_id
 		FROM menu_items mi
 		JOIN menu_categories mc ON mc.id = mi.category_id
@@ -92,9 +133,21 @@ func (r *Repository) CreatePaymentOrder(ctx context.Context, menuItemID string, 
 	if err != nil {
 		return PaymentOrder{}, err
 	}
+	availableOptions, err := loadAvailableOrderOptions(ctx, tx, menuItemID)
+	if err != nil {
+		return PaymentOrder{}, err
+	}
+	selectedOptions, additionalAmount, err := resolvePaymentOrderOptions(availableOptions, optionChoices)
+	if err != nil {
+		return PaymentOrder{}, err
+	}
+	amount += additionalAmount
+	if amount <= 0 {
+		return PaymentOrder{}, ErrInvalidInput
+	}
 
 	orderID := nextID("order")
-	_, err = r.pool.Exec(ctx, `
+	_, err = tx.Exec(ctx, `
 		INSERT INTO payment_orders (
 			id, menu_item_id, toss_catalog_item_id, menu_item_name, category_name, table_number, request_note, amount
 		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
@@ -102,8 +155,132 @@ func (r *Repository) CreatePaymentOrder(ctx context.Context, menuItemID string, 
 	if err != nil {
 		return PaymentOrder{}, classifyError(err)
 	}
+	for _, choice := range selectedOptions {
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO payment_order_option_choices (
+				order_id, option_id, option_choice_id, option_title,
+				option_choice_title, price_value, quantity
+			) VALUES ($1, $2, $3, $4, $5, $6, $7)
+		`, orderID, choice.OptionID, choice.OptionChoiceID, choice.OptionTitle,
+			choice.ChoiceTitle, choice.PriceValue, choice.Quantity); err != nil {
+			return PaymentOrder{}, classifyError(err)
+		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return PaymentOrder{}, err
+	}
 
 	return r.GetPaymentOrder(ctx, orderID)
+}
+
+func loadAvailableOrderOptions(ctx context.Context, tx pgx.Tx, menuItemID string) ([]availableOrderOption, error) {
+	rows, err := tx.Query(ctx, `
+		SELECT mo.id, mo.title, mo.is_required, mo.min_choices, mo.max_choices
+		FROM menu_item_options mio
+		JOIN menu_options mo ON mo.id = mio.option_id
+		WHERE mio.menu_item_id = $1 AND mo.is_enabled = TRUE
+		ORDER BY mio.sort_order, mo.id
+	`, menuItemID)
+	if err != nil {
+		return nil, err
+	}
+	options := make([]availableOrderOption, 0)
+	for rows.Next() {
+		var option availableOrderOption
+		option.Choices = make(map[string]availableOrderOptionChoice)
+		if err := rows.Scan(&option.ID, &option.Title, &option.Required, &option.MinChoices, &option.MaxChoices); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		options = append(options, option)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return nil, err
+	}
+	rows.Close()
+
+	byID := make(map[string]*availableOrderOption, len(options))
+	for index := range options {
+		byID[options[index].ID] = &options[index]
+	}
+	choiceRows, err := tx.Query(ctx, `
+		SELECT moc.option_id, moc.id, moc.title, moc.price_value,
+			moc.quantity_enabled, moc.min_quantity, moc.max_quantity
+		FROM menu_item_options mio
+		JOIN menu_option_choices moc ON moc.option_id = mio.option_id
+		WHERE mio.menu_item_id = $1 AND moc.is_enabled = TRUE AND moc.state = 'ON_SALE'
+	`, menuItemID)
+	if err != nil {
+		return nil, err
+	}
+	defer choiceRows.Close()
+	for choiceRows.Next() {
+		var optionID string
+		var choice availableOrderOptionChoice
+		if err := choiceRows.Scan(&optionID, &choice.ID, &choice.Title, &choice.PriceValue, &choice.QuantityEnabled, &choice.MinQuantity, &choice.MaxQuantity); err != nil {
+			return nil, err
+		}
+		if option := byID[optionID]; option != nil {
+			option.Choices[choice.ID] = choice
+		}
+	}
+	return options, choiceRows.Err()
+}
+
+func resolvePaymentOrderOptions(options []availableOrderOption, inputs []OrderOptionChoiceInput) ([]PaymentOrderOptionChoice, int64, error) {
+	byID := make(map[string]availableOrderOption, len(options))
+	selectedCounts := make(map[string]int)
+	seenChoices := make(map[string]struct{})
+	for _, option := range options {
+		byID[option.ID] = option
+	}
+
+	selected := make([]PaymentOrderOptionChoice, 0, len(inputs))
+	var additionalAmount int64
+	for _, input := range inputs {
+		option, ok := byID[strings.TrimSpace(input.OptionID)]
+		if !ok || input.Quantity <= 0 {
+			return nil, 0, ErrInvalidInput
+		}
+		choiceID := strings.TrimSpace(input.OptionChoiceID)
+		choice, ok := option.Choices[choiceID]
+		if !ok {
+			return nil, 0, ErrInvalidInput
+		}
+		selectionKey := option.ID + "\x00" + choiceID
+		if _, duplicate := seenChoices[selectionKey]; duplicate {
+			return nil, 0, ErrInvalidInput
+		}
+		seenChoices[selectionKey] = struct{}{}
+		if !choice.QuantityEnabled && input.Quantity != 1 {
+			return nil, 0, ErrInvalidInput
+		}
+		if choice.QuantityEnabled && (input.Quantity < choice.MinQuantity || input.Quantity > choice.MaxQuantity) {
+			return nil, 0, ErrInvalidInput
+		}
+		selectedCounts[option.ID]++
+		additionalAmount += choice.PriceValue * input.Quantity
+		selected = append(selected, PaymentOrderOptionChoice{
+			OptionID: option.ID, OptionChoiceID: choice.ID, OptionTitle: option.Title,
+			ChoiceTitle: choice.Title, PriceValue: choice.PriceValue, Quantity: input.Quantity,
+		})
+	}
+
+	for _, option := range options {
+		count := selectedCounts[option.ID]
+		if count == 0 && !option.Required {
+			continue
+		}
+		minimum := option.MinChoices
+		if option.Required && minimum < 1 {
+			minimum = 1
+		}
+		if count < minimum || (option.MaxChoices > 0 && count > option.MaxChoices) {
+			return nil, 0, ErrInvalidInput
+		}
+	}
+	return selected, additionalAmount, nil
 }
 
 func (r *Repository) GetPaymentOrder(ctx context.Context, orderID string) (PaymentOrder, error) {
@@ -162,6 +339,26 @@ func (r *Repository) GetPaymentOrder(ctx context.Context, orderID string) (Payme
 		order.ApprovedAt = formatTimestamp(*approvedAt)
 	}
 	order.CreatedAt = formatTimestamp(createdAt)
+	optionRows, optionErr := r.pool.Query(ctx, `
+		SELECT option_id, option_choice_id, option_title, option_choice_title, price_value, quantity
+		FROM payment_order_option_choices
+		WHERE order_id = $1
+		ORDER BY option_title, option_choice_title, option_choice_id
+	`, order.OrderID)
+	if optionErr != nil {
+		return PaymentOrder{}, optionErr
+	}
+	defer optionRows.Close()
+	for optionRows.Next() {
+		var choice PaymentOrderOptionChoice
+		if err := optionRows.Scan(&choice.OptionID, &choice.OptionChoiceID, &choice.OptionTitle, &choice.ChoiceTitle, &choice.PriceValue, &choice.Quantity); err != nil {
+			return PaymentOrder{}, err
+		}
+		order.OptionChoices = append(order.OptionChoices, choice)
+	}
+	if err := optionRows.Err(); err != nil {
+		return PaymentOrder{}, err
+	}
 	return order, nil
 }
 
@@ -212,11 +409,91 @@ func (r *Repository) CompletePaymentOrder(ctx context.Context, orderID string, i
 	return r.GetPaymentOrder(ctx, orderID)
 }
 
+// CompletePaymentOrderFromPOS records a POS (offline card/cash) payment
+// observed via a TossPlace order.order.completed.v1 webhook — see
+// internal/httpapi/tossplace_webhooks.go. It is a distinct method from
+// CompletePaymentOrder (the in-app Toss Payments flow) rather than a shared
+// code path because that method requires a non-empty PaymentKey, which a POS
+// payment never has; keeping them separate avoids weakening that existing
+// validation for the app flow.
+//
+// Idempotent for retried webhook deliveries: an already-DONE order is
+// returned unchanged rather than erroring. An already-CANCELLED order
+// returns ErrInvalidInput — a cancelled order must never be silently
+// resurrected into DONE by a stale/out-of-order webhook delivery.
+func (r *Repository) CompletePaymentOrderFromPOS(ctx context.Context, orderID string, approvedAt time.Time, vat int64, suppliedAmount int64, taxFreeAmount int64) (PaymentOrder, error) {
+	order, err := r.GetPaymentOrder(ctx, orderID)
+	if err != nil {
+		return PaymentOrder{}, err
+	}
+
+	if order.Status == "DONE" {
+		return order, nil
+	}
+	if order.Status != "READY" {
+		return PaymentOrder{}, ErrInvalidInput
+	}
+
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE payment_orders
+		SET status = 'DONE',
+			payment_method = 'POS',
+			approved_at = $2,
+			vat = $3,
+			supplied_amount = $4,
+			tax_free_amount = $5,
+			updated_at = NOW()
+		WHERE id = $1 AND status = 'READY'
+	`, orderID, approvedAt, vat, suppliedAmount, taxFreeAmount)
+	if err != nil {
+		return PaymentOrder{}, classifyError(err)
+	}
+	if tag.RowsAffected() == 0 {
+		return PaymentOrder{}, ErrAlreadyExists
+	}
+
+	return r.GetPaymentOrder(ctx, orderID)
+}
+
+// CancelPaymentOrder marks an order CANCELLED after a TossPlace
+// order.order.cancelled.v1 webhook — the order was rejected, or a
+// previously-completed POS sale was later refunded/voided (TossPlace fires
+// this event for both READY and DONE orders). No cancelled_at column is
+// added; updated_at records when the cancellation was observed.
+//
+// Idempotent for retried webhook deliveries: an already-CANCELLED order is
+// returned unchanged rather than erroring.
+func (r *Repository) CancelPaymentOrder(ctx context.Context, orderID string, cancelledAt time.Time) (PaymentOrder, error) {
+	order, err := r.GetPaymentOrder(ctx, orderID)
+	if err != nil {
+		return PaymentOrder{}, err
+	}
+
+	if order.Status == "CANCELLED" {
+		return order, nil
+	}
+
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE payment_orders
+		SET status = 'CANCELLED',
+			updated_at = NOW()
+		WHERE id = $1 AND status IN ('READY', 'DONE')
+	`, orderID)
+	if err != nil {
+		return PaymentOrder{}, classifyError(err)
+	}
+	if tag.RowsAffected() == 0 {
+		return PaymentOrder{}, ErrAlreadyExists
+	}
+
+	return r.GetPaymentOrder(ctx, orderID)
+}
+
 // PaymentOrderFilter is the parsed, validated filter/sort/page input for
 // ListPaymentOrdersPage, mirroring CustomerRequestFilter/SpecialRequestFilter's
 // shape and validation style.
 type PaymentOrderFilter struct {
-	Status        string // "" = all | "READY" | "DONE"
+	Status        string // "" = all | "READY" | "DONE" | "CANCELLED"
 	PosSyncStatus string // "" = all | "PENDING" | "SUCCEEDED" | "FAILED" | "NOT_CONFIGURED"
 	Search        string
 	From          *time.Time // inclusive
