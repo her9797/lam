@@ -1,6 +1,45 @@
 package config
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
+
+func TestLoad_ReadsRepositoryDotEnvWhenRunningFromLamAPI(t *testing.T) {
+	repositoryDir := t.TempDir()
+	apiDir := filepath.Join(repositoryDir, "lam-api")
+	if err := os.Mkdir(apiDir, 0o755); err != nil {
+		t.Fatalf("create lam-api directory: %v", err)
+	}
+	if err := os.WriteFile(
+		filepath.Join(repositoryDir, ".env"),
+		[]byte(
+			"DATABASE_URL='postgresql://user:encoded-password@db.example.com:5432/postgres?sslmode=require'\n"+
+				"TOSS_PLACE_ACCESS_KEY=toss-access\n"+
+				"TOSS_PLACE_SECRET_KEY=toss-secret\n"+
+				"TOSS_PLACE_MERCHANT_ID=merchant-123\n",
+		),
+		0o600,
+	); err != nil {
+		t.Fatalf("write repository .env: %v", err)
+	}
+
+	t.Chdir(apiDir)
+	t.Setenv("DATABASE_URL", "")
+	t.Setenv("TOSS_PLACE_ACCESS_KEY", "")
+	t.Setenv("TOSS_PLACE_SECRET_KEY", "")
+	t.Setenv("TOSS_PLACE_MERCHANT_ID", "")
+
+	cfg := Load()
+
+	if cfg.DatabaseURL != "postgresql://user:encoded-password@db.example.com:5432/postgres?sslmode=require" {
+		t.Errorf("DatabaseURL = %q, want value loaded from repository .env", cfg.DatabaseURL)
+	}
+	if cfg.TossPlaceAccessKey != "toss-access" || cfg.TossPlaceSecretKey != "toss-secret" || cfg.TossPlaceMerchantID != "merchant-123" {
+		t.Error("Toss Place configuration was not loaded from repository .env")
+	}
+}
 
 func TestLoad_Defaults(t *testing.T) {
 	t.Setenv("APP_ADDR", "")

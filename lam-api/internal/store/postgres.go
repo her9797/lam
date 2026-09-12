@@ -117,6 +117,37 @@ CREATE TABLE IF NOT EXISTS menu_item_images (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS menu_options (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  is_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+  is_required BOOLEAN NOT NULL DEFAULT FALSE,
+  min_choices INTEGER NOT NULL DEFAULT 0,
+  max_choices INTEGER NOT NULL DEFAULT 1,
+  sort_order INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS menu_option_choices (
+  id TEXT PRIMARY KEY,
+  option_id TEXT NOT NULL REFERENCES menu_options(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  price_value BIGINT NOT NULL DEFAULT 0,
+  image_url TEXT NOT NULL DEFAULT '',
+  is_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+  state TEXT NOT NULL DEFAULT 'ON_SALE',
+  quantity_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+  min_quantity BIGINT NOT NULL DEFAULT 1,
+  max_quantity BIGINT NOT NULL DEFAULT 1,
+  sort_order INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS menu_item_options (
+  menu_item_id TEXT NOT NULL REFERENCES menu_items(id) ON DELETE CASCADE,
+  option_id TEXT NOT NULL REFERENCES menu_options(id) ON DELETE CASCADE,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (menu_item_id, option_id)
+);
+
 CREATE TABLE IF NOT EXISTS payment_orders (
   id TEXT PRIMARY KEY,
   menu_item_id TEXT REFERENCES menu_items(id) ON DELETE SET NULL,
@@ -137,6 +168,17 @@ CREATE TABLE IF NOT EXISTS payment_orders (
   pos_sync_error TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS payment_order_option_choices (
+  order_id TEXT NOT NULL REFERENCES payment_orders(id) ON DELETE CASCADE,
+  option_id TEXT NOT NULL,
+  option_choice_id TEXT NOT NULL,
+  option_title TEXT NOT NULL,
+  option_choice_title TEXT NOT NULL,
+  price_value BIGINT NOT NULL,
+  quantity BIGINT NOT NULL,
+  PRIMARY KEY (order_id, option_choice_id)
 );
 
 CREATE TABLE IF NOT EXISTS request_guides (
@@ -194,6 +236,7 @@ ALTER TABLE menu_categories ADD COLUMN IF NOT EXISTS is_visible BOOLEAN NOT NULL
 ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS is_visible BOOLEAN NOT NULL DEFAULT TRUE;
 ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS badge_color TEXT;
 ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS toss_catalog_item_id TEXT;
+ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS toss_image_url TEXT NOT NULL DEFAULT '';
 ALTER TABLE request_guides ADD COLUMN IF NOT EXISTS is_visible BOOLEAN NOT NULL DEFAULT TRUE;
 ALTER TABLE notices ADD COLUMN IF NOT EXISTS is_visible BOOLEAN NOT NULL DEFAULT TRUE;
 ALTER TABLE menu_item_images ADD COLUMN IF NOT EXISTS display_area TEXT NOT NULL DEFAULT 'menu';
@@ -215,6 +258,9 @@ CREATE INDEX IF NOT EXISTS idx_special_requests_created_at ON special_requests (
 CREATE INDEX IF NOT EXISTS idx_payment_orders_created_at ON payment_orders (created_at DESC, id DESC);
 CREATE INDEX IF NOT EXISTS idx_payment_orders_status ON payment_orders (status, pos_sync_status);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_menu_items_toss_catalog_item_id ON menu_items (toss_catalog_item_id) WHERE toss_catalog_item_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_menu_item_options_menu_item_id ON menu_item_options (menu_item_id, sort_order);
+CREATE INDEX IF NOT EXISTS idx_menu_option_choices_option_id ON menu_option_choices (option_id, sort_order);
+CREATE INDEX IF NOT EXISTS idx_payment_order_option_choices_order_id ON payment_order_option_choices (order_id);
 ALTER TABLE store_profile ADD COLUMN IF NOT EXISTS song_request_copy TEXT NOT NULL DEFAULT '';
 ALTER TABLE store_profile ADD COLUMN IF NOT EXISTS request_copy TEXT NOT NULL DEFAULT '';
 ALTER TABLE store_profile ADD COLUMN IF NOT EXISTS event_copy TEXT NOT NULL DEFAULT '';
@@ -532,7 +578,7 @@ func (r *Repository) GetBootstrapData(ctx context.Context) (lamdata.BootstrapDat
 		categories = append(categories, item)
 	}
 
-	menuRows, err := r.pool.Query(ctx, `SELECT id, category_id, COALESCE(badge, ''), COALESCE(badge_color, ''), name, description, price, is_visible FROM menu_items ORDER BY sort_order, id`)
+	menuRows, err := r.pool.Query(ctx, `SELECT id, category_id, COALESCE(badge, ''), COALESCE(badge_color, ''), name, description, price, COALESCE(toss_image_url, ''), is_visible FROM menu_items ORDER BY sort_order, id`)
 	if err != nil {
 		return lamdata.BootstrapData{}, err
 	}
@@ -541,7 +587,7 @@ func (r *Repository) GetBootstrapData(ctx context.Context) (lamdata.BootstrapDat
 	items := make([]lamdata.MenuItem, 0)
 	for menuRows.Next() {
 		var item lamdata.MenuItem
-		if err := menuRows.Scan(&item.ID, &item.CategoryID, &item.Badge, &item.BadgeColor, &item.Name, &item.Description, &item.Price, &item.IsVisible); err != nil {
+		if err := menuRows.Scan(&item.ID, &item.CategoryID, &item.Badge, &item.BadgeColor, &item.Name, &item.Description, &item.Price, &item.ImageURL, &item.IsVisible); err != nil {
 			return lamdata.BootstrapData{}, err
 		}
 		items = append(items, item)
@@ -566,6 +612,80 @@ func (r *Repository) GetBootstrapData(ctx context.Context) (lamdata.BootstrapDat
 
 	for index := range items {
 		items[index].Images = imagesByMenuItem[items[index].ID]
+	}
+
+	optionRows, err := r.pool.Query(ctx, `
+		SELECT mio.menu_item_id, mo.id, mo.title, mo.is_required, mo.min_choices, mo.max_choices
+		FROM menu_item_options mio
+		JOIN menu_options mo ON mo.id = mio.option_id AND mo.is_enabled = TRUE
+		ORDER BY mio.menu_item_id, mio.sort_order, mo.id
+	`)
+	if err != nil {
+		return lamdata.BootstrapData{}, err
+	}
+	defer optionRows.Close()
+
+	itemIndex := make(map[string]int, len(items))
+	for index := range items {
+		itemIndex[items[index].ID] = index
+	}
+	optionIndex := make(map[string]int)
+	for optionRows.Next() {
+		var menuItemID, optionID, optionTitle string
+		var required bool
+		var minChoices, maxChoices int
+		if err := optionRows.Scan(&menuItemID, &optionID, &optionTitle, &required, &minChoices, &maxChoices); err != nil {
+			return lamdata.BootstrapData{}, err
+		}
+		index, ok := itemIndex[menuItemID]
+		if !ok {
+			continue
+		}
+		key := menuItemID + "\x00" + optionID
+		items[index].Options = append(items[index].Options, lamdata.MenuOption{
+			ID: optionID, Title: optionTitle, Required: required,
+			MinChoices: minChoices, MaxChoices: maxChoices,
+			Choices: make([]lamdata.MenuOptionChoice, 0),
+		})
+		optionIndex[key] = len(items[index].Options) - 1
+	}
+	if err := optionRows.Err(); err != nil {
+		return lamdata.BootstrapData{}, err
+	}
+	optionRows.Close()
+
+	choiceRows, err := r.pool.Query(ctx, `
+		SELECT mio.menu_item_id, moc.option_id, moc.id, moc.title, moc.price_value,
+			moc.image_url, moc.quantity_enabled, moc.min_quantity, moc.max_quantity
+		FROM menu_item_options mio
+		JOIN menu_options mo ON mo.id = mio.option_id AND mo.is_enabled = TRUE
+		JOIN menu_option_choices moc
+			ON moc.option_id = mo.id AND moc.is_enabled = TRUE AND moc.state = 'ON_SALE'
+		ORDER BY mio.menu_item_id, mio.sort_order, moc.sort_order, moc.id
+	`)
+	if err != nil {
+		return lamdata.BootstrapData{}, err
+	}
+	defer choiceRows.Close()
+	for choiceRows.Next() {
+		var menuItemID, optionID string
+		var choice lamdata.MenuOptionChoice
+		if err := choiceRows.Scan(
+			&menuItemID, &optionID, &choice.ID, &choice.Title, &choice.PriceValue,
+			&choice.ImageURL, &choice.QuantityEnabled, &choice.MinQuantity, &choice.MaxQuantity,
+		); err != nil {
+			return lamdata.BootstrapData{}, err
+		}
+		index, ok := itemIndex[menuItemID]
+		if !ok {
+			continue
+		}
+		if position, ok := optionIndex[menuItemID+"\x00"+optionID]; ok {
+			items[index].Options[position].Choices = append(items[index].Options[position].Choices, choice)
+		}
+	}
+	if err := choiceRows.Err(); err != nil {
+		return lamdata.BootstrapData{}, err
 	}
 
 	requestRows, err := r.pool.Query(ctx, `SELECT id, text, is_visible FROM request_guides ORDER BY sort_order, id`)

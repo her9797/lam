@@ -24,7 +24,9 @@ type PaidOrder struct {
 	CategoryName      string
 	TableNumber       string
 	RequestNote       string
+	BaseAmount        int64
 	Amount            int64
+	OptionChoices     []OrderOptionChoice
 	VAT               int64
 	SuppliedAmount    int64
 	TaxFreeAmount     int64
@@ -43,12 +45,22 @@ type UnpaidOrder struct {
 	CategoryName      string
 	TableNumber       string
 	RequestNote       string
+	BaseAmount        int64
 	Amount            int64
+	OptionChoices     []OrderOptionChoice
 	OpenedAt          time.Time
 }
 
 type CreateOrderResult struct {
 	OrderID string
+}
+
+type OrderOptionChoice struct {
+	OptionID       string
+	OptionChoiceID string
+	Title          string
+	Price          int64
+	Quantity       int64
 }
 
 type APIError struct {
@@ -101,12 +113,21 @@ type createOrder struct {
 }
 
 type createLineItem struct {
-	DiningOption string          `json:"diningOption"`
-	TargetType   string          `json:"targetType"`
-	TargetID     string          `json:"targetId,omitempty"`
-	Item         *createItem     `json:"item,omitempty"`
-	ItemPrice    createItemPrice `json:"itemPrice"`
-	Quantity     int64           `json:"quantity"`
+	DiningOption  string                    `json:"diningOption"`
+	TargetType    string                    `json:"targetType"`
+	TargetID      string                    `json:"targetId,omitempty"`
+	Item          *createItem               `json:"item,omitempty"`
+	ItemPrice     createItemPrice           `json:"itemPrice"`
+	Quantity      int64                     `json:"quantity"`
+	OptionChoices []createOrderOptionChoice `json:"optionChoices,omitempty"`
+}
+
+type createOrderOptionChoice struct {
+	OptionID       string `json:"optionId"`
+	OptionChoiceID string `json:"optionChoiceId"`
+	Title          string `json:"title,omitempty"`
+	Price          int64  `json:"price"`
+	Quantity       int64  `json:"quantity"`
 }
 
 type createItem struct {
@@ -161,6 +182,10 @@ func (c *Client) CreatePaidOrder(ctx context.Context, paid PaidOrder) (CreateOrd
 	}
 
 	timestamp := paid.ApprovedAt.UTC().Format(time.RFC3339)
+	baseAmount := paid.BaseAmount
+	if baseAmount <= 0 {
+		baseAmount = paid.Amount
+	}
 	lineItem := createLineItem{
 		DiningOption: "HERE",
 		TargetType:   "ITEM",
@@ -169,11 +194,12 @@ func (c *Client) CreatePaidOrder(ctx context.Context, paid PaidOrder) (CreateOrd
 			Title:        "기본",
 			PriceType:    "FIXED",
 			PriceUnit:    1,
-			PriceValue:   paid.Amount,
+			PriceValue:   baseAmount,
 			IsTaxFree:    false,
 			TaxInclusive: true,
 		},
-		Quantity: 1,
+		Quantity:      1,
+		OptionChoices: createOrderOptionChoices(paid.OptionChoices),
 	}
 	if paid.TossCatalogItemID == "" {
 		lineItem.TargetType = "AD_HOC"
@@ -224,6 +250,10 @@ func (c *Client) CreateUnpaidOrder(ctx context.Context, unpaid UnpaidOrder) (Cre
 		return CreateOrderResult{}, ErrNotConfigured
 	}
 
+	baseAmount := unpaid.BaseAmount
+	if baseAmount <= 0 {
+		baseAmount = unpaid.Amount
+	}
 	lineItem := createLineItem{
 		DiningOption: "HERE",
 		TargetType:   "ITEM",
@@ -232,11 +262,12 @@ func (c *Client) CreateUnpaidOrder(ctx context.Context, unpaid UnpaidOrder) (Cre
 			Title:        "기본",
 			PriceType:    "FIXED",
 			PriceUnit:    1,
-			PriceValue:   unpaid.Amount,
+			PriceValue:   baseAmount,
 			IsTaxFree:    false,
 			TaxInclusive: true,
 		},
-		Quantity: 1,
+		Quantity:      1,
+		OptionChoices: createOrderOptionChoices(unpaid.OptionChoices),
 	}
 	if unpaid.TossCatalogItemID == "" {
 		lineItem.TargetType = "AD_HOC"
@@ -270,6 +301,20 @@ func (c *Client) CreateUnpaidOrder(ctx context.Context, unpaid UnpaidOrder) (Cre
 	}
 
 	return c.sendCreateOrder(ctx, body)
+}
+
+func createOrderOptionChoices(choices []OrderOptionChoice) []createOrderOptionChoice {
+	result := make([]createOrderOptionChoice, 0, len(choices))
+	for _, choice := range choices {
+		result = append(result, createOrderOptionChoice{
+			OptionID:       choice.OptionID,
+			OptionChoiceID: choice.OptionChoiceID,
+			Title:          choice.Title,
+			Price:          choice.Price,
+			Quantity:       choice.Quantity,
+		})
+	}
+	return result
 }
 
 func (c *Client) sendCreateOrder(ctx context.Context, body createOrderBody) (CreateOrderResult, error) {

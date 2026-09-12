@@ -113,8 +113,15 @@ func TestClientCreateUnpaidOrderOmitsPayments(t *testing.T) {
 		if body.Order.OpenedAt != "2026-09-05T03:34:56Z" {
 			t.Fatalf("openedAt = %q", body.Order.OpenedAt)
 		}
-		if body.Order.ChargePrice.TotalAmount != 10000 || body.Order.ChargePrice.TaxAmount != 909 || body.Order.ChargePrice.SupplyAmount != 9091 {
+		if body.Order.ChargePrice.TotalAmount != 10500 || body.Order.ChargePrice.TaxAmount != 954 || body.Order.ChargePrice.SupplyAmount != 9546 {
 			t.Fatalf("chargePrice = %+v", body.Order.ChargePrice)
+		}
+		if body.Order.LineItems[0].ItemPrice.PriceValue != 10000 || len(body.Order.LineItems[0].OptionChoices) != 1 {
+			t.Fatalf("line item options = %+v", body.Order.LineItems[0])
+		}
+		choice := body.Order.LineItems[0].OptionChoices[0]
+		if choice.OptionID != "option-1" || choice.OptionChoiceID != "choice-1" || choice.Price != 500 || choice.Quantity != 1 {
+			t.Fatalf("option choice = %+v", choice)
 		}
 		if body.Order.Memo != "테이블 3 · 요청사항: 얼음은 적게 주세요 · lam 웹 주문" {
 			t.Fatalf("memo = %q", body.Order.Memo)
@@ -135,8 +142,16 @@ func TestClientCreateUnpaidOrderOmitsPayments(t *testing.T) {
 		CategoryName:      "하이볼",
 		TableNumber:       "3",
 		RequestNote:       "얼음은 적게 주세요",
-		Amount:            10000,
-		OpenedAt:          time.Date(2026, 9, 5, 3, 34, 56, 0, time.UTC),
+		BaseAmount:        10000,
+		Amount:            10500,
+		OptionChoices: []OrderOptionChoice{{
+			OptionID:       "option-1",
+			OptionChoiceID: "choice-1",
+			Title:          "샷 추가",
+			Price:          500,
+			Quantity:       1,
+		}},
+		OpenedAt: time.Date(2026, 9, 5, 3, 34, 56, 0, time.UTC),
 	})
 	if err != nil {
 		t.Fatalf("CreateUnpaidOrder() error = %v", err)

@@ -1,6 +1,11 @@
 package config
 
-import "os"
+import (
+	"bufio"
+	"os"
+	"strconv"
+	"strings"
+)
 
 type Config struct {
 	Addr                   string
@@ -34,6 +39,8 @@ type Config struct {
 }
 
 func Load() Config {
+	loadLocalEnv()
+
 	addr := os.Getenv("APP_ADDR")
 	if addr == "" {
 		port := os.Getenv("PORT")
@@ -93,5 +100,68 @@ func Load() Config {
 		SupabaseBroadcastKey:   os.Getenv("SUPABASE_BROADCAST_KEY"),
 		QRSigningSecret:        os.Getenv("QR_SIGNING_SECRET"),
 		CustomerWebBaseURL:     os.Getenv("CUSTOMER_WEB_BASE_URL"),
+	}
+}
+
+var localEnvKeys = map[string]struct{}{
+	"ADMIN_API_TOKEN":            {},
+	"ALLOWED_ORIGIN":             {},
+	"APP_ADDR":                   {},
+	"DATABASE_URL":               {},
+	"PAYMENT_API_TOKEN":          {},
+	"PORT":                       {},
+	"SUPABASE_BROADCAST_KEY":     {},
+	"SUPABASE_URL":               {},
+	"TOSS_PAYMENTS_API_BASE_URL": {},
+	"TOSS_PAYMENTS_SECRET_KEY":   {},
+	"TOSS_PLACE_ACCESS_KEY":      {},
+	"TOSS_PLACE_API_BASE_URL":    {},
+	"TOSS_PLACE_MERCHANT_ID":     {},
+	"TOSS_PLACE_SECRET_KEY":      {},
+	"YOUTUBE_API_BASE_URL":       {},
+	"YOUTUBE_API_KEY":            {},
+}
+
+// loadLocalEnv lets `go run ./cmd/server` use the same ignored .env file as
+// Docker Compose. Non-empty process environment always takes priority; Cloud
+// Run therefore continues to use the values injected from Secret Manager.
+func loadLocalEnv() {
+	for _, path := range []string{".env.local", ".env", "../.env.local", "../.env"} {
+		loadEnvFile(path)
+	}
+}
+
+func loadEnvFile(path string) {
+	file, err := os.Open(path)
+	if err != nil {
+		return
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		line = strings.TrimPrefix(line, "export ")
+		key, value, ok := strings.Cut(line, "=")
+		key = strings.TrimSpace(key)
+		if !ok || os.Getenv(key) != "" {
+			continue
+		}
+		if _, allowed := localEnvKeys[key]; !allowed {
+			continue
+		}
+
+		value = strings.TrimSpace(value)
+		if len(value) >= 2 && value[0] == '\'' && value[len(value)-1] == '\'' {
+			value = value[1 : len(value)-1]
+		}
+		if len(value) >= 2 && value[0] == '"' && value[len(value)-1] == '"' {
+			if unquoted, err := strconv.Unquote(value); err == nil {
+				value = unquoted
+			}
+		}
+		if value != "" {
+			_ = os.Setenv(key, value)
+		}
 	}
 }

@@ -18,9 +18,10 @@ import (
 )
 
 type createPaymentOrderRequest struct {
-	MenuItemID  string `json:"menuItemId"`
-	TableNumber string `json:"tableNumber"`
-	RequestNote string `json:"requestNote"`
+	MenuItemID    string                         `json:"menuItemId"`
+	TableNumber   string                         `json:"tableNumber"`
+	RequestNote   string                         `json:"requestNote"`
+	OptionChoices []store.OrderOptionChoiceInput `json:"optionChoices"`
 }
 
 type confirmPaymentRequest struct {
@@ -52,7 +53,7 @@ func registerPaymentRoutes(mux *http.ServeMux, repository *store.Repository, cfg
 			return
 		}
 
-		order, err := repository.CreatePaymentOrder(r.Context(), payload.MenuItemID, payload.TableNumber, payload.RequestNote)
+		order, err := repository.CreatePaymentOrder(r.Context(), payload.MenuItemID, payload.TableNumber, payload.RequestNote, payload.OptionChoices)
 		if err != nil {
 			writeStoreError(w, err)
 			return
@@ -79,7 +80,7 @@ func registerPaymentRoutes(mux *http.ServeMux, repository *store.Repository, cfg
 			return
 		}
 
-		order, err := repository.CreatePaymentOrder(r.Context(), payload.MenuItemID, payload.TableNumber, payload.RequestNote)
+		order, err := repository.CreatePaymentOrder(r.Context(), payload.MenuItemID, payload.TableNumber, payload.RequestNote, payload.OptionChoices)
 		if err != nil {
 			writeStoreError(w, err)
 			return
@@ -215,6 +216,7 @@ func syncPaymentOrderToPOS(r *http.Request, repository *store.Repository, client
 		return order
 	}
 
+	optionChoices, baseAmount := tossPlaceOptionChoices(order)
 	result, err := client.CreatePaidOrder(r.Context(), tossplace.PaidOrder{
 		OrderID:           order.OrderID,
 		OrderNumber:       paymentOrderNumber(order),
@@ -224,7 +226,9 @@ func syncPaymentOrderToPOS(r *http.Request, repository *store.Repository, client
 		CategoryName:      order.CategoryName,
 		TableNumber:       order.TableNumber,
 		RequestNote:       order.RequestNote,
+		BaseAmount:        baseAmount,
 		Amount:            order.Amount,
+		OptionChoices:     optionChoices,
 		VAT:               order.VAT,
 		SuppliedAmount:    order.SuppliedAmount,
 		TaxFreeAmount:     order.TaxFreeAmount,
@@ -264,6 +268,7 @@ func syncUnpaidOrderToPOS(r *http.Request, repository *store.Repository, client 
 		return order
 	}
 
+	optionChoices, baseAmount := tossPlaceOptionChoices(order)
 	result, err := client.CreateUnpaidOrder(r.Context(), tossplace.UnpaidOrder{
 		OrderID:           order.OrderID,
 		OrderNumber:       paymentOrderNumber(order),
@@ -273,7 +278,9 @@ func syncUnpaidOrderToPOS(r *http.Request, repository *store.Repository, client 
 		CategoryName:      order.CategoryName,
 		TableNumber:       order.TableNumber,
 		RequestNote:       order.RequestNote,
+		BaseAmount:        baseAmount,
 		Amount:            order.Amount,
+		OptionChoices:     optionChoices,
 		OpenedAt:          openedAt,
 	})
 	status := "SUCCEEDED"
@@ -297,6 +304,19 @@ func syncUnpaidOrderToPOS(r *http.Request, repository *store.Repository, client 
 		return order
 	}
 	return updated
+}
+
+func tossPlaceOptionChoices(order store.PaymentOrder) ([]tossplace.OrderOptionChoice, int64) {
+	choices := make([]tossplace.OrderOptionChoice, 0, len(order.OptionChoices))
+	baseAmount := order.Amount
+	for _, choice := range order.OptionChoices {
+		choices = append(choices, tossplace.OrderOptionChoice{
+			OptionID: choice.OptionID, OptionChoiceID: choice.OptionChoiceID,
+			Title: choice.ChoiceTitle, Price: choice.PriceValue, Quantity: choice.Quantity,
+		})
+		baseAmount -= choice.PriceValue * choice.Quantity
+	}
+	return choices, baseAmount
 }
 
 func paymentOrderNumber(order store.PaymentOrder) string {
