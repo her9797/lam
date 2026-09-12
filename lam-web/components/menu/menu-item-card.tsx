@@ -33,6 +33,9 @@ export function MenuItemCard({ item, imageArea = "menu" }: MenuItemCardProps) {
   const candidateImages = preferredImages?.length ? preferredImages : fallbackImages;
   const primaryImage = candidateImages?.find((image) => image.isPrimary) ?? candidateImages?.[0];
   const displayImageURL = item.imageUrl || primaryImage?.contentUrl;
+  const displayImageStyle = !item.imageUrl && primaryImage
+    ? { objectPosition: `${primaryImage.focusX}% ${primaryImage.focusY}%` }
+    : undefined;
   const options = item.options ?? [];
   const totalAmount = getMenuOrderTotal(parseWonPrice(item.price), options, selectedChoices);
 
@@ -129,7 +132,7 @@ export function MenuItemCard({ item, imageArea = "menu" }: MenuItemCardProps) {
               src={displayImageURL}
               alt={item.name}
               className="menu-icon-image"
-              style={!item.imageUrl && primaryImage ? { objectPosition: `${primaryImage.focusX}% ${primaryImage.focusY}%` } : undefined}
+              style={displayImageStyle}
             />
           ) : (
             item.name.slice(0, 1)
@@ -165,11 +168,23 @@ export function MenuItemCard({ item, imageArea = "menu" }: MenuItemCardProps) {
             aria-describedby={descriptionId}
             onClick={(event) => event.stopPropagation()}
           >
-            <p className="section-kicker">menu detail</p>
-            <h2 id={titleId}>{detail.name}</h2>
-            <p className="menu-detail-price">
-              {totalAmount > 0 ? `${new Intl.NumberFormat("ko-KR").format(totalAmount)}원` : detail.price}
-            </p>
+            <div className={displayImageURL ? "menu-detail-header has-image" : "menu-detail-header"}>
+              <div className="menu-detail-summary">
+                <p className="section-kicker">menu detail</p>
+                <h2 id={titleId}>{detail.name}</h2>
+                <p className="menu-detail-price">
+                  {totalAmount > 0 ? `${new Intl.NumberFormat("ko-KR").format(totalAmount)}원` : detail.price}
+                </p>
+              </div>
+              {displayImageURL ? (
+                <img
+                  src={displayImageURL}
+                  alt={`${item.name} 상세 이미지`}
+                  className="menu-detail-image"
+                  style={displayImageStyle}
+                />
+              ) : null}
+            </div>
             <p className="menu-detail-description" id={descriptionId}>
               {detail.description || "메뉴 설명이 준비 중입니다."}
             </p>
