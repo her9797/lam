@@ -11,6 +11,7 @@ import { ListToolbar } from "@/components/list/ListToolbar";
 import { ListTotalCount } from "@/components/list/ListTotalCount";
 import { Pagination } from "@/components/list/Pagination";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states/PageStates";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -39,7 +40,7 @@ import type {
   PaymentOrderStatus,
 } from "./model";
 import { defaultOrderDateRange, resolveOrderDateRange } from "./order-date-range";
-import { useOrdersPageQuery } from "./queries";
+import { useAcknowledgeOrderMutation, useOrdersPageQuery } from "./queries";
 
 const SEARCH_DEBOUNCE_MS = 300;
 
@@ -109,6 +110,7 @@ export function OrderListPage() {
 
   const dateRangeResult = resolveOrderDateRange(query.dateFrom, query.dateTo);
   const ordersQuery = useOrdersPageQuery(query, dateRangeResult.ok);
+  const acknowledgeMutation = useAcknowledgeOrderMutation();
 
   if (!query.dateFrom || !query.dateTo || ordersQuery.isLoading) {
     return <LoadingState label={t("loading")} />;
@@ -285,6 +287,7 @@ export function OrderListPage() {
               <TableHead className="w-28">{t("columnAmount")}</TableHead>
               <TableHead className="w-24">{t("columnStatus")}</TableHead>
               <TableHead className="w-32">{t("columnPosSync")}</TableHead>
+              <TableHead className="w-28">{t("common:columnActions")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -304,6 +307,20 @@ export function OrderListPage() {
                 <TableCell>{formatCurrencyKRW(order.amount, i18n.language)}</TableCell>
                 <TableCell>{t(STATUS_LABEL_KEY[order.status])}</TableCell>
                 <TableCell>{t(POS_SYNC_LABEL_KEY[order.posSyncStatus])}</TableCell>
+                <TableCell>
+                  {order.status === "READY" ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={
+                        acknowledgeMutation.isPending && acknowledgeMutation.variables === order.orderId
+                      }
+                      onClick={() => acknowledgeMutation.mutate(order.orderId)}
+                    >
+                      {t("detailAcknowledgeButton")}
+                    </Button>
+                  ) : null}
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>

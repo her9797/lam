@@ -14,9 +14,12 @@ vi.mock("next/navigation", () => ({
 
 const useOrdersPageQueryMock = vi.fn();
 const refetchMock = vi.fn();
+const useAcknowledgeOrderMutationMock = vi.fn();
+const acknowledgeMutateMock = vi.fn();
 
 vi.mock("./queries", () => ({
   useOrdersPageQuery: (query: unknown, enabled: unknown) => useOrdersPageQueryMock(query, enabled),
+  useAcknowledgeOrderMutation: () => useAcknowledgeOrderMutationMock(),
 }));
 
 import { OrderListPage } from "./OrderListPage";
@@ -99,6 +102,13 @@ describe("OrderListPage", () => {
     refetchMock.mockClear();
     replaceMock.mockClear();
     useOrdersPageQueryMock.mockClear();
+    useAcknowledgeOrderMutationMock.mockClear();
+    acknowledgeMutateMock.mockClear();
+    useAcknowledgeOrderMutationMock.mockReturnValue({
+      mutate: acknowledgeMutateMock,
+      isPending: false,
+      variables: undefined,
+    });
     currentSearchParams = new URLSearchParams(DATED_SEARCH_PARAMS);
     mockQuery();
   });
@@ -163,6 +173,29 @@ describe("OrderListPage", () => {
     expect(screen.getByText("7")).toBeInTheDocument();
     expect(screen.getByText("Wine")).toBeInTheDocument();
     expect(screen.getByText("취소됨")).toBeInTheDocument();
+  });
+
+  it("adds an action column and acknowledges a READY order from its row", () => {
+    render(<OrderListPage />);
+
+    expect(screen.getByRole("columnheader", { name: "작업" })).toBeInTheDocument();
+    const readyRow = screen.getByRole("link", { name: "Cider" }).closest("tr");
+    fireEvent.click(within(readyRow as HTMLElement).getByRole("button", { name: "주문확인" }));
+
+    expect(acknowledgeMutateMock).toHaveBeenCalledWith("order-2");
+    expect(screen.getAllByRole("button", { name: "주문확인" })).toHaveLength(1);
+  });
+
+  it("disables only the order being acknowledged", () => {
+    useAcknowledgeOrderMutationMock.mockReturnValue({
+      mutate: acknowledgeMutateMock,
+      isPending: true,
+      variables: "order-2",
+    });
+
+    render(<OrderListPage />);
+
+    expect(screen.getByRole("button", { name: "주문확인" })).toBeDisabled();
   });
 
   it("defaults to requesting no status filter (via the URL query parser's own default)", () => {
