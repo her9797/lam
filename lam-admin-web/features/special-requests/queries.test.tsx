@@ -53,4 +53,15 @@ describe("useSpecialRequestsPageQuery", () => {
       placeholderData: keepPreviousData,
     });
   });
+
+  // Keeps a revisited page or focus refetch from firing instantly.
+  it("keeps a fetched page fresh for 30s", () => {
+    const { Wrapper } = createWrapper();
+
+    renderHook(() => useSpecialRequestsPageQuery(QUERY), { wrapper: Wrapper });
+
+    expect(vi.mocked(useQuery).mock.calls.at(-1)?.[0]).toMatchObject({
+      staleTime: 30_000,
+    });
+  });
 });

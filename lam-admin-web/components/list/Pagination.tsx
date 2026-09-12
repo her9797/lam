@@ -16,21 +16,25 @@ import { Button } from "@/components/ui/button";
 
 export const PAGE_SIZE_OPTIONS = [10, 20, 30] as const;
 
-type PageItem = number | "ellipsis-start" | "ellipsis-end";
+const PAGE_WINDOW_SIZE = 5;
 
-function getPageItems(page: number, pageCount: number): PageItem[] {
-  if (pageCount <= 5) {
+/**
+ * Five consecutive pages centred on the current one, and nothing else. No
+ * ellipsis markers on either side: the first/last-page buttons flanking
+ * this window already say there is more beyond it, so the markers only
+ * spent width — and width is what decides whether this nav fits a phone.
+ * Worst case is now prev/next + first/last + five numbers = 9 x 32px +
+ * 8 x 4px gaps = 320px.
+ */
+function getPageItems(page: number, pageCount: number): number[] {
+  if (pageCount <= PAGE_WINDOW_SIZE) {
     return Array.from({ length: pageCount }, (_, index) => index + 1);
   }
 
-  const startPage = Math.min(Math.max(page - 2, 1), pageCount - 4);
-  const pages = Array.from({ length: 5 }, (_, index) => startPage + index);
+  const half = Math.floor(PAGE_WINDOW_SIZE / 2);
+  const startPage = Math.min(Math.max(page - half, 1), pageCount - PAGE_WINDOW_SIZE + 1);
 
-  return [
-    ...(startPage > 1 ? (["ellipsis-start"] as const) : []),
-    ...pages,
-    ...(startPage + 4 < pageCount ? (["ellipsis-end"] as const) : []),
-  ];
+  return Array.from({ length: PAGE_WINDOW_SIZE }, (_, index) => startPage + index);
 }
 
 export function Pagination({
@@ -68,7 +72,14 @@ export function Pagination({
         </select>
         <RiArrowDownSLine className="pointer-events-none absolute right-2 size-4 text-muted-foreground" />
       </div>
-      <nav aria-label={t("listPageNavigation")} className="flex max-w-full items-center gap-1 overflow-x-auto">
+      {/* 320px of buttons still exceeds the ~288px of content width a 320px
+          phone leaves (`body`'s `min-w-80`), so the scroll affordance stays
+          as the narrow-screen fallback rather than clipping a button out of
+          reach. */}
+      <nav
+        aria-label={t("listPageNavigation")}
+        className="flex max-w-full items-center gap-1 overflow-x-auto"
+      >
         <Button
           type="button"
           size="icon-sm"
@@ -91,25 +102,19 @@ export function Pagination({
         >
           <RiArrowLeftSLine data-icon="inline-start" aria-hidden="true" />
         </Button>
-        {pageItems.map((item) =>
-          typeof item === "number" ? (
-            <Button
-              key={item}
-              type="button"
-              size="icon-sm"
-              variant={item === currentPage ? "default" : "ghost"}
-              aria-current={item === currentPage ? "page" : undefined}
-              aria-label={t("listPageLabel", { page: item })}
-              onClick={() => onPageChange(item)}
-            >
-              {item}
-            </Button>
-          ) : (
-            <span key={item} aria-hidden="true" className="inline-flex size-8 items-center justify-center">
-              …
-            </span>
-          ),
-        )}
+        {pageItems.map((item) => (
+          <Button
+            key={item}
+            type="button"
+            size="icon-sm"
+            variant={item === currentPage ? "default" : "ghost"}
+            aria-current={item === currentPage ? "page" : undefined}
+            aria-label={t("listPageLabel", { page: item })}
+            onClick={() => onPageChange(item)}
+          >
+            {item}
+          </Button>
+        ))}
         <Button
           type="button"
           size="icon-sm"

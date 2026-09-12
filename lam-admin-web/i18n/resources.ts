@@ -83,6 +83,11 @@ export const ko = {
     listPageNavigation: "페이지 탐색",
     listPageSizeLabel: "페이지당 개수",
     listUpdating: "목록을 업데이트하는 중",
+    // Shown in place of a list screen's error title when the request failed
+    // but earlier rows are still on screen. It has to say both things: the
+    // list below is real data, and it is not the page that was just asked
+    // for (see `hooks/use-retained-list-query.ts`).
+    listRetainedErrorTitle: "요청이 실패해 이전에 불러온 목록을 그대로 보여주고 있습니다.",
   },
   auth: {
     pageTitle: "관리자 로그인",
@@ -515,6 +520,7 @@ export const en = {
     listPageNavigation: "Pagination",
     listPageSizeLabel: "Per page",
     listUpdating: "Updating the list",
+    listRetainedErrorTitle: "The request failed. You are still seeing the list loaded earlier.",
   },
   auth: {
     pageTitle: "Admin sign in",

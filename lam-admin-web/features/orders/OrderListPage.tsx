@@ -11,7 +11,7 @@ import { ListToolbar } from "@/components/list/ListToolbar";
 import { ListTotalCount } from "@/components/list/ListTotalCount";
 import { ListUpdatingRegion } from "@/components/list/ListUpdatingRegion";
 import { Pagination } from "@/components/list/Pagination";
-import { EmptyState, ErrorState, LoadingState } from "@/components/states/PageStates";
+import { EmptyState, ErrorState, ListSkeletonState } from "@/components/states/PageStates";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -31,6 +31,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { useRetainedListQuery } from "@/hooks/use-retained-list-query";
 import { formatCurrencyKRW, formatDateTime } from "@/lib/utils";
 
 import { buildOrderListSearchParams, parseOrderListQuery } from "./list-query-url";
@@ -115,11 +116,14 @@ export function OrderListPage() {
   }, []);
 
   const dateRangeResult = resolveOrderDateRange(query.dateFrom, query.dateTo);
-  const ordersQuery = useOrdersPageQuery(query, dateRangeResult.ok);
+  // Wrapped so a failed page/filter/sort/date change keeps the rows the
+  // operator was already reading — `keepPreviousData` alone drops them the
+  // moment the new key's request fails. See `useRetainedListQuery`.
+  const ordersQuery = useRetainedListQuery(useOrdersPageQuery(query, dateRangeResult.ok), query);
   const acknowledgeMutation = useAcknowledgeOrderMutation();
 
   if (!query.dateFrom || !query.dateTo || ordersQuery.isLoading) {
-    return <LoadingState label={t("loading")} />;
+    return <ListSkeletonState columns={7} label={t("loading")} />;
   }
 
   if (!dateRangeResult.ok) {
@@ -130,7 +134,11 @@ export function OrderListPage() {
     );
   }
 
-  if (ordersQuery.isError) {
+  // A failure with rows already on screen — a page click, a filter change, a
+  // background refetch — must not tear the table down. Only a failure with
+  // nothing preserved behind it, i.e. a first load, replaces the whole
+  // screen.
+  if (ordersQuery.isError && !ordersQuery.data) {
     return (
       <ErrorState
         title={t("errorTitle")}
@@ -141,7 +149,6 @@ export function OrderListPage() {
   }
 
   const orders = ordersQuery.data?.items ?? [];
-  const total = ordersQuery.data?.total ?? 0;
   const hasActiveFilter =
     Boolean(query.status) || Boolean(query.posSyncStatus) || query.search.trim().length > 0;
 
@@ -272,14 +279,29 @@ export function OrderListPage() {
         </div>
       </ListToolbar>
 
-      <ListTotalCount count={total} />
+      {ordersQuery.isError ? (
+        <ErrorState
+          // When rows survived the failure they are the previously loaded
+          // page, not the one the URL now names — the title has to say so,
+          // or the screen silently misreports what it is showing.
+          title={ordersQuery.isRetained ? t("common:listRetainedErrorTitle") : t("errorTitle")}
+          message={ordersQuery.error instanceof Error ? ordersQuery.error.message : undefined}
+          onRetry={() => ordersQuery.refetch()}
+        />
+      ) : null}
+
+      {/* Total, pagination, and rows are all read off the same result, so a
+          retained page reports its own total and position rather than the
+          ones the failed request asked for. */}
+      <ListTotalCount count={ordersQuery.total} />
 
       {/* The rows stay put through a page change (see `useOrdersPageQuery`'s
-          `placeholderData`) — the bar reports the fetch, and `stale` says the
-          page on screen is still the previous one. */}
+          `placeholderData`) and through a failed one (see
+          `useRetainedListQuery`) — the bar reports the fetch, and `stale`
+          says the page on screen is still the previous one. */}
       <ListUpdatingRegion
         active={ordersQuery.isFetching}
-        stale={ordersQuery.isPlaceholderData}
+        stale={ordersQuery.isStale}
       >
         {orders.length === 0 ? (
           hasActiveFilter ? (
@@ -345,9 +367,9 @@ export function OrderListPage() {
       </ListUpdatingRegion>
 
       <Pagination
-        page={query.page}
-        pageSize={query.pageSize}
-        total={total}
+        page={ordersQuery.page}
+        pageSize={ordersQuery.pageSize}
+        total={ordersQuery.total}
         onPageChange={(page) => updateQuery({ page })}
         onPageSizeChange={(pageSize) => updateQuery({ pageSize, page: 1 })}
       />

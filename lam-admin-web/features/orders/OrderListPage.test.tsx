@@ -1,7 +1,9 @@
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import type { ReactElement, ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { OrderPageResult, PaymentOrder } from "./model";
+import type { OrderListQuery, OrderPageResult, PaymentOrder } from "./model";
 
 const replaceMock = vi.fn();
 let currentSearchParams = new URLSearchParams();
@@ -22,6 +24,12 @@ vi.mock("./queries", () => ({
   useAcknowledgeOrderMutation: () => useAcknowledgeOrderMutationMock(),
 }));
 
+vi.mock("./api", async () => {
+  const actual = await vi.importActual<typeof import("./api")>("./api");
+  return { ...actual, fetchOrdersPage: vi.fn() };
+});
+
+import { fetchOrdersPage } from "./api";
 import { OrderListPage } from "./OrderListPage";
 
 const ORDERS: PaymentOrder[] = [
@@ -99,6 +107,36 @@ function defaultQueryResult() {
 // mount effect / `dateFrom`/`dateTo` handling).
 const DATED_SEARCH_PARAMS = new URLSearchParams("dateFrom=2026-01-01&dateTo=2026-01-10");
 
+/**
+ * Renders against a real `QueryClient` so a test can drive the actual
+ * `useOrdersPageQuery` rather than a hand-written result object. That
+ * hand-written shape can only model a *same-key* refetch failure, where
+ * React Query keeps `data`; it cannot reproduce a *new-key* failure, where
+ * `keepPreviousData` lets go of the previous page entirely — which is the
+ * case this screen was getting wrong.
+ */
+function renderWithQueryClient(ui: ReactElement) {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(ui, {
+    wrapper: ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    ),
+  });
+}
+
+/**
+ * Points the module mock at the real hook for the rest of the current test.
+ * `beforeEach`'s `mockQuery()` puts the plain return value back, so this
+ * never leaks into the tests that want a hand-written result.
+ */
+async function useTheRealOrdersPageQuery() {
+  const actual = await vi.importActual<typeof import("./queries")>("./queries");
+  function useRealOrdersPageQuery(listQuery: OrderListQuery, enabled: boolean) {
+    return actual.useOrdersPageQuery(listQuery, enabled);
+  }
+  useOrdersPageQueryMock.mockImplementation(useRealOrdersPageQuery);
+}
+
 describe("OrderListPage", () => {
   beforeEach(() => {
     refetchMock.mockClear();
@@ -112,6 +150,7 @@ describe("OrderListPage", () => {
       variables: undefined,
     });
     currentSearchParams = new URLSearchParams(DATED_SEARCH_PARAMS);
+    vi.mocked(fetchOrdersPage).mockReset();
     mockQuery();
   });
 
@@ -136,6 +175,33 @@ describe("OrderListPage", () => {
     expect(screen.getByRole("status")).toBeInTheDocument();
   });
 
+  // First load has no rows to preserve, but it must render as a skeleton
+  // table (matching the real table's header/row structure) instead of a
+  // centered spinner, so the layout doesn't jump once data arrives.
+  it("shows a skeleton table, not a centered spinner, on first load", () => {
+    mockQuery({ data: undefined, isLoading: true });
+
+    render(<OrderListPage />);
+
+    const status = screen.getByRole("status");
+    expect(status.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThan(0);
+    expect(within(status).getByRole("table")).toBeInTheDocument();
+  });
+
+  // Once the operator already has a page of orders on screen, a refetch
+  // failure (e.g. a flaky network blip) must not tear the table down —
+  // the rows they were reading stay, with an inline error and retry.
+  it("keeps the rows visible and shows an inline error when a refetch fails after data was already loaded", () => {
+    mockQuery({ isError: true, error: new Error("요청이 실패했습니다. (500)") });
+
+    render(<OrderListPage />);
+
+    expect(screen.getByText("Beer")).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("요청이 실패했습니다. (500)");
+    fireEvent.click(screen.getByRole("button", { name: "다시 시도" }));
+    expect(refetchMock).toHaveBeenCalledTimes(1);
+  });
+
   // Paging must not tear the screen down. Before this, the page-level
   // `isLoading` gate swapped the whole list (toolbar, table, pagination) for
   // a centred spinner on every page click: the document collapsed to a
@@ -148,9 +214,25 @@ describe("OrderListPage", () => {
     render(<OrderListPage />);
 
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
-    expect(screen.getByRole("progressbar", { name: "목록을 업데이트하는 중" })).toBeInTheDocument();
     expect(screen.getByText("Beer")).toBeInTheDocument();
     expect(screen.getByRole("navigation", { name: "페이지 탐색" })).toBeInTheDocument();
+  });
+
+  // The bar waits out `ListUpdatingRegion`'s show delay on purpose, so a page
+  // that resolves from cache or in a few ms never flashes 2px of chrome.
+  it("raises the progress bar once the show delay has passed", () => {
+    vi.useFakeTimers();
+    mockQuery({ isFetching: true, isPlaceholderData: true });
+
+    render(<OrderListPage />);
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+
+    act(() => {
+      vi.advanceTimersByTime(200);
+    });
+
+    expect(screen.getByRole("progressbar", { name: "목록을 업데이트하는 중" })).toBeInTheDocument();
+    vi.useRealTimers();
   });
 
   it("marks the list busy while it is showing a stale page", () => {
@@ -188,6 +270,63 @@ describe("OrderListPage", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("요청이 실패했습니다. (500)");
     fireEvent.click(screen.getByRole("button", { name: "다시 시도" }));
     expect(refetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  // The defect these three tests exist for: `placeholderData` only holds the
+  // previous entry while the new key is *pending*, and lets go the moment
+  // that request fails. An operator reading page 1 who clicked to page 2
+  // used to lose the entire list to a full-screen error.
+  it("keeps the previous page's rows, with an inline error and retry, when a new page's request fails", async () => {
+    await useTheRealOrdersPageQuery();
+    vi.mocked(fetchOrdersPage).mockImplementation(async (listQuery) => {
+      if (listQuery.page === 1) return pageFixture(ORDERS, { page: 1, pageSize: 20, total: 45 });
+      throw new Error("요청이 실패했습니다. (500)");
+    });
+
+    const { rerender } = renderWithQueryClient(<OrderListPage />);
+    expect(await screen.findByText("Beer")).toBeInTheDocument();
+
+    currentSearchParams = new URLSearchParams(`${DATED_SEARCH_PARAMS}&page=2`);
+    rerender(<OrderListPage />);
+
+    expect(
+      await screen.findByText("요청이 실패해 이전에 불러온 목록을 그대로 보여주고 있습니다."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Beer")).toBeInTheDocument();
+    expect(screen.getByRole("table")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "다시 시도" })).toBeInTheDocument();
+  });
+
+  // The rows on screen are page 1's, so the pagination and the total must
+  // say page 1 — the URL asked for page 2, but page 2 never arrived.
+  it("keeps the pagination on the page the retained rows actually came from", async () => {
+    await useTheRealOrdersPageQuery();
+    vi.mocked(fetchOrdersPage).mockImplementation(async (listQuery) => {
+      if (listQuery.page === 1) return pageFixture(ORDERS, { page: 1, pageSize: 20, total: 45 });
+      throw new Error("요청이 실패했습니다. (500)");
+    });
+
+    const { rerender } = renderWithQueryClient(<OrderListPage />);
+    expect(await screen.findByText("Beer")).toBeInTheDocument();
+
+    currentSearchParams = new URLSearchParams(`${DATED_SEARCH_PARAMS}&page=2`);
+    rerender(<OrderListPage />);
+    await screen.findByRole("alert");
+
+    expect(screen.getByRole("button", { name: "1페이지" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByText("총 45건")).toBeInTheDocument();
+  });
+
+  // Nothing ever succeeded, so there are no rows to preserve and the screen
+  // is free to replace itself entirely.
+  it("still replaces the whole screen with an error state when the very first load fails", async () => {
+    await useTheRealOrdersPageQuery();
+    vi.mocked(fetchOrdersPage).mockRejectedValue(new Error("요청이 실패했습니다. (500)"));
+
+    renderWithQueryClient(<OrderListPage />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("주문 내역을 불러오지 못했습니다.");
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
   });
 
   it("shows the empty state when the result is empty with no active filter", () => {

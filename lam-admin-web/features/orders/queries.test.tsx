@@ -66,6 +66,19 @@ describe("useOrdersPageQuery", () => {
       placeholderData: keepPreviousData,
     });
   });
+
+  // A cached page revisited within 30s (or a window-focus refetch) should
+  // not immediately refire — see `ListUpdatingRegion`'s show-delay, which
+  // this staleTime is what makes irrelevant for the common case.
+  it("keeps a fetched page fresh for 30s", () => {
+    const { Wrapper } = createWrapper();
+
+    renderHook(() => useOrdersPageQuery(LIST_QUERY), { wrapper: Wrapper });
+
+    expect(vi.mocked(useQuery).mock.calls.at(-1)?.[0]).toMatchObject({
+      staleTime: 30_000,
+    });
+  });
 });
 
 describe("useOrderCountQuery", () => {

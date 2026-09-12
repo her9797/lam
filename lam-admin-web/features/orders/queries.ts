@@ -37,6 +37,10 @@ export function useOrdersPageQuery(query: OrderListQuery, enabled: boolean = tru
     queryKey: orderKeys.list(query),
     queryFn: () => fetchOrdersPage(query),
     enabled,
+    // A revisited page or a window-focus refetch shouldn't refire against
+    // the server for 30s — pairs with `ListUpdatingRegion`'s show-delay to
+    // keep a cached page revisit silent end to end.
+    staleTime: 30_000,
     // Every page, filter, sort, and date change is a different cache entry,
     // so without a placeholder each one reports `isLoading` again and
     // `OrderListPage`'s page-level loading gate tears the whole list down
